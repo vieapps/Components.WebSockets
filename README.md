@@ -16,7 +16,7 @@ As a client, use the WebSocketClientFactory
 
 ```csharp
 var factory = new WebSocketClientFactory();
-var webSocket = await factory.ConnectAsync(new Uri("wss://example.com")).ConfigureAwait(false);
+var webSocket = await factory.ConnectAsync(new Uri("ws://localhost:8899/")).ConfigureAwait(false);
 ```
 
 As a server, use the WebSocketServerFactory
@@ -76,7 +76,7 @@ The best approach to communicating using a web socket is to send and receive dat
 public async Task Run()
 {
     var factory = new WebSocketClientFactory();
-    var uri = new Uri("ws://localhost:88909/notifications");
+    var uri = new Uri("ws://localhost:8899/notifications");
     using (var webSocket = await factory.ConnectAsync(uri).ConfigureAwait(false))
     {
         // receive loop
@@ -110,7 +110,7 @@ Use Start method to start the client with 6 action parameters:
 - Action<WebSocketConnection, Exception> onConnectionError: Fired when the connection got an error
 
 ```csharp
-var wsClient = new WebSocketClient("ws://24.4.77.3:8899/");
+var wsClient = new WebSocketClient("ws://localhost:8899/");
 wsClient.Start(
     () => Console.WriteLine("The client is stared"),
     (ex) => Console.WriteLine($"Cannot start the client: {ex.Message}"),
