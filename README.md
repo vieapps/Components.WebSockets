@@ -150,6 +150,12 @@ wsServer.Start(
 
 And have a look at static class WebSocketConnectionManager to play aroud with connections
 
+## Namespaces
+```csharp
+using net.vieapps.Components.WebSockets;
+using net.vieapps.Components.Utility;
+```
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE.md file for details
