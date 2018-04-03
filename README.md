@@ -6,7 +6,7 @@ A WebSocket library that allows you to make WebSocket connections as a client or
 You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library.
 This is the same WebSocket abstract class used by .NET Core 2.0 and it allows for asynchronous Websocket communication for improved performance and scalability.
 
-## Getting started (from the ground)
+## From the ground
 
 As a client, use the WebSocketClientFactory
 
@@ -90,7 +90,7 @@ public async Task Run()
 }
 ```
 
-## Fly on the sky with Event drivent
+## Fly on the sky with Event-liked driven
 
 As a client, use the WebSocketClient
 
@@ -100,7 +100,7 @@ Use Start method to start the client with 6 action parameters:
 
 - Action onSuccess: Fired when the client is started successfully
 - Action<Exception> onFailed: Fired when the client is failed to start
-- Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived: Fired when got a message that sent from a server
+- Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment&lg;byte&gt;> onMessageReceived: Fired when got a message that sent from a server
 - Action<WebSocketConnection> onConnectionEstablished: Fired when the connection is established
 - Action<WebSocketConnection> onConnectionBroken: Fired when the connection is broken
 - Action<WebSocketConnection, Exception> onConnectionError: Fired when the connection got an error
@@ -111,9 +111,9 @@ wsClient.Start(
     () => Console.WriteLine("The client is stared"),
     (ex) => Console.WriteLine($"Cannot start the client: {ex.Message}"),
     (conn, result, buffer) => Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}"),
-    (conn) => Console.WriteLine($"Client got an open connection: {conn.IsWebSocketClientConnection}"),
-    (conn) => Console.WriteLine($"Client got a broken connection: {conn.IsWebSocketClientConnection}"),
-    (conn, ex) => Console.WriteLine($"Client got an error of a connection: {conn.IsWebSocketClientConnection}")
+    (conn) => Console.WriteLine($"Client got an open connection: {conn.ID} - {conn.EndPoint}"),
+    (conn) => Console.WriteLine($"Client got a broken connection: {conn.ID} - {conn.EndPoint}"),
+    (conn, ex) => Console.WriteLine($"Client got an error of a connection: {conn.ID} -> {ex.Message}")
 );
 
 ```
@@ -126,7 +126,7 @@ Use Start method to start the server with 6 action parameters:
 
 - Action onSuccess: Fired when the server is started successfully
 - Action<Exception> onFailed: Fired when the server is failed to start
-- Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived: Fired when got a message that sent from a client
+- Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment&lg;byte&gt;> onMessageReceived: Fired when got a message that sent from a client
 - Action<WebSocketConnection> onConnectionEstablished: Fired when the connection is established
 - Action<WebSocketConnection> onConnectionBroken: Fired when the connection is broken
 - Action<WebSocketConnection, Exception> onConnectionError: Fired when the connection got an error
@@ -137,9 +137,9 @@ wsServer.Start(
     () => Console.WriteLine("The server is stared"),
     (ex) => Console.WriteLine($"Cannot start the server: {ex.Message}"),
     (conn, result, buffer) => Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}"),
-    (conn) => Console.WriteLine($"Server got an open connection: {conn.IsWebSocketClientConnection}"),
-    (conn) => Console.WriteLine($"Server got a broken connection: {conn.IsWebSocketClientConnection}"),
-    (conn, ex) => Console.WriteLine($"Server got an error of a connection: {conn.IsWebSocketClientConnection}")
+    (conn) => Console.WriteLine($"Server got an open connection: {conn.ID} - {conn.EndPoint}"),
+    (conn) => Console.WriteLine($"Server got a broken connection: {conn.ID} - {conn.EndPoint}"),
+    (conn, ex) => Console.WriteLine($"Server got an error of a connection: {conn.ID} -> {ex.Message}")
 );
 
 ```
