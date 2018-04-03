@@ -6,6 +6,10 @@ A WebSocket library that allows you to make WebSocket connections as a client or
 You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library.
 This is the same WebSocket abstract class used by .NET Core 2.0 and it allows for asynchronous Websocket communication for improved performance and scalability.
 
+## NuGet
+- Package ID: VIEApps.Components.Utility
+- Details: https://www.nuget.org/packages/VIEApps.Components.WebSockets/
+
 ## From the ground
 
 As a client, use the WebSocketClientFactory
