@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
+		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
+		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
+		<AssemblyVersion>10.1.14.1804</AssemblyVersion>
+		<FileVersion>10.1.14.1804</FileVersion>
+		<InformationalVersion>v10.1.netstandard-2+rev:2018.04.01</InformationalVersion>
+		<Product>VIEApps NGX</Product>
+		<Company>VIEApps.net</Company>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<PackageId>VIEApps.Components.WebSockets</PackageId>
+		<Version>10.1.14.1804</Version>
+		<SignAssembly>false</SignAssembly>
+		<DelaySign>false</DelaySign>
+		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
+		<Title>VIEApps NGX WebSockets</Title>
+		<Description>An implementation of WebSocket (both client and server) on .NET Standard 2.0</Description>
+		<Authors>VIEApps.net</Authors>
+		<Copyright>© 2018 VIEApps.net</Copyright>
+		<PackageTags>utility;vieapps;vieapps.components;websockets;websocket</PackageTags>
+		<PackageReleaseNotes></PackageReleaseNotes>
+		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<WarningLevel>3</WarningLevel>
+		<DocumentationFile>bin\Debug\netstandard2.0\VIEApps.Components.WebSockets.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<WarningLevel>3</WarningLevel>
+		<DocumentationFile>bin\Release\netstandard2.0\VIEApps.Components.WebSockets.xml</DocumentationFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove=".DS_Store" />
+		<None Remove=".gitattributes" />
+		<None Remove=".gitignore" />
+		<None Remove="LICENSE" />
+		<None Remove="README.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.0.1" />
+		<PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="1.2.2" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.1.14.1804" />
+	</ItemGroup>
+
+</Project>

@@ -1,0 +1,42 @@
+﻿#region Related components
+using System.IO;
+using System.Net.WebSockets;
+using System.Threading;
+using System.Threading.Tasks;
+#endregion
+
+namespace net.vieapps.Components.WebSockets
+{
+    /// <summary>
+    /// Web socket server factory used to open web socket server connections
+    /// </summary>
+    public interface IWebSocketServerFactory
+    {
+        /// <summary>
+        /// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocot upgrade
+        /// </summary>
+        /// <param name="stream">The network stream</param>
+        /// <param name="cancellationToken">The optional cancellation token</param>
+        /// <returns>Http data read from the stream</returns>
+        Task<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Accept web socket with default options
+        /// Call ReadHttpHeaderFromStreamAsync first to get WebSocketHttpContext
+        /// </summary>
+        /// <param name="context">The http context used to initiate this web socket request</param>
+        /// <param name="cancellationToken">The optional cancellation token</param>
+        /// <returns>A connected web socket</returns>
+        Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Accept web socket with options specified
+        /// Call ReadHttpHeaderFromStreamAsync first to get WebSocketHttpContext
+        /// </summary>
+        /// <param name="context">The http context used to initiate this web socket request</param>
+        /// <param name="options">The web socket options</param>
+        /// <param name="cancellationToken">The optional cancellation token</param>
+        /// <returns>A connected web socket</returns>
+        Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken);
+    }
+}

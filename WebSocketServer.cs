@@ -1,0 +1,353 @@
+﻿#region Related components
+using System;
+using System.Linq;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Net.WebSockets;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+using Microsoft.IO;
+using Microsoft.Extensions.Logging;
+
+using net.vieapps.Components.Utility;
+using net.vieapps.Components.WebSockets.Internal;
+#endregion
+
+namespace net.vieapps.Components.WebSockets
+{
+	public class WebSocketServer : IDisposable
+	{
+
+		#region Attributes
+		IWebSocketServerFactory _wsFactory;
+		ILogger _logger;
+		TcpListener _listener;
+		int _port = 8899;
+		TimeSpan _keepAliveInterval = TimeSpan.Zero;
+		int _awaitInterval = 0;
+		public CancellationTokenSource _cancellationTokenSource = null;
+		bool _isDisposed = false, _isRunning = false;
+		#endregion
+
+		/// <summary>
+		/// Creates new instance of WebSocket Server
+		/// </summary>
+		/// <param name="port">Port for listening</param>
+		/// <param name="keepAliveInterval">The Keep-Alice interval (in seconds)</param>
+		/// <param name="awaitInterval">The awaiting interval while receiving messages (miniseconds)</param>
+		/// <param name="loggerFactory">The logger factory</param>
+		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream (this can be used with the Microsoft.IO.RecyclableMemoryStreamManager class)</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		public WebSocketServer(int port, TimeSpan keepAliveInterval, int awaitInterval = 0, ILoggerFactory loggerFactory = null, Func<MemoryStream> recycledStreamFactory = null, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			Logger.AssignLoggerFactory(loggerFactory);
+			this._port = port;
+			this._keepAliveInterval = keepAliveInterval;
+			this._awaitInterval = awaitInterval;
+			this._wsFactory = new WebSocketServerFactory(recycledStreamFactory);
+			this._logger = Logger.CreateLogger<WebSocketServer>();
+			this._cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+		}
+
+		#region Start & Stop
+		/// <summary>
+		/// Starts this server
+		/// </summary>
+		/// <param name="onSuccess">Fired when the server is started successfully</param>
+		/// <param name="onFailed">Fired when the server is failed to start</param>
+		/// <param name="onMessageReceived">Fired when a connection got a message that sent from a client</param>
+		/// <param name="onConnectionEstablished">Fired when a connection is established</param>
+		/// <param name="onConnectionBroken">Fired when a connection is broken</param>
+		/// <param name="onConnectionError">Fired when a connection got an error</param>
+		/// <returns></returns>
+		public async Task StartAsync(Action onSuccess = null, Action<Exception> onFailed = null, Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, Exception> onConnectionError = null)
+		{
+			// connect
+			try
+			{
+				this._listener = new TcpListener(IPAddress.Any, this._port);
+				this._listener.Start();
+				this._isRunning = true;
+				onSuccess?.Invoke();
+
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Server is started - Listening on port \"{this._port}\"");
+			}
+			catch (SocketException ex)
+			{
+				var message = $"Error occurred while listening on port \"{this._port}\". Make sure another application is not running and consuming this port.";
+				this._logger.LogError(ex, message);
+				onFailed?.Invoke(new Exception(message, ex));
+			}
+			catch (Exception ex)
+			{
+				this._logger.LogError(ex, $"Got an unexpected error when start server: {ex.Message}");
+				onFailed?.Invoke(ex);
+			}
+
+			// process requests
+			while (this._listener != null && this._isRunning)
+			{
+				TcpClient tcpClient = null;
+				try
+				{
+					tcpClient = await this._listener.AcceptTcpClientAsync().ConfigureAwait(false);
+				}
+				catch (ObjectDisposedException) { }
+				catch (InvalidOperationException) { }
+				catch (IOException) { }
+				catch (Exception ex)
+				{
+					this._logger.LogError(ex, $"Got an unexpected error when listen: {ex.Message}");
+				}
+
+				if (tcpClient != null)
+				{
+					var handler = Task.Run(async () =>
+					{
+						await this.ProcessRequestAsync(tcpClient, onMessageReceived, onConnectionEstablished, onConnectionBroken, onConnectionError).ConfigureAwait(false);
+					}).ConfigureAwait(false);
+				}
+			}
+
+			if (this._logger.IsEnabled(LogLevel.Information))
+				this._logger.LogInformation("Server is stoped");
+		}
+
+		/// <summary>
+		/// Starts this server
+		/// </summary>
+		/// <param name="onSuccess">Fired when the server is started successfully</param>
+		/// <param name="onFailed">Fired when the server is failed to start</param>
+		/// <param name="onMessageReceived">Fired when a connection got a message that sent from a client</param>
+		/// <param name="onConnectionEstablished">Fired when a connection is established</param>
+		/// <param name="onConnectionBroken">Fired when a connection is broken</param>
+		/// <param name="onConnectionError">Fired when a connection got error</param>
+		/// <returns></returns>
+		public void Start(Action onSuccess = null, Action<Exception> onFailed = null, Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, Exception> onConnectionError = null)
+		{
+			Task.Run(async () =>
+			{
+				await this.StartAsync(onSuccess, onFailed, onMessageReceived, onConnectionEstablished, onConnectionBroken, onConnectionError).ConfigureAwait(false);
+			}).ConfigureAwait(false);
+		}
+
+		async Task ProcessRequestAsync(TcpClient tcpClient, Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived, Action<WebSocketConnection> onConnectionEstablished, Action<WebSocketConnection> onConnectionBroken, Action<WebSocketConnection, Exception> onConnectionError)
+		{
+			if (this._logger.IsEnabled(LogLevel.Information))
+				this._logger.LogInformation("Connection is opened, then reading HTTP header from the stream");
+
+			WebSocketConnection wsConnection = null;
+			try
+			{
+				// connect
+				var stream = tcpClient.GetStream();
+				var context = await this._wsFactory.ReadHttpHeaderFromStreamAsync(stream, this._cancellationTokenSource.Token).ConfigureAwait(false);
+				if (!context.IsWebSocketRequest)
+				{
+					if (this._logger.IsEnabled(LogLevel.Information))
+						this._logger.LogInformation("HTTP header contains no WebSocket upgrade request, then close the connection");
+					return;
+				}
+
+				// hand-shake
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
+
+				wsConnection = new WebSocketConnection()
+				{
+					WebSocket = await this._wsFactory.AcceptWebSocketAsync(context, new WebSocketServerOptions() { KeepAliveInterval = this._keepAliveInterval }, this._cancellationTokenSource.Token).ConfigureAwait(false),
+					Time = DateTime.Now,
+					EndPoint = tcpClient.Client.RemoteEndPoint.ToString()
+				};
+				WebSocketConnectionManager.Add(wsConnection);
+				onConnectionEstablished?.Invoke(wsConnection);
+				if (this._logger.IsEnabled(LogLevel.Information))
+				{
+					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
+					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
+				}
+
+				// process messages
+				var @continue = true;
+				while (@continue)
+				{
+					@continue = await this.ReceiveAsync(wsConnection, onMessageReceived, onConnectionBroken, onConnectionError).ConfigureAwait(false);
+					if (@continue && this._awaitInterval > 0)
+						await Task.Delay(this._awaitInterval, this._cancellationTokenSource.Token).ConfigureAwait(false);
+				}
+
+				// no more
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Connection is closed ({wsConnection.ID} @ {wsConnection.EndPoint})");
+			}
+			catch (ObjectDisposedException) { }
+			catch (OperationCanceledException)
+			{
+				await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", CancellationToken.None).ConfigureAwait(false);
+				WebSocketConnectionManager.Remove(wsConnection);
+
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Connection is closed (cancellation) ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
+			}
+			catch (Exception ex)
+			{
+				if (wsConnection != null && wsConnection.WebSocket.State == WebSocketState.Open)
+				{
+					await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", CancellationToken.None).ConfigureAwait(false);
+					WebSocketConnectionManager.Remove(wsConnection);
+				}
+
+				if (!(ex is IOException))
+					this._logger.LogError(ex, $"Got an unexpected error when process client request: {ex.Message}");
+			}
+			finally
+			{
+				try
+				{
+					tcpClient?.Client.Close();
+					tcpClient?.Close();
+				}
+				catch (Exception ex)
+				{
+					this._logger.LogError(ex, $"Failed to close the TCP connection: {ex.Message}");
+				}
+			}
+		}
+
+		/// <summary>
+		/// Stops this server
+		/// </summary>
+		public void Stop()
+		{
+			// close all connections
+			var connections = this.Connections;
+			Task.Run(async () =>
+			{
+				await connections.ForEachAsync((connection, token) => connection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", token)).ConfigureAwait(false);
+			}).ConfigureAwait(false);
+
+			// call to cancel all pending processes
+			this._cancellationTokenSource.Cancel();
+
+			// safely attempt to shut down the listener
+			if (this._listener != null)
+				try
+				{
+					this._listener.Server?.Close();
+					this._listener.Stop();
+				}
+				catch (Exception ex)
+				{
+					this._logger.LogError(ex, $"Error occurred while disposing listener: {ex.Message}");
+				}
+
+			// remove all connections that are connected to this server
+			connections.ForEach(connection => WebSocketConnectionManager.Remove(connection));
+
+			// update state
+			this._isRunning = false;
+		}
+		#endregion
+
+		#region Send & Receive
+		/// <summary>
+		/// Sends the message to a WebSocket connection that is connected with this server
+		/// </summary>
+		/// <param name="id">The identity of a WebSocket connection to send</param>
+		/// <param name="buffer">The buffer containing data to send</param>
+		/// <param name="messageType">The message type. Can be Text or Binary</param>
+		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
+		/// <param name="cancellationToken">the cancellation token</param>
+		public async Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			await WebSocketConnectionManager.SendAsync(id, buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Sends the message to all WebSocket connections that are connected with this server
+		/// </summary>
+		/// <param name="buffer">The buffer containing data to send</param>
+		/// <param name="messageType">The message type. Can be Text or Binary</param>
+		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
+		/// <param name="cancellationToken">the cancellation token</param>
+		public async Task SendAllAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			await WebSocketConnectionManager.SendAsync(connection => !connection.IsWebSocketClientConnection, buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
+		}
+
+		async Task<bool> ReceiveAsync(WebSocketConnection wsConnection, Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived, Action<WebSocketConnection> onConnectionBroken, Action<WebSocketConnection, Exception> onConnectionError)
+		{
+			// receive the message
+			this._cancellationTokenSource.Token.ThrowIfCancellationRequested();
+			var buffer = new ArraySegment<byte>(new byte[WebSocketConnection.BufferLength]);
+			var result = await wsConnection.WebSocket.ReceiveAsync(buffer, this._cancellationTokenSource.Token).ConfigureAwait(false);
+			this._cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+			// message to close
+			if (result.MessageType == WebSocketMessageType.Close)
+			{
+				WebSocketConnectionManager.Remove(wsConnection);
+				onConnectionBroken?.Invoke(wsConnection);
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Client is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({wsConnection.ID} @ {wsConnection.EndPoint})");
+				return false;
+			}
+
+			// exceed buffer size
+			if (result.Count > WebSocketConnection.BufferLength)
+			{
+				var message = $"WebSocket frame cannot exceed buffer size of {WebSocketConnection.BufferLength:#,##0} bytes";
+				await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", this._cancellationTokenSource.Token).ConfigureAwait(false);
+				WebSocketConnectionManager.Remove(wsConnection);
+				onConnectionBroken?.Invoke(wsConnection);
+				onConnectionError?.Invoke(wsConnection, new InvalidOperationException(message));
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Close the connection because {message} ({wsConnection.ID} @ {wsConnection.EndPoint})");
+				return false;
+			}
+
+			// got a message
+			if (result.Count > 0)
+			{
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogInformation($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({wsConnection.ID} @ {wsConnection.EndPoint})");
+				onMessageReceived?.Invoke(wsConnection, result, buffer);
+			}
+
+			// true to continue
+			return true;
+		}
+		#endregion
+
+		/// <summary>
+		/// Gets the connections of all current WebSocket clients that are connected with this server
+		/// </summary>
+		public List<WebSocketConnection> Connections
+		{
+			get
+			{
+				return WebSocketConnectionManager.Connections.Where(kvp => !kvp.Value.IsWebSocketClientConnection).Select(kvp => kvp.Value).ToList();
+			}
+		}
+
+		public void Dispose()
+		{
+			if (!this._isDisposed)
+			{
+				this.Stop();
+				this._cancellationTokenSource.Dispose();
+				this._isDisposed = true;
+			}
+		}
+
+		~WebSocketServer()
+		{
+			this.Dispose();
+			GC.SuppressFinalize(this);
+		}
+	}
+}
