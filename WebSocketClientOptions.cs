@@ -1,9 +1,5 @@
-﻿#region Related components
-using System;
-using System.Text;
+﻿using System;
 using System.Collections.Generic;
-#endregion
-
 namespace net.vieapps.Components.WebSockets
 {
     /// <summary>

@@ -1,5 +1,4 @@
 ﻿using System;
-
 namespace net.vieapps.Components.WebSockets
 {
     /// <summary>

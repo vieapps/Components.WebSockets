@@ -1,11 +1,11 @@
 ﻿#region Related components
 using System;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Net;
-using System.IO;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Threading;
@@ -25,7 +25,7 @@ namespace net.vieapps.Components.WebSockets
 	/// </summary>
 	public class WebSocketConnection : IDisposable
 	{
-		internal static int BufferLength = 4 * 1024 * 1024;
+		internal const int BufferLength = 4 * 1024 * 1024;
 		const int DefaultBlockSize = 16 * 1024;
 		const int MaxBufferSize = 128 * 1024;
 

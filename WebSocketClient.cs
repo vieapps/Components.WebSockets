@@ -9,11 +9,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 
-using Microsoft.IO;
 using Microsoft.Extensions.Logging;
 
 using net.vieapps.Components.Utility;
-using net.vieapps.Components.WebSockets.Internal;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
