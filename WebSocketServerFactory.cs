@@ -20,20 +20,12 @@ namespace net.vieapps.Components.WebSockets
         Func<MemoryStream> _recycledStreamFactory;
 
         /// <summary>
-        /// Initialises a new instance of the WebSocketServerFactory class without caring about internal buffers
-        /// </summary>
-        public WebSocketServerFactory()
-        {
-			this._recycledStreamFactory = WebSocketConnection.GetRecyclableMemoryStreamFactory();
-        }
-
-        /// <summary>
-        /// Initialises a new instance of the WebSocketClientFactory class with control over internal buffer creation
+        /// Initialises a new instance of the WebSocketClientFactory class
         /// </summary>
         /// <param name="recycledStreamFactory">Used to get a recyclable memory stream. 
         /// This can be used with the RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
         /// </param>
-        public WebSocketServerFactory(Func<MemoryStream> recycledStreamFactory)
+        public WebSocketServerFactory(Func<MemoryStream> recycledStreamFactory = null)
         {
             this._recycledStreamFactory = recycledStreamFactory ?? WebSocketConnection.GetRecyclableMemoryStreamFactory();
         }

@@ -50,12 +50,12 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Fired when the server is failed to start
 		/// </summary>
-		public Action<Exception> OnStartFailed = (ex) => { };
+		public Action<Exception> OnStartFailed { get; set; } = (ex) => { };
 
 		/// <summary>
 		/// Fired when the server got any error exception while processing/receiving
 		/// </summary>
-		public Action<Exception> OnError = (ex) => { };
+		public Action<Exception> OnError { get; set; } = (ex) => { };
 
 		/// <summary>
 		/// Fired when a connection is established
@@ -149,6 +149,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					this._logger.LogError(uex, $"(OnStartSuccess): {uex.Message}");
 				}
+
 				try
 				{
 					this.OnError?.Invoke(new Exception(message, ex));

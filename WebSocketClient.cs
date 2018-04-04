@@ -43,7 +43,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Fired when the client is failed to start
 		/// </summary>
-		public Action<Exception> OnStartFailed = (ex) => { };
+		public Action<Exception> OnStartFailed { get; set; } = (ex) => { };
 
 		/// <summary>
 		/// Fired when the client got an error exception while processing/receiving
@@ -69,7 +69,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Creates new instance of WebSocket Client
 		/// </summary>
-		/// <param name="location">The address of endpoint (ex: ws://localshost:8899/)</param>
+		/// <param name="location">The address of endpoint (ex: ws://localshost:56789/ or wss://example.com:443/)</param>
 		/// <param name="awaitInterval">The awaiting interval while receiving messages (miniseconds)</param>
 		/// <param name="loggerFactory">The logger factory</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream (this can be used with the Microsoft.IO.RecyclableMemoryStreamManager class)</param>
