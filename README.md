@@ -124,10 +124,10 @@ wsClient.Start(
 
 ```
 
-Or if you don't like these function parameters, just assign event handlers by you code
+Or if you don't like these function parameters, just assign event handlers by your code
 
 ```csharp
-var wsClient = new WebSocketClient("ws://localhost:8899/")
+var wsClient = new WebSocketClient("ws://localhost:56789/")
 {
     OnStartSuccess = () =>
     {
@@ -185,7 +185,7 @@ wsServer.Start(
 
 ```
 
-Or if you don't like these function parameters, just assign event handlers by you code
+Or if you don't like these function parameters, just assign event handlers by your code
 
 ```csharp
 var wsServer = new WebSocketServer(56789)
@@ -217,6 +217,8 @@ var wsServer = new WebSocketServer(56789)
 };
 wsServer.Start();
 ```
+
+And if you want to see all current connections of the server, then take a look at property "Connections" of the server.
 
 ### WebSocketConnectionManager
 
