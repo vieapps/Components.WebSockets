@@ -6,11 +6,11 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Security.Cryptography.X509Certificates;
 
 using net.vieapps.Components.Utility;
 
@@ -42,9 +42,9 @@ namespace net.vieapps.Components.WebSockets
         /// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns>A connected web socket instance</returns>
-        public async Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken)
+        public Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken)
         {
-            return await this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken).ConfigureAwait(false);
+            return this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken);
         }
 
         /// <summary>
@@ -92,9 +92,9 @@ namespace net.vieapps.Components.WebSockets
         /// <param name="options">The WebSocket client options</param>
         /// <param name="cancellationToken">The optional cancellation token</param>
         /// <returns></returns>
-        public async Task<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
+        public Task<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
-            return await this.ConnectAsync(Guid.NewGuid(), responseStream, secWebSocketKey, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse, cancellationToken).ConfigureAwait(false);
+            return this.ConnectAsync(Guid.NewGuid(), responseStream, secWebSocketKey, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse, cancellationToken);
         }
 
         async Task<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)

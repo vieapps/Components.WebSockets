@@ -1,10 +1,14 @@
 ﻿#region Related components
 using System;
 using System.IO;
+using System.Net;
 using System.Net.WebSockets;
+using System.Net.Security;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 using net.vieapps.Components.WebSockets.Exceptions;
 using net.vieapps.Components.WebSockets.Internal;
@@ -126,6 +130,16 @@ namespace net.vieapps.Components.WebSockets
                 await HttpHelper.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", stream, cancellationToken).ConfigureAwait(false);
                 throw;
             }
-        }        
-    }
+        }
+
+		public static Task Authenticate(Stream stream, X509Certificate2 certificate, SslProtocols enabledSslProtocols, Action callback, Action<Exception> error)
+		{
+			var ssl = new SslStream(stream, false);
+			stream = new QueuedStream(ssl);
+			IAsyncResult begin(AsyncCallback cb, object s) => ssl.BeginAuthenticateAsServer(certificate, false, enabledSslProtocols, false, cb, s);
+			var task = Task.Factory.FromAsync(begin, ssl.EndAuthenticateAsServer, null);
+			task.ContinueWith(t => callback(), TaskContinuationOptions.NotOnFaulted).ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
+			return task;
+		}
+	}
 }

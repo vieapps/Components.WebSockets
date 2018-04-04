@@ -50,7 +50,7 @@ namespace net.vieapps.Components.WebSockets
             this._stopwatch = Stopwatch.StartNew();
 
 			this._pingTask = keepAliveInterval == TimeSpan.Zero
-				? Task.FromResult(0)
+				? Task.CompletedTask
 				: Task.Run(this.PingForeverAsync, cancellationToken);
         }
 
@@ -59,9 +59,9 @@ namespace net.vieapps.Components.WebSockets
         /// </summary>
         /// <param name="payload">The payload (must be 125 bytes of less)</param>
         /// <param name="cancellationToken">The cancellation token</param>
-        public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken))
+        public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken))
         {
-            await this._webSocket.SendPingAsync(payload, cancellationToken).ConfigureAwait(false);
+            return this._webSocket.SendPingAsync(payload, cancellationToken);
         }
 
         protected virtual void OnPong(PongEventArgs args)
