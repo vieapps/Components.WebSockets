@@ -19,9 +19,9 @@
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>An implementation of WebSocket (both client and server) on .NET Standard 2.0</Description>
 		<Authors>VIEApps.net</Authors>
-		<Copyright>© 2018 VIEApps.net</Copyright>
+		<Copyright>© 2017 NinjaSource, © 2018 VIEApps.net</Copyright>
 		<PackageTags>utility;vieapps;vieapps.components;websockets;websocket</PackageTags>
-		<PackageReleaseNotes></PackageReleaseNotes>
+		<PackageReleaseNotes>Migrated from the fork of Ninja Source and integrated with client, server and connection manager</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>

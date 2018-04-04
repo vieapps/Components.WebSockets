@@ -186,11 +186,10 @@ namespace net.vieapps.Components.WebSockets.Internal
 			{
 				var opCode = this.GetOppCode(messageType);
 
+				// NOTE: Compression is currently work in progress and should NOT be used in this library.
+				// The code below is very inefficient for small messages. Ideally we would like to have some sort of moving window
+				// of data to get the best compression. And we don't want to create new buffers which is bad for GC.
 				if (this._usePerMessageDeflate)
-				{
-					// NOTE: Compression is currently work in progress and should NOT be used in this library.
-					// The code below is very inefficient for small messages. Ideally we would like to have some sort of moving window
-					// of data to get the best compression. And we don't want to create new buffers which is bad for GC.
 					using (var temp = new MemoryStream())
 					{
 						var deflateStream = new DeflateStream(temp, CompressionMode.Compress);
@@ -200,7 +199,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 						WebSocketFrameWriter.Write(opCode, compressedBuffer, stream, endOfMessage, this._isClient);
 						Events.Log.SendingFrame(this._guid, opCode, endOfMessage, compressedBuffer.Count, true);
 					}
-				}
+
 				else
 				{
 					WebSocketFrameWriter.Write(opCode, buffer, stream, endOfMessage, this._isClient);
@@ -321,10 +320,10 @@ namespace net.vieapps.Components.WebSockets.Internal
 		/// <summary>
 		/// Called when a Pong frame is received
 		/// </summary>
-		/// <param name="e"></param>
-		protected virtual void OnPong(PongEventArgs e)
+		/// <param name="args"></param>
+		protected virtual void OnPong(PongEventArgs args)
 		{
-			this.Pong?.Invoke(this, e);
+			this.Pong?.Invoke(this, args);
 		}
 
 		/// <summary>

@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace net.vieapps.Components.WebSockets.Exceptions
 {
@@ -13,13 +11,9 @@ namespace net.vieapps.Components.WebSockets.Exceptions
 
         public string ResponseDetails { get; private set; }
 
-        public InvalidHttpResponseCodeException() : base()
-        {
-        }
+        public InvalidHttpResponseCodeException() : base() { }
 
-        public InvalidHttpResponseCodeException(string message) : base(message)
-        {
-        }
+        public InvalidHttpResponseCodeException(string message) : base(message) { }
 
         public InvalidHttpResponseCodeException(string responseCode, string responseDetails, string responseHeader) : base(responseCode)
         {
@@ -28,8 +22,6 @@ namespace net.vieapps.Components.WebSockets.Exceptions
             ResponseHeader = responseHeader;
         }
 
-        public InvalidHttpResponseCodeException(string message, Exception inner) : base(message, inner)
-        {
-        }
+        public InvalidHttpResponseCodeException(string message, Exception inner) : base(message, inner) { }
     }
 }

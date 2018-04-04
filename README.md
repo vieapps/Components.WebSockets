@@ -10,13 +10,13 @@ This is the same WebSocket abstract class used by .NET Core 2.0 and it allows fo
 - Package ID: VIEApps.Components.Utility
 - Details: https://www.nuget.org/packages/VIEApps.Components.WebSockets/
 
-## From the ground
+## Walking on the ground
 
 As a client, use the WebSocketClientFactory
 
 ```csharp
 var factory = new WebSocketClientFactory();
-var webSocket = await factory.ConnectAsync(new Uri("ws://localhost:8899/")).ConfigureAwait(false);
+var webSocket = await factory.ConnectAsync(new Uri("ws://localhost:56789/")).ConfigureAwait(false);
 ```
 
 As a server, use the WebSocketServerFactory
@@ -33,7 +33,7 @@ if (context.IsWebSocketRequest)
 ```
 ## Using the WebSocket class
 
-Client and Server send and receive data the same way.
+Client and Server send and receive data in the same way.
 
 ### Receiving data:
 
@@ -76,7 +76,7 @@ The best approach to communicating using a web socket is to send and receive dat
 public async Task Run()
 {
     var factory = new WebSocketClientFactory();
-    var uri = new Uri("ws://localhost:8899/notifications");
+    var uri = new Uri("ws://localhost:56789/notifications");
     using (var webSocket = await factory.ConnectAsync(uri).ConfigureAwait(false))
     {
         // receive loop
@@ -89,12 +89,14 @@ public async Task Run()
         await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None).ConfigureAwait(false);
 
         // wait for server to respond with a close frame
-        await readTask.ConfigureAwait(false); 
+        await readTask.ConfigureAwait(false);
     }
 }
 ```
 
 ## Fly on the sky with Event-liked driven
+
+### WebSocketClient
 
 As a client, use the WebSocketClient
 
@@ -102,60 +104,126 @@ Use constructor with URI of the end-point want to connect to
 
 Use Start method to start the client with 6 action parameters:
 
-- Action onSuccess: Fired when the client is started successfully
-- Action<Exception> onFailed: Fired when the client is failed to start
-- Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment&lg;byte&gt;> onMessageReceived: Fired when got a message that sent from a server
-- Action<WebSocketConnection> onConnectionEstablished: Fired when the connection is established
-- Action<WebSocketConnection> onConnectionBroken: Fired when the connection is broken
-- Action<WebSocketConnection, Exception> onConnectionError: Fired when the connection got an error
+- onStartSuccess: Fired when the client is started successfully
+- onStarFailed: Fired when the client is failed to start
+- onError: Fired when the client got an error exception while processing/receiving
+- onConnectionEstablished: Fired when the connection is established
+- onConnectionBroken: Fired when the connection is broken
+- onMessageReceived: Fired when the client got a message
 
 ```csharp
 var wsClient = new WebSocketClient("ws://localhost:8899/");
 wsClient.Start(
     () => Console.WriteLine("The client is stared"),
     (ex) => Console.WriteLine($"Cannot start the client: {ex.Message}"),
-    (conn, result, buffer) => Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}"),
+    (ex) => Console.WriteLine($"Client got an error: {ex.Message}"),
     (conn) => Console.WriteLine($"Client got an open connection: {conn.ID} - {conn.EndPoint}"),
     (conn) => Console.WriteLine($"Client got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, ex) => Console.WriteLine($"Client got an error of a connection: {conn.ID} -> {ex.Message}")
+    (conn, result, buffer) => Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}")
 );
 
 ```
+
+Or if you don't like these function parameters, just assign event handlers by you code
+
+```csharp
+var wsClient = new WebSocketClient("ws://localhost:8899/")
+{
+    OnStartSuccess = () =>
+    {
+        Console.WriteLine("The client is stared");
+    },
+    OnStartFailed = (ex) =>
+    {
+        Console.WriteLine($"Cannot start the client: {ex.Message}");
+    },
+    OnError = (ex) =>
+    {
+        Console.WriteLine($"Client got an error: {ex.Message}");
+    },
+    OnConnectionEstablished = (conn) =>
+    {
+        Console.WriteLine($"Client got an open connection: {conn.ID}");
+    },
+    OnConnectionBroken = (conn) =>
+    {
+        Console.WriteLine($"Client got a broken connection: {conn.ID}");
+    },
+    OnMessageReceived = (conn, result, buffer) =>
+    {
+        Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}");
+    }
+};
+wsClient.Start();
+
+```
+### WebSocketServer
 
 As a server, use the WebSocketServer
 
-Use constructor with port for listing all incomming request
+Use constructor with port for listing all incomming requests
 
 Use Start method to start the server with 6 action parameters:
 
-- Action onSuccess: Fired when the server is started successfully
-- Action<Exception> onFailed: Fired when the server is failed to start
-- Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment&lg;byte&gt;> onMessageReceived: Fired when got a message that sent from a client
-- Action<WebSocketConnection> onConnectionEstablished: Fired when the connection is established
-- Action<WebSocketConnection> onConnectionBroken: Fired when the connection is broken
-- Action<WebSocketConnection, Exception> onConnectionError: Fired when the connection got an error
+- onStartSuccess: Fired when the server is started successfully
+- onStarFailed: Fired when the server is failed to start
+- onError: Fired when the server got an error exception while processing/receiving
+- onConnectionEstablished: Fired when the connection is established
+- onConnectionBroken: Fired when the connection is broken
+- onMessageReceived: Fired when the server got a message
 
 ```csharp
-var wsServer = new WebSocketServer(8899);
+var wsServer = new WebSocketServer(56789);
 wsServer.Start(
     () => Console.WriteLine("The server is stared"),
     (ex) => Console.WriteLine($"Cannot start the server: {ex.Message}"),
-    (conn, result, buffer) => Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}"),
+    (ex) => Console.WriteLine($"Server got an error: {ex.Message}"),
     (conn) => Console.WriteLine($"Server got an open connection: {conn.ID} - {conn.EndPoint}"),
     (conn) => Console.WriteLine($"Server got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, ex) => Console.WriteLine($"Server got an error of a connection: {conn.ID} -> {ex.Message}")
+    (conn, result, buffer) => Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}")
 );
 
 ```
 
-And have a look at static class WebSocketConnectionManager to play aroud with connections
+Or if you don't like these function parameters, just assign event handlers by you code
+
+```csharp
+var wsServer = new WebSocketServer(56789)
+{
+    OnStartSuccess = () =>
+    {
+        Console.WriteLine("The server is stared");
+    },
+    OnStartFailed = (ex) =>
+    {
+        Console.WriteLine($"Cannot start the server: {ex.Message}");
+    },
+    OnError = (ex) =>
+    {
+        Console.WriteLine($"Server got an error: {ex.Message}");
+    },
+    OnConnectionEstablished = (conn) =>
+    {
+        Console.WriteLine($"Server got an open connection: {conn.ID}");
+    },
+    OnConnectionBroken = (conn) =>
+    {
+        Console.WriteLine($"Server got a broken connection: {conn.ID}");
+    },
+    OnMessageReceived = (conn, result, buffer) =>
+    {
+        Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}");
+    }
+};
+wsServer.Start();
+```
+
+### WebSocketConnectionManager
+
+And take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
 
 ## Namespaces
 ```csharp
 using net.vieapps.Components.WebSockets;
 using net.vieapps.Components.Utility;
 ```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE.md file for details
