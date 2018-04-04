@@ -327,7 +327,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				if (wsConnection != null && wsConnection.WebSocket.State == WebSocketState.Open)
+				if (wsConnection != null && wsConnection != null && wsConnection.WebSocket.State == WebSocketState.Open)
 				{
 					await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(wsConnection);

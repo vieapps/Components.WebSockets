@@ -338,8 +338,8 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Information))
 					this._logger.LogInformation($"Connection is closed ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 			}
-			catch (ObjectDisposedException) { }
 			catch (IOException) { }
+			catch (ObjectDisposedException) { }
 			catch (OperationCanceledException)
 			{
 				await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"WebSocket Client close the connection", CancellationToken.None).ConfigureAwait(false);
@@ -359,7 +359,21 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				this._logger.LogError(ex, $"Unexpected error: {ex.Message}");
+				if (this._wsConnection != null && this._wsConnection != null && this._wsConnection.WebSocket.State == WebSocketState.Open)
+				{
+					await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Client close the connection", CancellationToken.None).ConfigureAwait(false);
+					WebSocketConnectionManager.Remove(this._wsConnection);
+
+					try
+					{
+						this.OnConnectionBroken?.Invoke(this._wsConnection);
+					}
+					catch (Exception uex)
+					{
+						this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
+					}
+				}
+
 				try
 				{
 					this.OnError?.Invoke(ex);
@@ -368,6 +382,8 @@ namespace net.vieapps.Components.WebSockets
 				{
 					this._logger.LogError(uex, $"(OnError): {uex.Message}");
 				}
+
+				this._logger.LogError(ex, $"Unexpected error: {ex.Message}");
 			}
 		}
 		#endregion
