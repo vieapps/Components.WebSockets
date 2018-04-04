@@ -220,6 +220,18 @@ wsServer.Start();
 
 And if you want to see all current connections of the server, then take a look at property "Connections" of the server.
 
+### WebSocketServer with Secure WebSockets (wss://)
+
+Enabling secure connections requires two things:
+- Using the scheme 'wss://' instead of 'ws://' (at client)
+- Pointing certificate to an x509 certificate containing a public and private key.
+
+```csharp
+var wsServer = new WebSocketServer(56789);
+wsServer.Certificate = new X509Certificate2("my-certificate.pfx");
+wsServer.Start();
+```
+
 ### WebSocketConnectionManager
 
 And take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
