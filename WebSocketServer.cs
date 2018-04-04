@@ -5,9 +5,12 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Net.Security;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 using Microsoft.Extensions.Logging;
 
@@ -29,6 +32,11 @@ namespace net.vieapps.Components.WebSockets
 		public CancellationTokenSource _cancellationTokenSource = null;
 		bool _isDisposed = false, _isRunning = false;
 		#endregion
+
+		/// <summary>
+		/// Gets or Sets the certificate for securing connections
+		/// </summary>
+		public X509Certificate2 Certificate { get; set; } = null;
 
 		/// <summary>
 		/// Gets the connections of all current WebSocket clients that are connected with this server
@@ -133,7 +141,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Server is started - Listening on port \"{this._port}\"");
+					this._logger.LogInformation($"Server is started - Listening on port \"{this._port}\" - Use secure connections: {this.Certificate != null}");
 			}
 			catch (SocketException ex)
 			{
@@ -256,8 +264,27 @@ namespace net.vieapps.Components.WebSockets
 			WebSocketConnection wsConnection = null;
 			try
 			{
+				// get the stream
+				var stream = tcpClient.GetStream() as Stream;
+				if (this.Certificate != null)
+					try
+					{
+						if (this._logger.IsEnabled(LogLevel.Information))
+							this._logger.LogInformation("Attempting to secure connection...");
+
+						var sslStream = new SslStream(stream, false);
+						sslStream.AuthenticateAsServer(this.Certificate, false, SslProtocols.Tls, true);
+						stream = sslStream as Stream;
+
+						if (this._logger.IsEnabled(LogLevel.Information))
+							this._logger.LogInformation("Connection successfully secured");
+					}
+					catch (Exception ex)
+					{
+						throw new AuthenticationException($"Cannot secure the connection with current certificate: {ex.Message}", ex);
+					}
+
 				// connect
-				var stream = tcpClient.GetStream();
 				var context = await this._wsFactory.ReadHttpHeaderFromStreamAsync(stream, this._cancellationTokenSource.Token).ConfigureAwait(false);
 				if (!context.IsWebSocketRequest)
 				{
