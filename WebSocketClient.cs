@@ -201,8 +201,18 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		public void Stop()
 		{
-			this._cancellationTokenSource.Cancel();
 			this._isRunning = false;
+			this._cancellationTokenSource.Cancel();
+
+			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+			{
+				try
+				{
+					this._wsConnection.WebSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "WebSocket Client is stoped", cts.Token).Wait();
+				}
+				catch { }
+			}
+
 			WebSocketConnectionManager.Remove(this._wsConnection);
 		}
 		#endregion
