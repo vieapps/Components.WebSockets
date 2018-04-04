@@ -306,6 +306,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Information))
 					this._logger.LogInformation($"Connection is closed ({wsConnection.ID} @ {wsConnection.EndPoint})");
 			}
+			catch (IOException) { }
 			catch (ObjectDisposedException) { }
 			catch (OperationCanceledException)
 			{
@@ -341,18 +342,14 @@ namespace net.vieapps.Components.WebSockets
 					}
 				}
 
-				if (!(ex is IOException))
-					this._logger.LogError(ex, $"Got an unexpected error when process client request: {ex.Message}");
-
-				else
-					try
-					{
-						this.OnError?.Invoke(ex);
-					}
-					catch (Exception uex)
-					{
-						this._logger.LogError(uex, $"(OnError): {uex.Message}");
-					}
+				try
+				{
+					this.OnError?.Invoke(ex);
+				}
+				catch (Exception uex)
+				{
+					this._logger.LogError(uex, $"(OnError): {uex.Message}");
+				}
 			}
 			finally
 			{
@@ -392,6 +389,9 @@ namespace net.vieapps.Components.WebSockets
 			// call to cancel all pending processes
 			this._cancellationTokenSource.Cancel();
 
+			// remove all connections that are connected to this server
+			connections.ForEach(connection => WebSocketConnectionManager.Remove(connection));
+
 			// safely attempt to shut down the listener
 			if (this._listener != null)
 				try
@@ -403,9 +403,6 @@ namespace net.vieapps.Components.WebSockets
 				{
 					this._logger.LogError(ex, $"Error occurred while disposing listener: {ex.Message}");
 				}
-
-			// remove all connections that are connected to this server
-			connections.ForEach(connection => WebSocketConnectionManager.Remove(connection));
 
 			// update state
 			this._isRunning = false;

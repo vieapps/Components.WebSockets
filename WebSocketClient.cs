@@ -325,7 +325,16 @@ namespace net.vieapps.Components.WebSockets
 
 				// done
 				WebSocketConnectionManager.Remove(this._wsConnection);
-				this.OnConnectionBroken?.Invoke(this._wsConnection);
+
+				try
+				{
+					this.OnConnectionBroken?.Invoke(this._wsConnection);
+				}
+				catch (Exception uex)
+				{
+					this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
+				}
+
 				if (this._logger.IsEnabled(LogLevel.Information))
 					this._logger.LogInformation($"Connection is closed ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 			}
