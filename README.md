@@ -1,6 +1,6 @@
 ﻿# Components.WebSockets
 
-A concrete implementation of the .NET Standard 2.0 System.Net.WebSockets.WebSocket abstract class
+A concrete implementation of the System.Net.WebSockets.WebSocket abstract class on .NET Standard 2.0
 
 A WebSocket library that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server.
 You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library.
