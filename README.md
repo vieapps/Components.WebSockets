@@ -112,7 +112,7 @@ Use Start method to start the client with 6 action parameters:
 - onMessageReceived: Fired when the client got a message
 
 ```csharp
-var wsClient = new WebSocketClient("ws://localhost:8899/");
+var wsClient = new WebSocketClient("ws://localhost:56789/");
 wsClient.Start(
     () => Console.WriteLine("The client is stared"),
     (ex) => Console.WriteLine($"Cannot start the client: {ex.Message}"),
@@ -237,7 +237,16 @@ wsServer.Start();
 
 And take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
 
-## Namespaces (for both client and server)
+## Others
+
+### Dependencies
+
+- Microsoft.Extensions.Logging.Abstractions
+- Microsoft.IO.RecyclableMemoryStream
+- VIEApps.Components.Utility
+
+### Namespaces (for both client and server)
+
 ```csharp
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets;
