@@ -143,16 +143,15 @@ namespace net.vieapps.Components.WebSockets
 
 				if (this._logger.IsEnabled(LogLevel.Information))
 				{
-					var runtimeInfo = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
 						? "Linux"
 						: RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
 							? "Windows"
 							: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
 								? "macOS"
-								: $"GenericOS ({RuntimeInformation.OSDescription})";
-					runtimeInfo += $" with {RuntimeInformation.FrameworkDescription} - Use secure connections: {this.Certificate != null}";
-					this._logger.LogInformation($"Server is started - Listening port: {this._port}");
-					this._logger.LogInformation($"Runtime platform: {runtimeInfo}");
+								: $"VIEApps [{RuntimeInformation.OSDescription.Trim()}]";
+					platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
+					this._logger.LogInformation($"Server is started - Listening port: {this._port} - Platform: {platform}");
 				}
 			}
 			catch (SocketException ex)

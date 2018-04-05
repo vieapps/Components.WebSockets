@@ -42,7 +42,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			// this is a guid as per the web socket spec
 			const string webSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-			return (secWebSocketKey + webSocketGuid).GetHash("SHA1").ToBase64();
+			return (secWebSocketKey + webSocketGuid).GetSHA1Hash().ToBase64();
 		}
 
 		/// <summary>
@@ -70,7 +70,6 @@ namespace net.vieapps.Components.WebSockets
 				// as per http specification, all headers should end this this
 				if (header.Contains("\r\n\r\n"))
 					return header;
-
 			}
 			while (read > 0);
 
@@ -176,7 +175,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public static ILogger CreateLogger(Type type)
 		{
-			return (Logger.LoggerFactory ?? new NullLoggerFactory()).CreateLogger(type);
+			return Logger.GetLoggerFactory().CreateLogger(type);
 		}
 
 		/// <summary>
