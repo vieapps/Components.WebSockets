@@ -223,12 +223,13 @@ And if you want to see all current connections of the server, then take a look a
 ### WebSocketServer with Secure WebSockets (wss://)
 
 Enabling secure connections requires two things:
-- Pointing certificate to an x509 certificate containing a public and private key.
+- Pointing certificate to an x509 certificate that containing a public and private key.
 - Using the scheme 'wss://' instead of 'ws://' (or 'https://' instead of 'http://') on all clients
 
 ```csharp
 var wsServer = new WebSocketServer(56789);
-wsServer.Certificate = new X509Certificate2("my-certificate.pfx"); // wsServer.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
+wsServer.Certificate = new X509Certificate2("my-certificate.pfx");
+// wsServer.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
 wsServer.Start();
 ```
 
@@ -236,7 +237,7 @@ wsServer.Start();
 
 And take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
 
-## Namespaces
+## Namespaces (for both client and server)
 ```csharp
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets;
