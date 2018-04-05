@@ -70,6 +70,11 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
+		/// Gets the state that specified this is connection of WebSocket is secure or not
+		/// </summary>
+		public bool IsSecureWebSocketConnection { get; internal set; } = false;
+
+		/// <summary>
 		/// Gets the time when this connection is established
 		/// </summary>
 		public DateTime Time { get; internal set; } = DateTime.Now;

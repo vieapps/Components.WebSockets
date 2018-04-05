@@ -111,10 +111,11 @@ namespace net.vieapps.Components.WebSockets
 				this._wsConnection = new WebSocketConnection()
 				{
 					WebSocket = await this._wsFactory.ConnectAsync(this._uri, this._cancellationTokenSource.Token).ConfigureAwait(false),
+					IsSecureWebSocketConnection = this._uri.Scheme.IsEquals("wss") || this._uri.Scheme.IsEquals("https"),
 					Time = DateTime.Now,
 					EndPoint = (IPAddress.TryParse(this._uri.Host, out IPAddress ipAddress) ? $"{ipAddress}" : $"{this._uri.Host}") + $":{this._uri.Port}"
 				};
-
+				
 				this._isRunning = true;
 				WebSocketConnectionManager.Add(this._wsConnection);
 
@@ -142,7 +143,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				var message = $"Error occurred while attemping connect to \"{this._uri}\"";
+				var message = $"Error occurred while attempting to connect to \"{this._uri}\"";
 				this._logger.LogError(ex, message);
 
 				// events
@@ -208,7 +209,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				try
 				{
-					this._wsConnection.WebSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "WebSocket Client is stoped", cts.Token).Wait();
+					this._wsConnection.WebSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Client is stoped", cts.Token).Wait();
 				}
 				catch { }
 			}
@@ -352,7 +353,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (ObjectDisposedException) { }
 			catch (OperationCanceledException)
 			{
-				await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"WebSocket Client close the connection", CancellationToken.None).ConfigureAwait(false);
+				await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"Client close the connection", CancellationToken.None).ConfigureAwait(false);
 				WebSocketConnectionManager.Remove(this._wsConnection);
 
 				try
@@ -371,7 +372,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				if (this._wsConnection != null && this._wsConnection != null && this._wsConnection.WebSocket.State == WebSocketState.Open)
 				{
-					await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Client close the connection", CancellationToken.None).ConfigureAwait(false);
+					await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Client is disposed", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(this._wsConnection);
 
 					try

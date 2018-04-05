@@ -297,7 +297,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 					{
 						try
 						{
-							this.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "Service is Disposed", cts.Token).Wait();
+							this.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "Service is unavailable", cts.Token).Wait();
 						}
 						catch (OperationCanceledException)
 						{

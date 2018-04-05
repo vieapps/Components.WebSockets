@@ -4,7 +4,7 @@ A concrete implementation of the .NET Standard 2.0 System.Net.WebSockets.WebSock
 
 A WebSocket library that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server.
 You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library.
-This is the same WebSocket abstract class used by .NET Core 2.0 and it allows for asynchronous Websocket communication for improved performance and scalability.
+This is the same WebSocket abstract class used by .NET Core 2.0 and it allows for asynchronous WebSocket communication for improved performance and scalability.
 
 ## NuGet
 - Package ID: VIEApps.Components.Utility
@@ -223,12 +223,12 @@ And if you want to see all current connections of the server, then take a look a
 ### WebSocketServer with Secure WebSockets (wss://)
 
 Enabling secure connections requires two things:
-- Using the scheme 'wss://' instead of 'ws://' (at client)
 - Pointing certificate to an x509 certificate containing a public and private key.
+- Using the scheme 'wss://' instead of 'ws://' (or 'https://' instead of 'http://') on all clients
 
 ```csharp
 var wsServer = new WebSocketServer(56789);
-wsServer.Certificate = new X509Certificate2("my-certificate.pfx");
+wsServer.Certificate = new X509Certificate2("my-certificate.pfx"); // wsServer.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
 wsServer.Start();
 ```
 
@@ -238,6 +238,6 @@ And take a look at static class WebSocketConnectionManager to play aroud with co
 
 ## Namespaces
 ```csharp
-using net.vieapps.Components.WebSockets;
 using net.vieapps.Components.Utility;
+using net.vieapps.Components.WebSockets;
 ```

@@ -59,11 +59,9 @@ namespace net.vieapps.Components.WebSockets
             var guid = Guid.NewGuid();
 			var host = uri.Host;
 			var port = uri.Port;
-			var tcpClient = new TcpClient()
-			{
-				NoDelay = options.NoDelay
-			};
+			var tcpClient = new TcpClient() { NoDelay = options.NoDelay };
 			var useSsl = uri.Scheme.IsEquals("wss") || uri.Scheme.IsEquals("https");
+
             if (IPAddress.TryParse(host, out IPAddress ipAddress))
             {
                 Events.Log.ClientConnectingToIpAddress(guid, ipAddress.ToString(), port);
@@ -185,15 +183,13 @@ namespace net.vieapps.Components.WebSockets
         /// </summary>
         static bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
         {
+			// valid certificate
             if (sslPolicyErrors == SslPolicyErrors.None)
-            {
-                return true;
-            }
+				return true;
 
-            Events.Log.SslCertificateError(sslPolicyErrors);
-
-            // Do not allow this client to communicate with unauthenticated servers.
-            return false;
+			// do not allow this client to communicate with unauthenticated servers.
+			Events.Log.SslCertificateError(sslPolicyErrors);
+			return false;
         }
 
         static string GetAdditionalHeaders(Dictionary<string, string> additionalHeaders)

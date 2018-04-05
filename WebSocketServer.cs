@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.Logging;
 
@@ -34,9 +35,9 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		/// <summary>
-		/// Gets or Sets the certificate for securing connections
+		/// Sets the certificate for securing connections
 		/// </summary>
-		public X509Certificate2 Certificate { get; set; } = null;
+		public X509Certificate2 Certificate { private get; set; } = null;
 
 		/// <summary>
 		/// Gets the connections of all current WebSocket clients that are connected with this server
@@ -141,7 +142,18 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Server is started - Listening on port \"{this._port}\" - Use secure connections: {this.Certificate != null}");
+				{
+					var runtimeInfo = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+						? "Linux"
+						: RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+							? "Windows"
+							: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+								? "macOS"
+								: $"GenericOS ({RuntimeInformation.OSDescription})";
+					runtimeInfo += $" with {RuntimeInformation.FrameworkDescription} - Use secure connections: {this.Certificate != null}";
+					this._logger.LogInformation($"Server is started - Listening port: {this._port}");
+					this._logger.LogInformation($"Runtime platform: {runtimeInfo}");
+				}
 			}
 			catch (SocketException ex)
 			{
@@ -299,6 +311,7 @@ namespace net.vieapps.Components.WebSockets
 				wsConnection = new WebSocketConnection()
 				{
 					WebSocket = await this._wsFactory.AcceptWebSocketAsync(context, new WebSocketServerOptions() { KeepAliveInterval = this._keepAliveInterval }, this._cancellationTokenSource.Token).ConfigureAwait(false),
+					IsSecureWebSocketConnection = this.Certificate != null,
 					Time = DateTime.Now,
 					EndPoint = $"{tcpClient.Client.RemoteEndPoint}"
 				};
@@ -337,7 +350,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (ObjectDisposedException) { }
 			catch (OperationCanceledException)
 			{
-				await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", CancellationToken.None).ConfigureAwait(false);
+				await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Service is unavailable", CancellationToken.None).ConfigureAwait(false);
 				WebSocketConnectionManager.Remove(wsConnection);
 
 				try
@@ -356,7 +369,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				if (wsConnection != null && wsConnection != null && wsConnection.WebSocket.State == WebSocketState.Open)
 				{
-					await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", CancellationToken.None).ConfigureAwait(false);
+					await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Service is unavailable", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(wsConnection);
 
 					try
@@ -410,7 +423,7 @@ namespace net.vieapps.Components.WebSockets
 			var connections = this.Connections;
 			Task.Run(async () =>
 			{
-				await connections.ForEachAsync((connection, token) => connection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"WebSocket Server close the connection", token)).ConfigureAwait(false);
+				await connections.ForEachAsync((connection, token) => connection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Service is unavailable", token)).ConfigureAwait(false);
 			}).ConfigureAwait(false);
 
 			// call to cancel all pending processes

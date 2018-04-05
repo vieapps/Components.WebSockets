@@ -131,15 +131,5 @@ namespace net.vieapps.Components.WebSockets
                 throw;
             }
         }
-
-		public static Task Authenticate(Stream stream, X509Certificate2 certificate, SslProtocols enabledSslProtocols, Action callback, Action<Exception> error)
-		{
-			var ssl = new SslStream(stream, false);
-			stream = new QueuedStream(ssl);
-			IAsyncResult begin(AsyncCallback cb, object s) => ssl.BeginAuthenticateAsServer(certificate, false, enabledSslProtocols, false, cb, s);
-			var task = Task.Factory.FromAsync(begin, ssl.EndAuthenticateAsServer, null);
-			task.ContinueWith(t => callback(), TaskContinuationOptions.NotOnFaulted).ContinueWith(t => error(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-			return task;
-		}
 	}
 }
