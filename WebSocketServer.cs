@@ -198,9 +198,9 @@ namespace net.vieapps.Components.WebSockets
 				{
 					tcpClient = await this._listener.AcceptTcpClientAsync().ConfigureAwait(false);
 				}
+				catch (IOException) { }
 				catch (ObjectDisposedException) { }
 				catch (InvalidOperationException) { }
-				catch (IOException) { }
 				catch (Exception ex)
 				{
 					this._logger.LogError(ex, $"Got an unexpected error while listening: {ex.Message}");
@@ -252,7 +252,7 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception ex)
 					{
-						throw new AuthenticationException($"Cannot secure the connection with current certificate: {ex.Message}", ex);
+						throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
 					}
 
 				// connect
@@ -290,7 +290,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
 
 				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
+					this._logger.LogInformation($"Current: {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
 
 				// process messages
 				var @continue = true;
@@ -304,9 +304,6 @@ namespace net.vieapps.Components.WebSockets
 				// no more
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Connection is closed ({wsConnection.ID} @ {wsConnection.EndPoint})");
-
-				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
 			}
 			catch (IOException) { }
 			catch (ObjectDisposedException) { }
@@ -326,9 +323,6 @@ namespace net.vieapps.Components.WebSockets
 
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Connection is closed (cancellation) ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
-
-				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
 			}
 			catch (Exception ex)
 			{
@@ -356,8 +350,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnError): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
+				this._logger.LogError(ex, ex.Message);
 			}
 			finally
 			{
