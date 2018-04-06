@@ -128,7 +128,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnConnectionEstablished): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Connection is opened, the stream is ready ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 			}
 			catch (Exception ex)
@@ -181,7 +181,7 @@ namespace net.vieapps.Components.WebSockets
 								this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
 							}
 
-							if (this._logger.IsEnabled(LogLevel.Information))
+							if (this._logger.IsEnabled(LogLevel.Debug))
 								this._logger.LogInformation($"Server is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 							break;
 						}
@@ -219,9 +219,6 @@ namespace net.vieapps.Components.WebSockets
 						// got a message
 						if (result.Count > 0)
 						{
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogInformation($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-
 							try
 							{
 								this.OnMessageReceived?.Invoke(this._wsConnection, result, buffer);
@@ -230,6 +227,9 @@ namespace net.vieapps.Components.WebSockets
 							{
 								this._logger.LogError(uex, $"(OnMessageReceived): {uex.Message}");
 							}
+
+							if (this._logger.IsEnabled(LogLevel.Trace))
+								this._logger.LogInformation($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 						}
 
 						// wait for next interval
@@ -268,7 +268,7 @@ namespace net.vieapps.Components.WebSockets
 						this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
 					}
 
-					if (this._logger.IsEnabled(LogLevel.Information))
+					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogInformation($"Connection is closed (cancellation) ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 				}
 				catch (Exception ex)

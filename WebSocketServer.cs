@@ -131,18 +131,15 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnStartSuccess): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
-				{
-					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-						? "Linux"
-						: RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-							? "Windows"
-							: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-								? "macOS"
-								: $"VIEApps [{RuntimeInformation.OSDescription.Trim()}]";
-					platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
-					this._logger.LogInformation($"Server is started - Listening port: {this._port} - Platform: {platform}");
-				}
+				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+					? "Linux"
+					: RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+						? "Windows"
+						: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+							? "macOS"
+							: $"VIEApps [{RuntimeInformation.OSDescription.Trim()}]";
+				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
+				this._logger.LogInformation($"Server is started - Listening port: {this._port} - Platform: {platform}");
 			}
 			catch (SocketException ex)
 			{
@@ -227,8 +224,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 			}
 
-			if (this._logger.IsEnabled(LogLevel.Information))
-				this._logger.LogInformation("Server is stoped");
+			this._logger.LogInformation("Server is stoped");
 		}
 
 		async Task ProcessRequestAsync(TcpClient tcpClient)
@@ -244,14 +240,14 @@ namespace net.vieapps.Components.WebSockets
 				if (this.Certificate != null)
 					try
 					{
-						if (this._logger.IsEnabled(LogLevel.Information))
+						if (this._logger.IsEnabled(LogLevel.Debug))
 							this._logger.LogInformation("Attempting to secure connection...");
 
 						var sslStream = new SslStream(stream, false);
 						sslStream.AuthenticateAsServer(this.Certificate, false, SslProtocols.Tls, true);
 						stream = sslStream as Stream;
 
-						if (this._logger.IsEnabled(LogLevel.Information))
+						if (this._logger.IsEnabled(LogLevel.Debug))
 							this._logger.LogInformation("Connection successfully secured");
 					}
 					catch (Exception ex)
@@ -263,12 +259,12 @@ namespace net.vieapps.Components.WebSockets
 				var context = await this._wsFactory.ReadHttpHeaderFromStreamAsync(stream, this._cancellationTokenSource.Token).ConfigureAwait(false);
 				if (!context.IsWebSocketRequest)
 				{
-					if (this._logger.IsEnabled(LogLevel.Information))
+					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogInformation("HTTP header contains no WebSocket upgrade request, then close the connection");
 					return;
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
 				wsConnection = new WebSocketConnection()
@@ -290,11 +286,11 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnConnectionEstablished): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
-				{
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
+
+				if (this._logger.IsEnabled(LogLevel.Information))
 					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
-				}
 
 				// process messages
 				var @continue = true;
@@ -306,8 +302,11 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// no more
-				if (this._logger.IsEnabled(LogLevel.Information))
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Connection is closed ({wsConnection.ID} @ {wsConnection.EndPoint})");
+
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
 			}
 			catch (IOException) { }
 			catch (ObjectDisposedException) { }
@@ -325,8 +324,11 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Connection is closed (cancellation) ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
+
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
 			}
 			catch (Exception ex)
 			{
@@ -353,6 +355,9 @@ namespace net.vieapps.Components.WebSockets
 				{
 					this._logger.LogError(uex, $"(OnError): {uex.Message}");
 				}
+
+				if (this._logger.IsEnabled(LogLevel.Information))
+					this._logger.LogInformation($"Total {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
 			}
 			finally
 			{
@@ -399,7 +404,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Client is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({wsConnection.ID} @ {wsConnection.EndPoint})");
 
 				return false;
@@ -430,7 +435,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnError): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Information))
+				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Close the connection because {message} ({wsConnection.ID} @ {wsConnection.EndPoint})");
 
 				return false;
@@ -448,7 +453,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(uex, $"(OnMessageReceived): {uex.Message}");
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Debug))
+				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({wsConnection.ID} @ {wsConnection.EndPoint})");
 			}
 
