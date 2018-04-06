@@ -1,4 +1,4 @@
-﻿# Components.WebSockets
+﻿# VIEApps.Components.WebSockets
 
 A concrete implementation of the System.Net.WebSockets.WebSocket abstract class on .NET Standard 2.0
 
@@ -16,7 +16,7 @@ As a client, use the WebSocketClientFactory
 
 ```csharp
 var factory = new WebSocketClientFactory();
-var webSocket = await factory.ConnectAsync(new Uri("ws://localhost:56789/")).ConfigureAwait(false);
+var webSocket = await factory.ConnectAsync(new Uri("ws://localhost:46429/")).ConfigureAwait(false);
 ```
 
 As a server, use the WebSocketServerFactory
@@ -51,7 +51,7 @@ async Task ReceiveAsync(WebSocket webSocket)
                 return;
             case WebSocketMessageType.Text:
             case WebSocketMessageType.Binary:
-                var value = Encoding.UTF8.GetString(buffer.Array, 0, result.Count);
+                var value = buffer.GetString(result.Count);
                 Console.WriteLine(value);
                 break;
         }
@@ -76,7 +76,7 @@ The best approach to communicating using a web socket is to send and receive dat
 public async Task Run()
 {
     var factory = new WebSocketClientFactory();
-    var uri = new Uri("ws://localhost:56789/notifications");
+    var uri = new Uri("ws://localhost:46429/notifications");
     using (var webSocket = await factory.ConnectAsync(uri).ConfigureAwait(false))
     {
         // receive loop
@@ -112,7 +112,7 @@ Use Start method to start the client with 6 action parameters:
 - onMessageReceived: Fired when the client got a message
 
 ```csharp
-var wsClient = new WebSocketClient("ws://localhost:56789/");
+var wsClient = new WebSocketClient("ws://localhost:46429/");
 wsClient.Start(
     () => Console.WriteLine("The client is stared"),
     (ex) => Console.WriteLine($"Cannot start the client: {ex.Message}"),
@@ -127,7 +127,7 @@ wsClient.Start(
 Or if you don't like these function parameters, just assign event handlers by your code
 
 ```csharp
-var wsClient = new WebSocketClient("ws://localhost:56789/")
+var wsClient = new WebSocketClient("ws://localhost:46429/")
 {
     OnStartSuccess = () =>
     {
@@ -173,7 +173,7 @@ Use Start method to start the server with 6 action parameters:
 - onMessageReceived: Fired when the server got a message
 
 ```csharp
-var wsServer = new WebSocketServer(56789);
+var wsServer = new WebSocketServer(46429);
 wsServer.Start(
     () => Console.WriteLine("The server is stared"),
     (ex) => Console.WriteLine($"Cannot start the server: {ex.Message}"),
@@ -188,7 +188,7 @@ wsServer.Start(
 Or if you don't like these function parameters, just assign event handlers by your code
 
 ```csharp
-var wsServer = new WebSocketServer(56789)
+var wsServer = new WebSocketServer(46429)
 {
     OnStartSuccess = () =>
     {
@@ -227,15 +227,18 @@ Enabling secure connections requires two things:
 - Using the scheme 'wss://' instead of 'ws://' (or 'https://' instead of 'http://') on all clients
 
 ```csharp
-var wsServer = new WebSocketServer(56789);
+var wsServer = new WebSocketServer(46429);
 wsServer.Certificate = new X509Certificate2("my-certificate.pfx");
 // wsServer.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
 wsServer.Start();
 ```
 
+Want to have a free SSL certificate? Take a look at [Lets Encrypt](https://letsencrypt.org/).
+Special: A very simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Lets Encrypt very well.
+
 ### WebSocketConnectionManager
 
-And take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
+Take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
 
 ## Others
 
@@ -245,7 +248,7 @@ And take a look at static class WebSocketConnectionManager to play aroud with co
 - Microsoft.IO.RecyclableMemoryStream
 - VIEApps.Components.Utility
 
-### Namespaces (for both client and server)
+### Namespaces
 
 ```csharp
 using net.vieapps.Components.Utility;

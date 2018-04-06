@@ -53,19 +53,11 @@ namespace net.vieapps.Components.WebSockets.Internal
                 WebSocketFrameCommon.ToggleMask(maskKey, payloadToMask);
             }
             else
-            {
-                await BinaryReaderWriter.ReadExactlyAsync(count, fromStream, intoBuffer, cancellationToken).ConfigureAwait(false);
-            }
+				await BinaryReaderWriter.ReadExactlyAsync(count, fromStream, intoBuffer, cancellationToken).ConfigureAwait(false);
 
-            if (opCode == WebSocketOpCode.ConnectionClose)
-            {
-                return DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer);
-            }
-            else
-            {
-                // note that by this point the payload will be populated
-                return new WebSocketFrame(isFinBitSet, opCode, count);
-            }
+			return opCode == WebSocketOpCode.ConnectionClose
+				?  WebSocketFrameReader.DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer)
+				: new WebSocketFrame(isFinBitSet, opCode, count); // note that by this point the payload will be populated
         }
 
         /// <summary>
@@ -88,8 +80,8 @@ namespace net.vieapps.Components.WebSockets.Internal
                 int descCount = count - 2;
 
 				closeStatusDescription = descCount > 0
-						? Encoding.UTF8.GetString(buffer.Array, offset, descCount)
-						: null;
+					? Encoding.UTF8.GetString(buffer.Array, offset, descCount)
+					: null;
 			}
             else
             {

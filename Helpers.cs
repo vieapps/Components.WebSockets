@@ -28,7 +28,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			// this is not used for cryptography so doing something simple like he code below is op
 			var rand = new Random((int)DateTime.Now.Ticks);
-			byte[] keyAsBytes = new byte[16];
+			var keyAsBytes = new byte[16];
 			rand.NextBytes(keyAsBytes);
 			return keyAsBytes.ToBase64();
 		}
