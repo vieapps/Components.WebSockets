@@ -92,7 +92,6 @@ namespace net.vieapps.Components.WebSockets
 		~WebSocketConnection()
 		{
 			this.Dispose();
-			GC.SuppressFinalize(this);
 		}
 
 		/// <summary>

@@ -31,16 +31,16 @@ namespace net.vieapps.Components.WebSockets
         /// </param>
         public WebSocketServerFactory(Func<MemoryStream> recycledStreamFactory = null)
         {
-            this._recycledStreamFactory = recycledStreamFactory ?? WebSocketConnection.GetRecyclableMemoryStreamFactory();
-        }
+			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketConnection.GetRecyclableMemoryStreamFactory();
+		}
 
-        /// <summary>
-        /// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocot upgrade
-        /// </summary>
-        /// <param name="stream">The network stream</param>
-        /// <param name="cancellationToken">The optional cancellation token</param>
-        /// <returns>Http data read from the stream</returns>
-        public async Task<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken)
+		/// <summary>
+		/// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocot upgrade
+		/// </summary>
+		/// <param name="stream">The network stream</param>
+		/// <param name="cancellationToken">The optional cancellation token</param>
+		/// <returns>Http data read from the stream</returns>
+		public async Task<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken)
         {
             var header = await HttpHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
 			var path = HttpHelper.GetPathFromHeader(header);

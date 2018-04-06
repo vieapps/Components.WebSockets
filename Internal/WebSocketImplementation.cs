@@ -125,6 +125,11 @@ namespace net.vieapps.Components.WebSockets.Internal
 							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
 							throw;
 						}
+						finally
+						{
+							//await this._stream.FlushAsync().ConfigureAwait(false);
+							GC.Collect();
+						}
 
 						switch (frame.OpCode)
 						{
@@ -211,6 +216,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 				await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				this._isContinuationFrame = !endOfMessage;
 			}
+			GC.Collect();
 		}
 
 		/// <summary>
@@ -223,12 +229,15 @@ namespace net.vieapps.Components.WebSockets.Internal
 				throw new InvalidOperationException($"Cannot send Ping: Max ping message size {MAX_PING_PONG_PAYLOAD_LEN} exceeded: {payload.Count}");
 
 			if (this._state == WebSocketState.Open)
+			{
 				using (var stream = this._recycledStreamFactory())
 				{
 					WebSocketFrameWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this._isClient);
 					Events.Log.SendingFrame(this._guid, WebSocketOpCode.Ping, true, payload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
+				GC.Collect();
+			}
 		}
 
 		/// <summary>
@@ -246,6 +255,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 		public override async Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
 		{
 			if (this._state == WebSocketState.Open)
+			{
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, statusDescription);
@@ -255,6 +265,8 @@ namespace net.vieapps.Components.WebSockets.Internal
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._state = WebSocketState.CloseSent;
 				}
+				GC.Collect();
+			}
 			else
 				Events.Log.InvalidStateBeforeClose(this._guid, this._state);
 		}
@@ -277,6 +289,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 					Events.Log.SendingFrame(this._guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
+				GC.Collect();
 			}
 			else
 				Events.Log.InvalidStateBeforeCloseOutput(this._guid, this._state);
@@ -367,12 +380,15 @@ namespace net.vieapps.Components.WebSockets.Internal
 			try
 			{
 				if (this._state == WebSocketState.Open)
+				{
 					using (var stream = this._recycledStreamFactory())
 					{
 						WebSocketFrameWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this._isClient);
 						Events.Log.SendingFrame(this._guid, WebSocketOpCode.Pong, true, payload.Count, false);
 						await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					}
+					GC.Collect();
+				}
 			}
 			catch (Exception ex)
 			{
@@ -409,6 +425,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 					Events.Log.SendingFrame(this._guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
+				GC.Collect();
 			}
 			else
 				Events.Log.CloseFrameReceivedInUnexpectedState(this._guid, this._state, frame.CloseStatus, frame.CloseStatusDescription);
@@ -445,6 +462,8 @@ namespace net.vieapps.Components.WebSockets.Internal
 		{
 			var buffer = this.GetBuffer(stream);
 			await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+			await this._stream.FlushAsync().ConfigureAwait(false);
+			GC.Collect();
 		}
 
 		/// <summary>

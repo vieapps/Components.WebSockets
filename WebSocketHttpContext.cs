@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+
 namespace net.vieapps.Components.WebSockets
 {
     /// <summary>
@@ -40,5 +42,5 @@ namespace net.vieapps.Components.WebSockets
             Path = path;
             Stream = stream;
         }
-    }
+	}
 }

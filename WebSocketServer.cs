@@ -46,7 +46,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			get
 			{
-				return WebSocketConnectionManager.Connections.Where(kvp => !kvp.Value.IsWebSocketClientConnection).Select(kvp => kvp.Value).ToList();
+				return WebSocketConnectionManager.Connections.Values.Where(connection => !connection.IsWebSocketClientConnection).ToList();
 			}
 		}
 
@@ -59,27 +59,27 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Fired when the server is failed to start
 		/// </summary>
-		public Action<Exception> OnStartFailed { get; set; } = (ex) => { };
+		public Action<Exception> OnStartFailed { get; set; } = (e) => { };
 
 		/// <summary>
 		/// Fired when the server got any error exception while processing/receiving
 		/// </summary>
-		public Action<Exception> OnError { get; set; } = (ex) => { };
+		public Action<Exception> OnError { get; set; } = (e) => { };
 
 		/// <summary>
 		/// Fired when a connection is established
 		/// </summary>
-		public Action<WebSocketConnection> OnConnectionEstablished { get; set; } = (wsConnection) => { };
+		public Action<WebSocketConnection> OnConnectionEstablished { get; set; } = (c) => { };
 
 		/// <summary>
 		/// Fired when a connection is broken
 		/// </summary>
-		public Action<WebSocketConnection> OnConnectionBroken { get; set; } = (wsConnection) => { };
+		public Action<WebSocketConnection> OnConnectionBroken { get; set; } = (c) => { };
 
 		/// <summary>
 		/// Fired when a connection got a message that sent from a client
 		/// </summary>
-		public Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> OnMessageReceived { get; set; } = (wsConnection, wsReceiveResult, buffer) => { };
+		public Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> OnMessageReceived { get; set; } = (c, r, b) => { };
 		#endregion
 
 		/// <summary>
@@ -109,7 +109,7 @@ namespace net.vieapps.Components.WebSockets
 			this.OnStartSuccess = onStartSuccess ?? this.OnStartSuccess;
 			this.OnStartFailed = onStartFailed ?? this.OnStartFailed;
 			this.OnError = onError ?? this.OnError;
-			this.OnConnectionEstablished = onConnectionBroken ?? this.OnConnectionEstablished;
+			this.OnConnectionEstablished = onConnectionEstablished ?? this.OnConnectionEstablished;
 			this.OnConnectionBroken = onConnectionBroken ?? this.OnConnectionBroken;
 			this.OnMessageReceived = onMessageReceived ?? this.OnMessageReceived;
 
@@ -216,15 +216,18 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				if (tcpClient != null)
-				{
-					var handler = Task.Run(async () =>
-					{
-						await this.ProcessRequestAsync(tcpClient).ConfigureAwait(false);
-					}).ConfigureAwait(false);
-				}
+					this.ProcessRequest(tcpClient);
 			}
 
 			this._logger.LogInformation("Server is stoped");
+		}
+
+		void ProcessRequest(TcpClient tcpClient)
+		{
+			Task.Run(async () =>
+			{
+				await this.ProcessRequestAsync(tcpClient).ConfigureAwait(false);
+			}).ConfigureAwait(false);
 		}
 
 		async Task ProcessRequestAsync(TcpClient tcpClient)
@@ -232,20 +235,19 @@ namespace net.vieapps.Components.WebSockets
 			if (this._logger.IsEnabled(LogLevel.Information))
 				this._logger.LogInformation("Connection is opened, then reading HTTP header from the stream");
 
+			Stream stream = null;
 			WebSocketConnection wsConnection = null;
 			try
 			{
-				// get the stream
-				var stream = tcpClient.GetStream() as Stream;
+				// get stream
 				if (this.Certificate != null)
 					try
 					{
 						if (this._logger.IsEnabled(LogLevel.Debug))
 							this._logger.LogInformation("Attempting to secure connection...");
 
-						var sslStream = new SslStream(stream, false);
-						sslStream.AuthenticateAsServer(this.Certificate, false, SslProtocols.Tls, true);
-						stream = sslStream as Stream;
+						stream = new SslStream(tcpClient.GetStream(), false);
+						(stream as SslStream).AuthenticateAsServer(this.Certificate, false, SslProtocols.Tls, true);
 
 						if (this._logger.IsEnabled(LogLevel.Debug))
 							this._logger.LogInformation("Connection successfully secured");
@@ -254,6 +256,8 @@ namespace net.vieapps.Components.WebSockets
 					{
 						throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
 					}
+				else
+					stream = tcpClient.GetStream();
 
 				// connect
 				var context = await this._wsFactory.ReadHttpHeaderFromStreamAsync(stream, this._cancellationTokenSource.Token).ConfigureAwait(false);
@@ -290,7 +294,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
 
 				if (this._logger.IsEnabled(LogLevel.Information))
-					this._logger.LogInformation($"Current: {WebSocketConnectionManager.Connections.Count:#,##0} open connection(s)");
+					this._logger.LogInformation($"Current open connection(s): {this.Connections.Count:#,##0}");
 
 				// process messages
 				var @continue = true;
@@ -302,6 +306,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// no more
+				context.Stream?.Close();
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogInformation($"Connection is closed ({wsConnection.ID} @ {wsConnection.EndPoint})");
 			}
@@ -322,13 +327,14 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogInformation($"Connection is closed (cancellation) ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
+					this._logger.LogInformation($"Connection is closed by cancellation token ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
 			}
 			catch (Exception ex)
 			{
-				if (wsConnection != null && wsConnection != null && wsConnection.WebSocket.State == WebSocketState.Open)
+				if (wsConnection != null)
 				{
-					await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Service is unavailable", CancellationToken.None).ConfigureAwait(false);
+					if (wsConnection.WebSocket.State == WebSocketState.Open)
+						await wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Service is unavailable", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(wsConnection);
 
 					try
@@ -354,7 +360,9 @@ namespace net.vieapps.Components.WebSockets
 			}
 			finally
 			{
+				stream?.Dispose();
 				wsConnection?.Dispose();
+
 				try
 				{
 					tcpClient?.Client.Close();
@@ -372,6 +380,8 @@ namespace net.vieapps.Components.WebSockets
 						this._logger.LogError(uex, $"(OnError): {uex.Message}");
 					}
 				}
+
+				GC.Collect();
 			}
 		}
 
