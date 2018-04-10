@@ -11,6 +11,7 @@ using System.Collections.Generic;
 
 using Microsoft.Extensions.Logging;
 
+using net.vieapps.Components.WebSockets.Internal;
 using net.vieapps.Components.Utility;
 #endregion
 
@@ -24,9 +25,7 @@ namespace net.vieapps.Components.WebSockets
 		IWebSocketClientFactory _wsFactory;
 		ILogger _logger;
 		Uri _uri;
-		int _awaitInterval = 0;
 		CancellationTokenSource _cancellationTokenSource;
-		bool _isDisposed = false, _isRunning = false;
 		#endregion
 
 		/// <summary>
@@ -63,244 +62,25 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Fired when the client got a message
 		/// </summary>
-		public Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> OnMessageReceived { get; set; } = (wsConnection, wsReceiveResult, buffer) => { };
+		public Action<WebSocketConnection, WebSocketMessageType, byte[]> OnMessageReceived { get; set; } = (c, t, m) => { };
 		#endregion
 
 		/// <summary>
 		/// Creates new instance of WebSocket Client
 		/// </summary>
-		/// <param name="location">The address of a endpoint to connection to (ex: ws://localshost:56789/ or wss://example.com:443/)</param>
-		/// <param name="awaitInterval">The awaiting interval while receiving messages (miniseconds)</param>
+		/// <param name="location">The address of a endpoint to connection to (ex: ws://localshost:46429/ or wss://example.com:46429/)</param>
 		/// <param name="loggerFactory">The logger factory</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream (this can be used with the Microsoft.IO.RecyclableMemoryStreamManager class)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		public WebSocketClient(string location, int awaitInterval = 0, ILoggerFactory loggerFactory = null, Func<MemoryStream> recycledStreamFactory = null, CancellationToken cancellationToken = default(CancellationToken))
+		public WebSocketClient(string location, ILoggerFactory loggerFactory = null, Func<MemoryStream> recycledStreamFactory = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			Logger.AssignLoggerFactory(loggerFactory);
+			Fleck.Logger.AssignLoggerFactory(loggerFactory);
+			WebSocketConnection.Logger = Fleck.Logger.CreateLogger<WebSocketConnection>();
+			this._logger = Fleck.Logger.CreateLogger<WebSocketClient>();
 			this._uri = new Uri(location);
-			this._awaitInterval = awaitInterval;
 			this._wsFactory = new WebSocketClientFactory(recycledStreamFactory);
-			this._logger = Logger.CreateLogger<WebSocketClient>();
 			this._cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
-
-		#region Process requests
-		async Task ProcessAsync(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived = null)
-		{
-			// assign event handlers
-			this.OnStartSuccess = onStartSuccess ?? this.OnStartSuccess;
-			this.OnStartFailed = onStartFailed ?? this.OnStartFailed;
-			this.OnError = onError ?? this.OnError;
-			this.OnConnectionEstablished = onConnectionBroken ?? this.OnConnectionEstablished;
-			this.OnConnectionBroken = onConnectionBroken ?? this.OnConnectionBroken;
-			this.OnMessageReceived = onMessageReceived ?? this.OnMessageReceived;
-
-			// connect
-			try
-			{
-				this._wsConnection = new WebSocketConnection()
-				{
-					WebSocket = await this._wsFactory.ConnectAsync(this._uri, this._cancellationTokenSource.Token).ConfigureAwait(false),
-					IsSecureWebSocketConnection = this._uri.Scheme.IsEquals("wss") || this._uri.Scheme.IsEquals("https"),
-					Time = DateTime.Now,
-					EndPoint = (IPAddress.TryParse(this._uri.Host, out IPAddress ipAddress) ? $"{ipAddress}" : $"{this._uri.Host}") + $":{this._uri.Port}"
-				};
-
-				this._isRunning = true;
-				WebSocketConnectionManager.Add(this._wsConnection);
-
-				// events
-				try
-				{
-					this.OnStartSuccess?.Invoke();
-				}
-				catch (Exception uex)
-				{
-					this._logger.LogError(uex, $"(OnStartSuccess): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnConnectionEstablished?.Invoke(this._wsConnection);
-				}
-				catch (Exception uex)
-				{
-					this._logger.LogError(uex, $"(OnConnectionEstablished): {uex.Message}");
-				}
-
-				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogInformation($"Connection is opened, the stream is ready ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-			}
-			catch (Exception ex)
-			{
-				var message = $"Error occurred while attempting to connect to \"{this._uri}\"";
-				this._logger.LogError(ex, message);
-
-				// events
-				try
-				{
-					this.OnStartFailed?.Invoke(new Exception(message, ex));
-				}
-				catch (Exception uex)
-				{
-					this._logger.LogError(uex, $"(OnStartFailed): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnError?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					this._logger.LogError(uex, $"(OnError): {uex.Message}");
-				}
-			}
-
-			// receive messages
-			if (this._wsConnection != null)
-				try
-				{
-					while (this._isRunning)
-					{
-						// receive the message
-						this._cancellationTokenSource.Token.ThrowIfCancellationRequested();
-						var buffer = new ArraySegment<byte>(new byte[WebSocketConnection.BufferLength]);
-						var result = await this._wsConnection.WebSocket.ReceiveAsync(buffer, this._cancellationTokenSource.Token).ConfigureAwait(false);
-
-						// message to close
-						if (result.MessageType == WebSocketMessageType.Close)
-						{
-							WebSocketConnectionManager.Remove(this._wsConnection);
-
-							try
-							{
-								this.OnConnectionBroken?.Invoke(this._wsConnection);
-							}
-							catch (Exception uex)
-							{
-								this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
-							}
-
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogInformation($"Server is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-							break;
-						}
-
-						// exceed buffer size
-						if (result.Count > WebSocketConnection.BufferLength)
-						{
-							var message = $"WebSocket frame cannot exceed buffer size of {WebSocketConnection.BufferLength:#,##0} bytes";
-							await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
-							WebSocketConnectionManager.Remove(this._wsConnection);
-
-							try
-							{
-								this.OnConnectionBroken?.Invoke(this._wsConnection);
-							}
-							catch (Exception uex)
-							{
-								this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
-							}
-
-							try
-							{
-								this.OnError?.Invoke(new InvalidOperationException(message));
-							}
-							catch (Exception uex)
-							{
-								this._logger.LogError(uex, $"(OnError): {uex.Message}");
-							}
-
-							if (this._logger.IsEnabled(LogLevel.Information))
-								this._logger.LogInformation($"Close the connection because {message} ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-							break;
-						}
-
-						// got a message
-						if (result.Count > 0)
-						{
-							try
-							{
-								this.OnMessageReceived?.Invoke(this._wsConnection, result, buffer);
-							}
-							catch (Exception uex)
-							{
-								this._logger.LogError(uex, $"(OnMessageReceived): {uex.Message}");
-							}
-
-							if (this._logger.IsEnabled(LogLevel.Trace))
-								this._logger.LogInformation($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-						}
-
-						// wait for next interval
-						if (this._awaitInterval > 0)
-							await Task.Delay(this._awaitInterval, this._cancellationTokenSource.Token).ConfigureAwait(false);
-					}
-
-					// done
-					WebSocketConnectionManager.Remove(this._wsConnection);
-
-					try
-					{
-						this.OnConnectionBroken?.Invoke(this._wsConnection);
-					}
-					catch (Exception uex)
-					{
-						this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
-					}
-
-					if (this._logger.IsEnabled(LogLevel.Information))
-						this._logger.LogInformation($"Connection is closed ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-				}
-				catch (IOException) { }
-				catch (ObjectDisposedException) { }
-				catch (OperationCanceledException)
-				{
-					await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"Client close the connection", CancellationToken.None).ConfigureAwait(false);
-					WebSocketConnectionManager.Remove(this._wsConnection);
-
-					try
-					{
-						this.OnConnectionBroken?.Invoke(this._wsConnection);
-					}
-					catch (Exception uex)
-					{
-						this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
-					}
-
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogInformation($"Connection is closed (cancellation) ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
-				}
-				catch (Exception ex)
-				{
-					if (this._wsConnection != null && this._wsConnection != null && this._wsConnection.WebSocket.State == WebSocketState.Open)
-					{
-						await this._wsConnection.WebSocket.CloseAsync(WebSocketCloseStatus.EndpointUnavailable, $"Client is disposed", CancellationToken.None).ConfigureAwait(false);
-						WebSocketConnectionManager.Remove(this._wsConnection);
-
-						try
-						{
-							this.OnConnectionBroken?.Invoke(this._wsConnection);
-						}
-						catch (Exception uex)
-						{
-							this._logger.LogError(uex, $"(OnConnectionBroken): {uex.Message}");
-						}
-					}
-
-					try
-					{
-						this.OnError?.Invoke(ex);
-					}
-					catch (Exception uex)
-					{
-						this._logger.LogError(uex, $"(OnError): {uex.Message}");
-					}
-
-					this._logger.LogError(ex, $"Unexpected error: {ex.Message}");
-				}
-		}
-		#endregion
 
 		#region Start & Stop
 		/// <summary>
@@ -312,11 +92,20 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onConnectionEstablished">Fired when the connection is established</param>
 		/// <param name="onConnectionBroken">Fired when the connection is broken</param>
 		/// <param name="onMessageReceived">Fired when the client got a message</param>
-		public void Start(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived = null)
+		public void Start(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketMessageType, byte[]> onMessageReceived = null)
 		{
+			// assign event handlers
+			this.OnStartSuccess = onStartSuccess ?? this.OnStartSuccess;
+			this.OnStartFailed = onStartFailed ?? this.OnStartFailed;
+			this.OnError = onError ?? this.OnError;
+			this.OnConnectionEstablished = onConnectionBroken ?? this.OnConnectionEstablished;
+			this.OnConnectionBroken = onConnectionBroken ?? this.OnConnectionBroken;
+			this.OnMessageReceived = onMessageReceived ?? this.OnMessageReceived;
+
+			// connect
 			Task.Run(async () =>
 			{
-				await this.ProcessAsync(onStartSuccess, onStartFailed, onError, onConnectionEstablished, onConnectionBroken, onMessageReceived).ConfigureAwait(false);
+				await this.ConnectAsync().ConfigureAwait(false);
 			}).ConfigureAwait(false);
 		}
 
@@ -324,7 +113,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Starts this client
 		/// </summary>
 		/// <param name="onMessageReceived">Fired when the client got a message</param>
-		public void Start(Action<WebSocketConnection, WebSocketReceiveResult, ArraySegment<byte>> onMessageReceived)
+		public void Start(Action<WebSocketConnection, WebSocketMessageType, byte[]> onMessageReceived)
 		{
 			this.Start(null, null, null, null, null, onMessageReceived);
 		}
@@ -334,19 +123,89 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		public void Stop()
 		{
-			this._isRunning = false;
+			// cancel all pending process
 			this._cancellationTokenSource.Cancel();
 
-			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+			// close the connection
+			WebSocketConnectionManager.Remove(this._wsConnection, WebSocketCloseStatus.NormalClosure, "Disconnected");
+		}
+		#endregion
+
+		#region Connect to remote end-point and receive messages
+		async Task ConnectAsync()
+		{
+			try
 			{
+				// connect
+				this._wsConnection = new WebSocketConnection()
+				{
+					InnerSocket = await this._wsFactory.ConnectAsync(this._uri, this._cancellationTokenSource.Token).ConfigureAwait(false),
+					IsSecureConnection = this._uri.Scheme.IsEquals("wss") || this._uri.Scheme.IsEquals("https"),
+					IsClientConnection = true,
+					Time = DateTime.Now,
+					EndPoint = (IPAddress.TryParse(this._uri.Host, out IPAddress ipAddress) ? $"{ipAddress}" : $"{this._uri.Host}") + $":{this._uri.Port}",
+					OnError = this.OnError,
+					OnConnectionBroken = this.OnConnectionBroken,
+					OnMessageReceived = this.OnMessageReceived
+				};
+				this._wsConnection.ID = (this._wsConnection.InnerSocket as WebSocketImplementation).ID;
+				WebSocketConnectionManager.Add(this._wsConnection);
+
+				// events
 				try
 				{
-					this._wsConnection.WebSocket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "Client is disconnected", cts.Token).Wait();
+					this.OnStartSuccess?.Invoke();
 				}
-				catch { }
+				catch (Exception uex)
+				{
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogWarning(uex, $"(OnStartSuccess): {uex.Message}");
+				}
+
+				try
+				{
+					this.OnConnectionEstablished?.Invoke(this._wsConnection);
+				}
+				catch (Exception uex)
+				{
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogWarning(uex, $"(OnConnectionEstablished): {uex.Message}");
+				}
+
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogInformation($"Connection is opened ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
+			}
+			catch (Exception ex)
+			{
+				var message = $"Error occurred while attempting connect to \"{this._uri}\"";
+				this._logger.LogError(ex, message);
+
+				// events
+				try
+				{
+					this.OnStartFailed?.Invoke(new Exception(message, ex));
+				}
+				catch (Exception uex)
+				{
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogWarning(uex, $"(OnStartFailed): {uex.Message}");
+				}
+
+				try
+				{
+					this.OnError?.Invoke(ex);
+				}
+				catch (Exception uex)
+				{
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogWarning(uex, $"(OnError): {uex.Message}");
+				}
+
+				return;
 			}
 
-			WebSocketConnectionManager.Remove(this._wsConnection);
+			// receive messages
+			await this._wsConnection.ReceiveAsync(this._cancellationTokenSource.Token).ConfigureAwait(false);
 		}
 		#endregion
 
@@ -357,10 +216,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="buffer">The buffer containing data to send</param>
 		/// <param name="messageType">The message type. Can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage = true)
 		{
-			return this._wsConnection.SendAsync(buffer, messageType, endOfMessage, cancellationToken);
+			return this._wsConnection.SendAsync(buffer, messageType, endOfMessage, this._cancellationTokenSource.Token);
 		}
 
 		/// <summary>
@@ -368,10 +226,9 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="message">The text message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(string message, bool endOfMessage = true)
 		{
-			return this._wsConnection.SendAsync(message, endOfMessage, cancellationToken);
+			return this._wsConnection.SendAsync(message, endOfMessage, this._cancellationTokenSource.Token);
 		}
 
 		/// <summary>
@@ -379,21 +236,41 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="message">The binary message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(byte[] message, bool endOfMessage = true)
 		{
-			return this._wsConnection.SendAsync(message, endOfMessage, cancellationToken);
+			return this._wsConnection.SendAsync(message, endOfMessage, this._cancellationTokenSource.Token);
+		}
+		#endregion
+
+		#region Close connection
+		/// <summary>
+		/// Closes this connection
+		/// </summary>
+		/// <param name="closeStatus"></param>
+		/// <param name="statusDescription"></param>
+		/// <returns></returns>
+		public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription)
+		{
+			return this._wsConnection.CloseAsync(closeStatus, statusDescription, this._cancellationTokenSource.Token);
+		}
+
+		/// <summary>
+		/// Fire and forget close
+		/// </summary>
+		/// <param name="closeStatus"></param>
+		/// <param name="statusDescription"></param>
+		/// <returns></returns>
+		public Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription)
+		{
+			return this._wsConnection.CloseOutputAsync(closeStatus, statusDescription, this._cancellationTokenSource.Token);
 		}
 		#endregion
 
 		#region Dispose
 		public void Dispose()
 		{
-			if (!this._isDisposed)
-			{
-				this.Stop();
-				this._isDisposed = true;
-			}
+			this.Stop();
+			this._cancellationTokenSource.Dispose();
 		}
 
 		~WebSocketClient()

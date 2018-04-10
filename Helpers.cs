@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-
+using System.Net.WebSockets;
 using Microsoft.Extensions.Logging;
 
 using net.vieapps.Components.Utility;
@@ -16,7 +16,7 @@ using net.vieapps.Components.WebSockets.Exceptions;
 
 namespace net.vieapps.Components.WebSockets
 {
-	public class HttpHelper
+	public static class HttpHelper
 	{
 		const string _HTTP_GET_HEADER_REGEX = @"^GET(.*)HTTP\/1\.1";
 
@@ -142,85 +142,38 @@ namespace net.vieapps.Components.WebSockets
 			var bytes = (response.Trim() + "\r\n\r\n").ToBytes();
 			await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
 		}
-	}
 
-	#region Logger
-	public static class Logger
-	{
-		static ILoggerFactory LoggerFactory;
-
-		/// <summary>
-		/// Assigns a logger factory
-		/// </summary>
-		/// <param name="loggerFactory"></param>
-		public static void AssignLoggerFactory(ILoggerFactory loggerFactory)
+		internal static ushort GetStatusCode(this WebSocketCloseStatus closeStatus)
 		{
-			if (Logger.LoggerFactory == null && loggerFactory != null)
-				Logger.LoggerFactory = loggerFactory;
-		}
+			switch (closeStatus)
+			{
+				case WebSocketCloseStatus.NormalClosure:
+					return Fleck.WebSocketStatusCodes.NormalClosure;
 
-		/// <summary>
-		/// Gets a logger factory
-		/// </summary>
-		/// <returns></returns>
-		public static ILoggerFactory GetLoggerFactory()
-		{
-			return Logger.LoggerFactory ?? new NullLoggerFactory();
-		}
+				case WebSocketCloseStatus.ProtocolError:
+					return Fleck.WebSocketStatusCodes.ProtocolError;
 
-		/// <summary>
-		/// Creates a logger
-		/// </summary>
-		/// <param name="type"></param>
-		/// <returns></returns>
-		public static ILogger CreateLogger(Type type)
-		{
-			return Logger.GetLoggerFactory().CreateLogger(type);
-		}
+				case WebSocketCloseStatus.PolicyViolation:
+					return Fleck.WebSocketStatusCodes.PolicyViolation;
 
-		/// <summary>
-		/// Creates a logger
-		/// </summary>
-		/// <typeparam name="T"></typeparam>
-		/// <returns></returns>
-		public static ILogger CreateLogger<T>()
-		{
-			return Logger.CreateLogger(typeof(T));
+				case WebSocketCloseStatus.MessageTooBig:
+					return Fleck.WebSocketStatusCodes.MessageTooBig;
+
+				case WebSocketCloseStatus.InvalidMessageType:
+					return Fleck.WebSocketStatusCodes.UnsupportedDataType;
+
+				case WebSocketCloseStatus.InvalidPayloadData:
+					return Fleck.WebSocketStatusCodes.InvalidFramePayloadData;
+
+				case WebSocketCloseStatus.MandatoryExtension:
+					return Fleck.WebSocketStatusCodes.MandatoryExt;
+
+				case WebSocketCloseStatus.InternalServerError:
+					return Fleck.WebSocketStatusCodes.InternalServerError;
+
+				default:
+					return Fleck.WebSocketStatusCodes.GoingAway;
+			}
 		}
 	}
-	#endregion
-
-	#region NullLogger
-	public class NullLoggerFactory : ILoggerFactory
-	{
-		public void AddProvider(ILoggerProvider provider) { }
-
-		public ILogger CreateLogger(string categoryName)
-		{
-			return NullLogger.Instance;
-		}
-
-		public void Dispose() { }
-	}
-
-	public class NullLogger : ILogger
-	{
-		internal static NullLogger Instance = new NullLogger();
-
-		private NullLogger() { }
-
-		public IDisposable BeginScope<TState>(TState state)
-		{
-			return null;
-		}
-
-		public bool IsEnabled(LogLevel logLevel)
-		{
-			return false;
-		}
-
-		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter) { }
-	}
-	#endregion
-
 }

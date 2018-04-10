@@ -34,15 +34,15 @@ namespace net.vieapps.Components.WebSockets
         public WebSocketClientFactory(Func<MemoryStream> recycledStreamFactory = null)
         {
             this._recycledStreamFactory = recycledStreamFactory ?? WebSocketConnection.GetRecyclableMemoryStreamFactory();
-        }
+		}
 
-        /// <summary>
-        /// Connect with default options
-        /// </summary>
-        /// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
-        /// <param name="cancellationToken">The optional cancellation token</param>
-        /// <returns>A connected web socket instance</returns>
-        public Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken)
+		/// <summary>
+		/// Connect with default options
+		/// </summary>
+		/// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
+		/// <param name="cancellationToken">The optional cancellation token</param>
+		/// <returns>A connected web socket instance</returns>
+		public Task<WebSocket> ConnectAsync(Uri uri, CancellationToken cancellationToken)
         {
             return this.ConnectAsync(uri, new WebSocketClientOptions(), cancellationToken);
         }
@@ -56,52 +56,103 @@ namespace net.vieapps.Components.WebSockets
         /// <returns>A connected web socket instance</returns>
         public async Task<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, CancellationToken cancellationToken)
         {
+			// prepare
             var guid = Guid.NewGuid();
 			var host = uri.Host;
 			var port = uri.Port;
 			var tcpClient = new TcpClient() { NoDelay = options.NoDelay };
-			var useSsl = uri.Scheme.IsEquals("wss") || uri.Scheme.IsEquals("https");
 
-            if (IPAddress.TryParse(host, out IPAddress ipAddress))
-            {
-                Events.Log.ClientConnectingToIpAddress(guid, ipAddress.ToString(), port);
-                await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
-            }
-            else
-            {
-                Events.Log.ClientConnectingToHost(guid, host, port);
-                await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
-            }
+			// connect the TCP client
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+			{
+				using (cts.Token.Register(() => throw new OperationCanceledException(cts.Token), useSynchronizationContext: false))
+				{
+					if (IPAddress.TryParse(host, out IPAddress ipAddress))
+					{
+						Events.Log.ClientConnectingToIpAddress(guid, ipAddress.ToString(), port);
+						await tcpClient.ConnectAsync(ipAddress, port).ConfigureAwait(false);
+					}
+					else
+					{
+						Events.Log.ClientConnectingToHost(guid, host, port);
+						await tcpClient.ConnectAsync(host, port).ConfigureAwait(false);
+					}
+				}
+			}
 
-            cancellationToken.ThrowIfCancellationRequested();
-            var stream = this.GetStream(guid, tcpClient, useSsl, host);
-			return await this.PerformHandshakeAsync(guid, uri, stream, options, cancellationToken).ConfigureAwait(false);
-        }
+			// get the connected stream
+			Stream stream = null;
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+			{
+				using (cts.Token.Register(() => throw new OperationCanceledException(cts.Token), useSynchronizationContext: false))
+				{
+					if (uri.Scheme.IsEquals("wss") || uri.Scheme.IsEquals("https"))
+					{
+						stream = new SslStream(
+							tcpClient.GetStream(),
+							false,
+							(sender, certificate, chain, sslPolicyErrors) =>
+							{
+								// valid certificate
+								if (sslPolicyErrors == SslPolicyErrors.None)
+									return true;
 
-        /// <summary>
-        /// Connect with a stream that has already been opened and HTTP websocket upgrade request sent
-        /// This function will check the handshake response from the server and proceed if successful
-        /// Use this function if you have specific requirements to open a conenction like using special http headers and cookies
-        /// You will have to build your own HTTP websocket upgrade request
-        /// You may not even choose to use TCP/IP and this function will allow you to do that
-        /// </summary>
-        /// <param name="responseStream">The full duplex response stream from the server</param>
-        /// <param name="secWebSocketKey">The secWebSocketKey you used in the handshake request</param>
-        /// <param name="options">The WebSocket client options</param>
-        /// <param name="cancellationToken">The optional cancellation token</param>
-        /// <returns></returns>
-        public Task<WebSocket> ConnectAsync(Stream responseStream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
+								// do not allow this client to communicate with unauthenticated servers
+								Events.Log.SslCertificateError(sslPolicyErrors);
+								return false;
+							},
+							null
+						);
+						Events.Log.AttemtingToSecureSslConnection(guid);
+
+						// will throw an AuthenticationException if the certificate is not valid
+						await (stream as SslStream).AuthenticateAsClientAsync(host).ConfigureAwait(false);
+						Events.Log.ConnectionSecured(guid);
+					}
+					else
+					{
+						Events.Log.ConnectionNotSecure(guid);
+						stream = tcpClient.GetStream();
+					}
+				}
+			}
+
+			// send handsake
+			var secWebSocketKey = CryptoService.GenerateRandomKey(16).ToBase64();
+			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+			{
+				using (cts.Token.Register(() => throw new OperationCanceledException(cts.Token), useSynchronizationContext: false))
+				{
+					var handshakeHttpRequest = $"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
+						$"Host: {uri.Host}:{uri.Port}\r\n" +
+						"Upgrade: websocket\r\n" +
+						"Connection: Upgrade\r\n" +
+						$"Sec-WebSocket-Key: {secWebSocketKey}\r\n" +
+						$"Origin: http://{uri.Host}:{uri.Port}\r\n" +
+						"Sec-WebSocket-Version: 13";
+					if (options.AdditionalHttpHeaders != null && options.AdditionalHttpHeaders.Count > 0)
+						foreach (var kvp in options.AdditionalHttpHeaders)
+							handshakeHttpRequest += "\r\n" + $"{kvp.Key}: {kvp.Value}";
+					var httpRequest = (handshakeHttpRequest.Trim() + "\r\n\r\n").ToBytes();
+
+					cancellationToken.ThrowIfCancellationRequested();
+					stream.Write(httpRequest, 0, httpRequest.Length);
+					Events.Log.HandshakeSent(guid, handshakeHttpRequest);
+				}
+			}
+
+			// do connect
+			return await this.ConnectAsync(guid, stream, secWebSocketKey, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse, cancellationToken).ConfigureAwait(false);
+		}
+
+        async Task<WebSocket> ConnectAsync(Guid guid, Stream stream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
         {
-            return this.ConnectAsync(Guid.NewGuid(), responseStream, secWebSocketKey, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse, cancellationToken);
-        }
-
-        async Task<WebSocket> ConnectAsync(Guid guid, Stream responseStream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, CancellationToken cancellationToken)
-        {
+			// read response
             Events.Log.ReadingHttpResponse(guid);
             var response = string.Empty;
             try
             {
-                response = await HttpHelper.ReadHttpHeaderAsync(responseStream, cancellationToken).ConfigureAwait(false);
+                response = await HttpHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -109,123 +160,61 @@ namespace net.vieapps.Components.WebSockets
                 throw new WebSocketHandshakeFailedException("Handshake unexpected failure", ex);
             }
 
-            this.ThrowIfInvalidResponseCode(response);
-			this.ThrowIfInvalidAcceptString(guid, response, secWebSocketKey);
-            return new WebSocketImplementation(guid, this._recycledStreamFactory, responseStream, keepAliveInterval, secWebSocketExtensions, includeExceptionInCloseResponse, isClient: true);
-        }
+			// throw if got invalid response code
+			var responseCode = HttpHelper.ReadHttpResponseCode(response);
+			if (!string.Equals(responseCode, "101 Switching Protocols", StringComparison.InvariantCultureIgnoreCase))
+			{
+				var lines = response.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+				for (var index = 0; index < lines.Length; index++)
+				{
+					// if there is more to the message than just the header
+					if (string.IsNullOrWhiteSpace(lines[index]))
+					{
+						var builder = new StringBuilder();
+						for (var idx = index + 1; idx < lines.Length - 1; idx++)
+							builder.AppendLine(lines[idx]);
 
-        void ThrowIfInvalidAcceptString(Guid guid, string response, string secWebSocketKey)
-        {
-            // make sure we escape the accept string which could contain special regex characters
-            var regexPattern = "Sec-WebSocket-Accept: (.*)";
+						var responseDetails = builder.ToString();
+						throw new InvalidHttpResponseCodeException(responseCode, responseDetails, response);
+					}
+				}
+			}
+
+			// make sure we escape the accept string which could contain special regex characters
+			var regexPattern = "Sec-WebSocket-Accept: (.*)";
 			var regex = new Regex(regexPattern);
 			var actualAcceptString = regex.Match(response).Groups[1].Value.Trim();
 
 			// check the accept string
 			var expectedAcceptString = HttpHelper.ComputeSocketAcceptString(secWebSocketKey);
-            if (expectedAcceptString != actualAcceptString)
-            {
-				var warning = string.Format($"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'");
-                Events.Log.HandshakeFailure(guid, warning);
-                throw new WebSocketHandshakeFailedException(warning);
-            }
-            else
-            {
-                Events.Log.ClientHandshakeSuccess(guid);
-            }
-        }
-
-        void ThrowIfInvalidResponseCode(string responseHeader)
-        {
-			var responseCode = HttpHelper.ReadHttpResponseCode(responseHeader);
-            if (!string.Equals(responseCode, "101 Switching Protocols", StringComparison.InvariantCultureIgnoreCase))
-            {
-				var lines = responseHeader.Split(new string[] { "\r\n" }, StringSplitOptions.None);
-                for (var index = 0; index < lines.Length; index++)
-                {
-                    // if there is more to the message than just the header
-                    if (string.IsNullOrWhiteSpace(lines[index]))
-                    {
-						var builder = new StringBuilder();
-                        for (var idx = index + 1; idx < lines.Length - 1; idx++)
-							builder.AppendLine(lines[idx]);
-
-						var responseDetails = builder.ToString();
-                        throw new InvalidHttpResponseCodeException(responseCode, responseDetails, responseHeader);
-                    }
-                }
-            }
-        }
-
-        Stream GetStream(Guid guid, TcpClient tcpClient, bool isSecure, string host)
-        {
-            var stream = tcpClient.GetStream();
-            if (isSecure)
-            {
-				var sslStream = new SslStream(stream, false, new RemoteCertificateValidationCallback(WebSocketClientFactory.ValidateServerCertificate), null);
-                Events.Log.AttemtingToSecureSslConnection(guid);
-
-                // This will throw an AuthenticationException if the certificate is not valid
-                sslStream.AuthenticateAsClient(host);
-                Events.Log.ConnectionSecured(guid);
-                return sslStream;
-            }
-            else
-            {
-                Events.Log.ConnectionNotSecure(guid);
-                return stream;
-            }
-        }
-
-        /// <summary>
-        /// Invoked by the RemoteCertificateValidationDelegate
-        /// If you want to ignore certificate errors (for debugging) then return true
-        /// </summary>
-        static bool ValidateServerCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
-        {
-			// valid certificate
-            if (sslPolicyErrors == SslPolicyErrors.None)
-				return true;
-
-			// do not allow this client to communicate with unauthenticated servers.
-			Events.Log.SslCertificateError(sslPolicyErrors);
-			return false;
-        }
-
-        static string GetAdditionalHeaders(Dictionary<string, string> additionalHeaders)
-        {
-            if (additionalHeaders == null || additionalHeaders.Count == 0)
-				return string.Empty;
-
-			else
+			if (expectedAcceptString != actualAcceptString)
 			{
-                var builder = new StringBuilder();
-                foreach(var kvp in additionalHeaders)
-					builder.Append($"{kvp.Key}: {kvp.Value}\r\n");
-				return builder.ToString();
-            }
+				var warning = string.Format($"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'");
+				Events.Log.HandshakeFailure(guid, warning);
+				throw new WebSocketHandshakeFailedException(warning);
+			}
+			else
+				Events.Log.ClientHandshakeSuccess(guid);
+
+			// return the connection
+			return new WebSocketImplementation(guid, this._recycledStreamFactory, stream, keepAliveInterval, secWebSocketExtensions, includeExceptionInCloseResponse, isClient: true);
         }
 
-        async Task<WebSocket> PerformHandshakeAsync(Guid guid, Uri uri, Stream stream, WebSocketClientOptions options, CancellationToken cancellationToken)
-        {
-            var rand = new Random();
-			var keyAsBytes = new byte[16];
-            rand.NextBytes(keyAsBytes);
-			var secWebSocketKey = keyAsBytes.ToBase64();
-			var additionalHeaders = WebSocketClientFactory.GetAdditionalHeaders(options.AdditionalHttpHeaders);
-			var handshakeHttpRequest = $"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
-				$"Host: {uri.Host}:{uri.Port}\r\n" +
-				"Upgrade: websocket\r\n" +
-				"Connection: Upgrade\r\n" +
-				$"Sec-WebSocket-Key: {secWebSocketKey}\r\n" +
-				$"Origin: http://{uri.Host}:{uri.Port}\r\n" +
-				additionalHeaders +
-				"Sec-WebSocket-Version: 13\r\n\r\n";
-
-			var httpRequest = Encoding.UTF8.GetBytes(handshakeHttpRequest);
-            stream.Write(httpRequest, 0, httpRequest.Length);
-            Events.Log.HandshakeSent(guid, handshakeHttpRequest);
-            return await this.ConnectAsync(stream, secWebSocketKey, options, cancellationToken).ConfigureAwait(false);
-        }
-    }
+		/// <summary>
+		/// Connect with a stream that has already been opened and HTTP websocket upgrade request sent
+		/// This function will check the handshake response from the server and proceed if successful
+		/// Use this function if you have specific requirements to open a conenction like using special http headers and cookies
+		/// You will have to build your own HTTP websocket upgrade request
+		/// You may not even choose to use TCP/IP and this function will allow you to do that
+		/// </summary>
+		/// <param name="stream">The full duplex response stream from the server</param>
+		/// <param name="secWebSocketKey">The secWebSocketKey you used in the handshake request</param>
+		/// <param name="options">The WebSocket client options</param>
+		/// <param name="cancellationToken">The optional cancellation token</param>
+		/// <returns></returns>
+		public Task<WebSocket> ConnectAsync(Stream stream, string secWebSocketKey, WebSocketClientOptions options, CancellationToken cancellationToken)
+		{
+			return this.ConnectAsync(Guid.NewGuid(), stream, secWebSocketKey, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse, cancellationToken);
+		}
+	}
 }

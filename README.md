@@ -119,7 +119,7 @@ wsClient.Start(
     (ex) => Console.WriteLine($"Client got an error: {ex.Message}"),
     (conn) => Console.WriteLine($"Client got an open connection: {conn.ID} - {conn.EndPoint}"),
     (conn) => Console.WriteLine($"Client got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, result, buffer) => Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}")
+    (conn, type, msg) => Console.WriteLine($"Client got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}")
 );
 
 ```
@@ -149,9 +149,9 @@ var wsClient = new WebSocketClient("ws://localhost:46429/")
     {
         Console.WriteLine($"Client got a broken connection: {conn.ID}");
     },
-    OnMessageReceived = (conn, result, buffer) =>
+    OnMessageReceived = (conn, type, msg) =>
     {
-        Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}");
+        Console.WriteLine($"Client got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}");
     }
 };
 wsClient.Start();
@@ -180,7 +180,7 @@ wsServer.Start(
     (ex) => Console.WriteLine($"Server got an error: {ex.Message}"),
     (conn) => Console.WriteLine($"Server got an open connection: {conn.ID} - {conn.EndPoint}"),
     (conn) => Console.WriteLine($"Server got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, result, buffer) => Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}")
+    (conn, type, msg) => Console.WriteLine($"Server got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}")
 );
 
 ```
@@ -210,9 +210,9 @@ var wsServer = new WebSocketServer(46429)
     {
         Console.WriteLine($"Server got a broken connection: {conn.ID}");
     },
-    OnMessageReceived = (conn, result, buffer) =>
+    OnMessageReceived = (conn, type, msg) =>
     {
-        Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? buffer.GetString(result.Count) : "BIN")}");
+        Console.WriteLine($"Server got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}");
     }
 };
 wsServer.Start();
@@ -236,9 +236,30 @@ wsServer.Start();
 Want to have a free SSL certificate? Take a look at [Lets Encrypt](https://letsencrypt.org/).
 Special: A very simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Lets Encrypt very well.
 
-### WebSocketConnectionManager
+### WebSocketConnection
 
-Take a look at static class WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
+While working with WebSocketClient and WebSocketServer classes, the WebSocketConnection class its use as the replacement of WebSocket with more helper information
+
+#### Properties
+```csharp
+public Guid ID { get; }
+public bool IsClientConnection { get; }
+public bool IsSecureConnection { get; }
+public DateTime Time { get; }
+public string EndPoint { get; }
+public WebSocketState State { get; }
+```
+
+### Methods
+```csharp
+public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken)
+public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken)
+public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+public Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+```
+
+And take a look at static class named WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
 
 ## Others
 
@@ -246,6 +267,7 @@ Take a look at static class WebSocketConnectionManager to play aroud with connec
 
 - Microsoft.Extensions.Logging.Abstractions
 - Microsoft.IO.RecyclableMemoryStream
+- VIEApps.Components.WebSockets.Fleck
 - VIEApps.Components.Utility
 
 ### Namespaces

@@ -25,9 +25,12 @@ namespace net.vieapps.Components.WebSockets
 	/// </summary>
 	public class WebSocketConnection : IDisposable
 	{
+
+		#region Static helpers
 		internal const int BufferLength = 4 * 1024 * 1024;
 		const int DefaultBlockSize = 16 * 1024;
 		const int MaxBufferSize = 128 * 1024;
+		internal static ILogger Logger = Fleck.Logger.CreateLogger<WebSocketConnection>();
 
 		/// <summary>
 		/// Gets a factory to get recyclable memory stream with  RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
@@ -37,42 +40,23 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return new RecyclableMemoryStreamManager(WebSocketConnection.DefaultBlockSize, 4, WebSocketConnection.MaxBufferSize).GetStream;
 		}
+		#endregion
 
-		/// <summary>
-		/// Gets the WebSocket object of this connection
-		/// </summary>
-		public WebSocket WebSocket { get; internal set; }
-
+		#region Properties
 		/// <summary>
 		/// Gets the identity of this connection
 		/// </summary>
-		public Guid ID
-		{
-			get
-			{
-				return this.WebSocket != null
-					? (this.WebSocket as WebSocketImplementation).ID
-					: Guid.Empty;
-			}
-		}
+		public Guid ID { get; internal set; }
 
 		/// <summary>
-		/// Gets the state that specified this is connection of WebSocket client
+		/// Gets the state that specified this is connection of a client
 		/// </summary>
-		public bool IsWebSocketClientConnection
-		{
-			get
-			{
-				return this.WebSocket != null
-					? (this.WebSocket as WebSocketImplementation).IsClient
-					: false;
-			}
-		}
+		public bool IsClientConnection { get; internal set; } = false;
 
 		/// <summary>
-		/// Gets the state that specified this is connection of WebSocket is secure or not
+		/// Gets the state that specified this connection is secure or not
 		/// </summary>
-		public bool IsSecureWebSocketConnection { get; internal set; } = false;
+		public bool IsSecureConnection { get; internal set; } = false;
 
 		/// <summary>
 		/// Gets the time when this connection is established
@@ -84,16 +68,53 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		public string EndPoint { get; internal set; }
 
+		/// <summary>
+		/// Gets the state of this connection
+		/// </summary>
+		public WebSocketState State
+		{
+			get
+			{
+				return this.InnerSocket == null
+					? WebSocketState.Closed
+					: this.InnerSocket is Fleck.WebSocketConnection
+						? (this.InnerSocket as Fleck.WebSocketConnection).IsAvailable ? WebSocketState.Open : WebSocketState.Closed
+						: (this.InnerSocket as WebSocketImplementation).State;
+			}
+		}
+
+		internal object InnerSocket { get; set; }
+		#endregion
+
+		#region Dispose
 		public void Dispose()
 		{
-			this.WebSocket?.Dispose();
+			this.Dispose(WebSocketCloseStatus.EndpointUnavailable);
+		}
+
+		public void Dispose(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable")
+		{
+			if (this.InnerSocket is Fleck.WebSocketConnection)
+				(this.InnerSocket as Fleck.WebSocketConnection)?.Close(closeStatus.GetStatusCode());
+			else
+				(this.InnerSocket as WebSocketImplementation)?.Dispose(closeStatus, "Service is unavailable");
 		}
 
 		~WebSocketConnection()
 		{
 			this.Dispose();
 		}
+		#endregion
 
+		#region Event Handlers
+		internal Action<Exception> OnError { get; set; }
+
+		internal Action<WebSocketConnection> OnConnectionBroken { get; set; }
+
+		internal Action<WebSocketConnection, WebSocketMessageType, byte[]> OnMessageReceived { get; set; }
+		#endregion
+
+		#region Send messages
 		/// <summary>
 		/// Sends the message
 		/// </summary>
@@ -101,11 +122,23 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="messageType">The message type. Can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">the cancellation token</param>
-		public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return this.WebSocket != null
-				? this.WebSocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
+			if (this.InnerSocket == null)
+				return;
+
+			if (this.InnerSocket is Fleck.WebSocketConnection && (this.InnerSocket as Fleck.WebSocketConnection).IsAvailable)
+				using (cancellationToken.Register(() => throw new OperationCanceledException(cancellationToken), useSynchronizationContext: false))
+				{
+					if (messageType == WebSocketMessageType.Close)
+						(this.InnerSocket as Fleck.WebSocketConnection).Close();
+					else if (messageType == WebSocketMessageType.Binary)
+						await (this.InnerSocket as Fleck.WebSocketConnection).Send(buffer.Array.Sub(buffer.Offset, buffer.Count)).ConfigureAwait(false);
+					else
+						await (this.InnerSocket as Fleck.WebSocketConnection).Send(buffer.Array.Sub(buffer.Offset, buffer.Count).GetString()).ConfigureAwait(false);
+				}
+			else if (this.InnerSocket is WebSocketImplementation && (this.InnerSocket as WebSocketImplementation).State == WebSocketState.Open)
+				await (this.InnerSocket as WebSocketImplementation).SendAsync(buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -133,135 +166,178 @@ namespace net.vieapps.Components.WebSockets
 				? this.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, endOfMessage, cancellationToken)
 				: Task.CompletedTask;
 		}
-	}
+		#endregion
 
-	// ----------------------------------------------------------
-
-	/// <summary>
-	/// The manager of all WebSocket connections
-	/// </summary>
-	public static class WebSocketConnectionManager
-	{
-		internal static ConcurrentDictionary<Guid, WebSocketConnection> Connections = new ConcurrentDictionary<Guid, WebSocketConnection>();
-
-		internal static bool Add(WebSocketConnection connection)
+		#region Receive messages
+		internal async Task ReceiveAsync(CancellationToken cancellationToken)
 		{
-			return connection != null
-				? WebSocketConnectionManager.Connections.TryAdd(connection.ID, connection)
-				: false;
-		}
-
-		internal static bool Remove(WebSocketConnection connection)
-		{
-			if (connection != null && WebSocketConnectionManager.Connections.TryRemove(connection.ID, out WebSocketConnection instance))
+			// receive the message (infinity loop)
+			var buffer = new ArraySegment<byte>(new byte[WebSocketConnection.BufferLength]);
+			while (true)
 			{
-				instance.Dispose();
-				return true;
+				cancellationToken.ThrowIfCancellationRequested();
+				WebSocketReceiveResult result = null;
+				try
+				{
+					result = await (this.InnerSocket as WebSocketImplementation).ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					// close connection
+					var closeStatus = WebSocketCloseStatus.InternalServerError;
+					var closeStatusDescription = $"Close the connection when got an unexpeted error: {ex.Message}";
+					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+					{
+						closeStatus = this.IsClientConnection ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable;
+						closeStatusDescription = this.IsClientConnection ? "Disconnected" : "Service is unavailable";
+					}
+					WebSocketConnectionManager.Remove(this, closeStatus, closeStatusDescription);
+
+					try
+					{
+						this.OnConnectionBroken?.Invoke(this);
+					}
+					catch (Exception uex)
+					{
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+							WebSocketConnection.Logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
+					}
+
+					// handle error
+					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+					{
+						//WebSocketConnection.Logger.LogWarning(ex, closeStatusDescription);
+					}
+					else
+					{
+						try
+						{
+							this.OnError?.Invoke(ex);
+						}
+						catch (Exception uex)
+						{
+							if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+								WebSocketConnection.Logger.LogWarning(uex, $"(OnError): {uex.Message}");
+						}
+
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+							WebSocketConnection.Logger.LogError(ex, closeStatusDescription);
+					}
+
+					return;
+				}
+
+				// message to close
+				if (result.MessageType == WebSocketMessageType.Close)
+				{
+					WebSocketConnectionManager.Remove(this);
+
+					try
+					{
+						this.OnConnectionBroken?.Invoke(this);
+					}
+					catch (Exception uex)
+					{
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+							WebSocketConnection.Logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
+					}
+
+					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+						WebSocketConnection.Logger.LogInformation($"Remote end-point is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({this.ID} @ {this.EndPoint})");
+
+					return;
+				}
+
+				// exceed buffer size
+				if (result.Count > WebSocketConnection.BufferLength)
+				{
+					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketConnection.BufferLength:#,##0} bytes";
+					await this.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
+					WebSocketConnectionManager.Remove(this);
+
+					try
+					{
+						this.OnConnectionBroken?.Invoke(this);
+					}
+					catch (Exception uex)
+					{
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+							WebSocketConnection.Logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
+					}
+
+					try
+					{
+						this.OnError?.Invoke(new InvalidOperationException(message));
+					}
+					catch (Exception uex)
+					{
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+							WebSocketConnection.Logger.LogWarning(uex, $"(OnError): {uex.Message}");
+					}
+
+					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+						WebSocketConnection.Logger.LogInformation($"Close the connection because {message} ({this.ID} @ {this.EndPoint})");
+
+					return;
+				}
+
+				// got a message
+				if (result.Count > 0)
+				{
+					try
+					{
+						this.OnMessageReceived?.Invoke(this, result.MessageType, buffer.Take(result.Count).ToArray());
+					}
+					catch (Exception uex)
+					{
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+							WebSocketConnection.Logger.LogWarning(uex, $"(OnMessageReceived): {uex.Message}");
+					}
+
+					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
+						WebSocketConnection.Logger.LogTrace($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({this.ID} @ {this.EndPoint})");
+				}
 			}
-			return false;
 		}
+		#endregion
 
+		#region Close connection
 		/// <summary>
-		/// Gets a connection that specifed by identity
+		/// Closes this connection
 		/// </summary>
-		/// <param name="id"></param>
+		/// <param name="closeStatus"></param>
+		/// <param name="statusDescription"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static WebSocketConnection Get(Guid id)
+		public async Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return WebSocketConnectionManager.Connections.TryGetValue(id, out WebSocketConnection connection)
-				? connection
-				: null;
+			if (this.InnerSocket != null)
+			{
+				if (this.InnerSocket is Fleck.WebSocketConnection)
+					(this.InnerSocket as Fleck.WebSocketConnection).Close(closeStatus.GetStatusCode());
+				else
+					await (this.InnerSocket as WebSocketImplementation).CloseAsync(closeStatus, statusDescription, cancellationToken).ConfigureAwait(false);
+			}
 		}
 
 		/// <summary>
-		/// Gets the collection of connections that matched with the predicate
+		/// Fire and forget close
 		/// </summary>
-		/// <param name="predicate"></param>
+		/// <param name="closeStatus"></param>
+		/// <param name="statusDescription"></param>
+		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static IEnumerable<WebSocketConnection> Get(Func<WebSocketConnection, bool> predicate)
+		public async Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return WebSocketConnectionManager.Connections.Where(kvp => predicate != null ? predicate(kvp.Value) : false).Select(kvp => kvp.Value);
+			if (this.InnerSocket != null)
+			{
+				if (this.InnerSocket is Fleck.WebSocketConnection)
+					(this.InnerSocket as Fleck.WebSocketConnection).Close(closeStatus.GetStatusCode());
+				else
+					await (this.InnerSocket as WebSocketImplementation).CloseOutputAsync(closeStatus, statusDescription, cancellationToken).ConfigureAwait(false);
+			}
 		}
+		#endregion
 
-		/// <summary>
-		/// Gets the collection of all current connections
-		/// </summary>
-		/// <returns></returns>
-		public static IEnumerable<WebSocketConnection> GetAll()
-		{
-			return WebSocketConnectionManager.Connections.Select(kvp => kvp.Value);
-		}
-
-		/// <summary>
-		/// Sends the message to a WebSocket connection
-		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to send</param>
-		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type. Can be Text or Binary</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public static Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			var connection = WebSocketConnectionManager.Get(id);
-			return connection != null
-				? connection.SendAsync(buffer, messageType, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Sends the message to a WebSocket connection
-		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to send</param>
-		/// <param name="message">The text message to send</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public static Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			var connection = WebSocketConnectionManager.Get(id);
-			return connection != null
-				? connection.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Sends the message to a WebSocket connection
-		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to send</param>
-		/// <param name="message">The binary message to send</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public static Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			var connection = WebSocketConnectionManager.Get(id);
-			return connection != null
-				? connection.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Sends the message to the WebSocket connections that matched with the predicate
-		/// </summary>
-		/// <param name="predicate">The predicate for selecting connections</param>
-		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type. Can be Text or Binary</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public static async Task SendAsync(Func<WebSocketConnection, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			var connections = WebSocketConnectionManager.Connections.Where(kvp => predicate != null ? predicate(kvp.Value) : false).Select(kvp => kvp.Value);
-			await connections.ForEachAsync((connection, token) => connection.SendAsync(buffer, messageType, endOfMessage, token), cancellationToken).ConfigureAwait(false);
-		}
-
-		/// <summary>
-		/// Sends the message to all WebSocket connections
-		/// </summary>
-		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type. Can be Text or Binary</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		public static Task SendAllAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return WebSocketConnectionManager.SendAsync(connection => true, buffer, messageType, endOfMessage, cancellationToken);
-		}
 	}
 }

@@ -10,9 +10,9 @@ namespace net.vieapps.Components.WebSockets.Internal
     // see http://tools.ietf.org/html/rfc6455 for specification
     // see fragmentation section for sending multi part messages
     // EXAMPLE: For a text message sent as three fragments, 
-    //   the first fragment would have an opcode of TextFrame and isLastFrame false,
-    //   the second fragment would have an opcode of ContinuationFrame and isLastFrame false,
-    //   the third fragment would have an opcode of ContinuationFrame and isLastFrame true.
+    // the first fragment would have an opcode of TextFrame and isLastFrame false,
+    // the second fragment would have an opcode of ContinuationFrame and isLastFrame false,
+    // the third fragment would have an opcode of ContinuationFrame and isLastFrame true.
     internal static class WebSocketFrameWriter
     {
         /// <summary>

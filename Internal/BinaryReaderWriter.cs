@@ -11,7 +11,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 {
     internal class BinaryReaderWriter
     {
-        public static async Task ReadExactlyAsync(int length, Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        public static async Task ReadExactlyAsync(int length, Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             if (length == 0)
 				return;
@@ -35,7 +35,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 			while (offset < length);
         }
 
-        public static async Task<ushort> ReadUShortExactlyAsync(Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        public static async Task<ushort> ReadUShortExactlyAsync(Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             await BinaryReaderWriter.ReadExactlyAsync(2, stream, buffer, cancellationToken).ConfigureAwait(false);
 
@@ -45,7 +45,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 			return BitConverter.ToUInt16(buffer.Array, buffer.Offset);
         }
 
-        public static async Task<ulong> ReadULongExactlyAsync(Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        public static async Task<ulong> ReadULongExactlyAsync(Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             await BinaryReaderWriter.ReadExactlyAsync(8, stream, buffer, cancellationToken).ConfigureAwait(false);
 
@@ -55,7 +55,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 			return BitConverter.ToUInt64(buffer.Array, buffer.Offset);
         }
 
-        public static async Task<long> ReadLongExactlyAsync(Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+        public static async Task<long> ReadLongExactlyAsync(Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {
             await BinaryReaderWriter.ReadExactlyAsync(8, stream, buffer, cancellationToken).ConfigureAwait(false);
 

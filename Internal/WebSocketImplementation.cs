@@ -7,6 +7,8 @@ using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
 using net.vieapps.Components.Utility;
 #endregion
 
@@ -35,6 +37,8 @@ namespace net.vieapps.Components.WebSockets.Internal
 		const int MAX_PING_PONG_PAYLOAD_LEN = 125;
 
 		public event EventHandler<PongEventArgs> Pong;
+
+		internal static Microsoft.Extensions.Logging.ILogger Logger = Fleck.Logger.CreateLogger<WebSocketImplementation>();
 
 		internal WebSocketImplementation(Guid guid, Func<MemoryStream> recycledStreamFactory, Stream stream, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, bool isClient)
 		{
@@ -122,12 +126,13 @@ namespace net.vieapps.Components.WebSockets.Internal
 						}
 						catch (Exception ex)
 						{
+							if (Logger.IsEnabled(LogLevel.Debug) && ex is OperationCanceledException)
+								Logger.LogDebug("Cancel (ReceiveAsync)");
 							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
 							throw;
 						}
 						finally
 						{
-							//await this._stream.FlushAsync().ConfigureAwait(false);
 							GC.Collect();
 						}
 
@@ -216,7 +221,6 @@ namespace net.vieapps.Components.WebSockets.Internal
 				await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				this._isContinuationFrame = !endOfMessage;
 			}
-			GC.Collect();
 		}
 
 		/// <summary>
@@ -229,15 +233,12 @@ namespace net.vieapps.Components.WebSockets.Internal
 				throw new InvalidOperationException($"Cannot send Ping: Max ping message size {MAX_PING_PONG_PAYLOAD_LEN} exceeded: {payload.Count}");
 
 			if (this._state == WebSocketState.Open)
-			{
 				using (var stream = this._recycledStreamFactory())
 				{
 					WebSocketFrameWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this._isClient);
 					Events.Log.SendingFrame(this._guid, WebSocketOpCode.Ping, true, payload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
-				GC.Collect();
-			}
 		}
 
 		/// <summary>
@@ -265,7 +266,6 @@ namespace net.vieapps.Components.WebSockets.Internal
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._state = WebSocketState.CloseSent;
 				}
-				GC.Collect();
 			}
 			else
 				Events.Log.InvalidStateBeforeClose(this._guid, this._state);
@@ -289,7 +289,6 @@ namespace net.vieapps.Components.WebSockets.Internal
 					Events.Log.SendingFrame(this._guid, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
-				GC.Collect();
 			}
 			else
 				Events.Log.InvalidStateBeforeCloseOutput(this._guid, this._state);
@@ -303,6 +302,14 @@ namespace net.vieapps.Components.WebSockets.Internal
 		/// </summary>
 		public override void Dispose()
 		{
+			this.Dispose(WebSocketCloseStatus.EndpointUnavailable);
+		}
+
+		/// <summary>
+		/// Dispose will send a close frame if the connection is still open
+		/// </summary>
+		public void Dispose(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable")
+		{
 			Events.Log.WebSocketDispose(this._guid, this._state);
 
 			try
@@ -312,12 +319,15 @@ namespace net.vieapps.Components.WebSockets.Internal
 					{
 						try
 						{
-							this.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "Service is unavailable", cts.Token).Wait();
+							this.CloseOutputAsync(closeStatus, closeStatusDescription, cts.Token).Wait();
 						}
 						catch (OperationCanceledException)
 						{
-							// log don't throw
 							Events.Log.WebSocketDisposeCloseTimeout(this._guid, this._state);
+						}
+						catch (Exception)
+						{
+							Events.Log.WebSocketDispose(this._guid, this._state);
 						}
 					}
 
@@ -327,7 +337,6 @@ namespace net.vieapps.Components.WebSockets.Internal
 			}
 			catch (Exception ex)
 			{
-				// log dont throw
 				Events.Log.WebSocketDisposeError(this._guid, this._state, ex.ToString());
 			}
 		}
@@ -387,7 +396,6 @@ namespace net.vieapps.Components.WebSockets.Internal
 						Events.Log.SendingFrame(this._guid, WebSocketOpCode.Pong, true, payload.Count, false);
 						await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					}
-					GC.Collect();
 				}
 			}
 			catch (Exception ex)
@@ -425,7 +433,6 @@ namespace net.vieapps.Components.WebSockets.Internal
 					Events.Log.SendingFrame(this._guid, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
-				GC.Collect();
 			}
 			else
 				Events.Log.CloseFrameReceivedInUnexpectedState(this._guid, this._state, frame.CloseStatus, frame.CloseStatusDescription);
@@ -435,7 +442,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 
 		ArraySegment<byte> GetBuffer(MemoryStream stream)
 		{
-			// Avoid calling ToArray on the MemoryStream because it allocates a new byte array on tha heap
+			// Avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
 			// We avaoid this by attempting to access the internal memory stream buffer
 			// This works with supported streams like the recyclable memory stream and writable memory streams
 			if (!stream.TryGetBuffer(out ArraySegment<byte> buffer))
@@ -460,10 +467,22 @@ namespace net.vieapps.Components.WebSockets.Internal
 		/// <param name="stream">The stream to read data from</param>
 		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
-			var buffer = this.GetBuffer(stream);
-			await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
-			await this._stream.FlushAsync().ConfigureAwait(false);
-			GC.Collect();
+			try
+			{
+				var buffer = this.GetBuffer(stream);
+				await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+				await this._stream.FlushAsync().ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				if (Logger.IsEnabled(LogLevel.Debug) && ex is OperationCanceledException)
+					Logger.LogDebug("Cancel (WriteStreamToNetworkAsync)");
+				throw ex;
+			}
+			finally
+			{
+				GC.Collect();
+			}
 		}
 
 		/// <summary>

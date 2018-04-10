@@ -43,9 +43,7 @@ namespace net.vieapps.Components.WebSockets
 		public async Task<WebSocketHttpContext> ReadHttpHeaderFromStreamAsync(Stream stream, CancellationToken cancellationToken)
         {
             var header = await HttpHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
-			var path = HttpHelper.GetPathFromHeader(header);
-			var isWebSocketRequest = HttpHelper.IsWebSocketUpgradeRequest(header);
-            return new WebSocketHttpContext(isWebSocketRequest, header, path, stream);
+            return new WebSocketHttpContext(HttpHelper.IsWebSocketUpgradeRequest(header), header, HttpHelper.GetPathFromHeader(header), stream);
         }
 
         /// <summary>
@@ -70,66 +68,60 @@ namespace net.vieapps.Components.WebSockets
         /// <returns>A connected web socket</returns>
         public async Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken)
         {
+			// handsake
             var guid = Guid.NewGuid();
             Events.Log.AcceptWebSocketStarted(guid);
-            await WebSocketServerFactory.PerformHandshakeAsync(guid, context.HttpHeader, context.Stream, cancellationToken).ConfigureAwait(false);
-            Events.Log.ServerHandshakeSuccess(guid);
-            string secWebSocketExtensions = null;
-            return new WebSocketImplementation(guid, this._recycledStreamFactory, context.Stream, options.KeepAliveInterval, secWebSocketExtensions, options.IncludeExceptionInCloseResponse,  isClient: false);
-        }
+			try
+			{
+				// check the version (support version 13 and above)
+				const int WebSocketVersion = 13;
+				var webSocketVersionRegex = new Regex("Sec-WebSocket-Version: (.*)");
+				var match = webSocketVersionRegex.Match(context.HttpHeader);
+				if (match.Success)
+				{
+					var secWebSocketVersion = Convert.ToInt32(match.Groups[1].Value.Trim());
+					if (secWebSocketVersion < WebSocketVersion)
+						throw new WebSocketVersionNotSupportedException(string.Format("WebSocket Version {0} not suported. Must be {1} or above", secWebSocketVersion, WebSocketVersion));
+				}
+				else
+					throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in HTTP header");
 
-        static void CheckWebSocketVersion(string httpHeader)
-        {
-			// check the version. Support version 13 and above
-			const int WebSocketVersion = 13;
-			var webSocketVersionRegex = new Regex("Sec-WebSocket-Version: (.*)");
-			var match = webSocketVersionRegex.Match(httpHeader);
-            if (match.Success)
-            {
-				var secWebSocketVersion = Convert.ToInt32(match.Groups[1].Value.Trim());
-                if (secWebSocketVersion < WebSocketVersion)
-					throw new WebSocketVersionNotSupportedException(string.Format("WebSocket Version {0} not suported. Must be {1} or above", secWebSocketVersion, WebSocketVersion));
-			}
-			else
-				throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in HTTP header");
-		}
-
-		static async Task PerformHandshakeAsync(Guid guid, String httpHeader, Stream stream, CancellationToken cancellationToken)
-        {
-            try
-            {
+				// handsake
 				var webSocketKeyRegex = new Regex("Sec-WebSocket-Key: (.*)");
-				WebSocketServerFactory.CheckWebSocketVersion(httpHeader);
-
-				var match = webSocketKeyRegex.Match(httpHeader);
-                if (match.Success)
-                {
+				match = webSocketKeyRegex.Match(context.HttpHeader);
+				if (match.Success)
+				{
 					var secWebSocketKey = match.Groups[1].Value.Trim();
 					var setWebSocketAccept = HttpHelper.ComputeSocketAcceptString(secWebSocketKey);
 					var response = "HTTP/1.1 101 Switching Protocols\r\n"
 						+ "Connection: Upgrade\r\n"
 						+ "Upgrade: websocket\r\n"
-						+ "Sec-WebSocket-Accept: " + setWebSocketAccept + "\r\n"
-						+ "Server: VIEApps NGX";
-                    Events.Log.SendingHandshakeResponse(guid, response);
-                    await HttpHelper.WriteHttpHeaderAsync(response, stream, cancellationToken).ConfigureAwait(false);
-                }
-                else
+						+ "Server: VIEApps NGX\r\n"
+						+ "Sec-WebSocket-Accept: " + setWebSocketAccept;
+					Events.Log.SendingHandshakeResponse(guid, response);
+					await HttpHelper.WriteHttpHeaderAsync(response, context.Stream, cancellationToken).ConfigureAwait(false);
+				}
+				else
 					throw new SecWebSocketKeyMissingException("Unable to read \"Sec-WebSocket-Key\" from HTTP header");
 			}
 			catch (WebSocketVersionNotSupportedException ex)
-            {
-                Events.Log.WebSocketVersionNotSupported(guid, ex.ToString());
-                var response = "HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13" + ex.Message;
-                await HttpHelper.WriteHttpHeaderAsync(response, stream, cancellationToken).ConfigureAwait(false);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                Events.Log.BadRequest(guid, ex.ToString());
-                await HttpHelper.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", stream, cancellationToken).ConfigureAwait(false);
-                throw;
-            }
+			{
+				Events.Log.WebSocketVersionNotSupported(guid, ex.ToString());
+				var response = "HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13" + ex.Message;
+				await HttpHelper.WriteHttpHeaderAsync(response, context.Stream, cancellationToken).ConfigureAwait(false);
+				throw;
+			}
+			catch (Exception ex)
+			{
+				Events.Log.BadRequest(guid, ex.ToString());
+				await HttpHelper.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", context.Stream, cancellationToken).ConfigureAwait(false);
+				throw;
+			}
+			Events.Log.ServerHandshakeSuccess(guid);
+
+			// create new instance
+            string secWebSocketExtensions = null;
+			return new WebSocketImplementation(guid, this._recycledStreamFactory, context.Stream, options.KeepAliveInterval, secWebSocketExtensions, options.IncludeExceptionInCloseResponse,  isClient: false);
         }
 	}
 }

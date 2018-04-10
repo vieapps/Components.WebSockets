@@ -15,19 +15,17 @@ namespace net.vieapps.Components.WebSockets.Internal
         /// <param name="payload">The payload to mutate</param>
         public static void ToggleMask(ArraySegment<byte> maskKey, ArraySegment<byte> payload)
         {
-            if (maskKey.Count != MaskKeyLength)
-            {
-                throw new Exception($"MaskKey key must be {WebSocketFrameCommon.MaskKeyLength} bytes");
-            }
+            if (maskKey.Count != WebSocketFrameCommon.MaskKeyLength)
+				throw new Exception($"MaskKey key must be {WebSocketFrameCommon.MaskKeyLength} bytes");
 
-            var buffer = payload.Array;
+			var buffer = payload.Array;
 			var maskKeyArray = maskKey.Array;
 
             // apply the mask key (this is a reversible process so no need to copy the payload)
             for (var index = payload.Offset; index < payload.Count; index++)
             {
                 int payloadIndex = index - payload.Offset; // index should start at zero
-                int maskKeyIndex = maskKey.Offset + (payloadIndex % MaskKeyLength);
+                int maskKeyIndex = maskKey.Offset + (payloadIndex % WebSocketFrameCommon.MaskKeyLength);
                 buffer[index] = (Byte)(buffer[index] ^ maskKeyArray[maskKeyIndex]);
             }
         }
