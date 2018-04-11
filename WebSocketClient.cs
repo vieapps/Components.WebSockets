@@ -162,7 +162,9 @@ namespace net.vieapps.Components.WebSockets
 			{
 				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 				{
-					// do nothing
+					this.OnStartFailed?.Invoke(ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogError(ex, ex.Message);
 				}
 				else
 				{
