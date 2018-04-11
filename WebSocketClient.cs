@@ -26,12 +26,12 @@ namespace net.vieapps.Components.WebSockets
 		ILogger _logger;
 		Uri _uri;
 		CancellationTokenSource _cancellationTokenSource;
-		#endregion
 
 		/// <summary>
 		/// Gest the <see cref="WebSocketConnection">WebSocketConnection</see> object that associates with this client
 		/// </summary>
 		public WebSocketConnection WebSocketConnection { get { return this._wsConnection; } }
+		#endregion
 
 		#region Event Handlers
 		/// <summary>
@@ -136,7 +136,6 @@ namespace net.vieapps.Components.WebSockets
 		{
 			try
 			{
-				// connect
 				this._wsConnection = new WebSocketConnection()
 				{
 					InnerSocket = await this._wsFactory.ConnectAsync(this._uri, this._cancellationTokenSource.Token).ConfigureAwait(false),
@@ -151,56 +150,17 @@ namespace net.vieapps.Components.WebSockets
 				this._wsConnection.ID = (this._wsConnection.InnerSocket as WebSocketImplementation).ID;
 				WebSocketConnectionManager.Add(this._wsConnection);
 
-				// events
-				try
-				{
-					this.OnStartSuccess?.Invoke();
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartSuccess): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnConnectionEstablished?.Invoke(this._wsConnection);
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnConnectionEstablished): {uex.Message}");
-				}
-
+				this.OnStartSuccess?.Invoke();
+				this.OnConnectionEstablished?.Invoke(this._wsConnection);
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation($"Connection is opened ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
 			}
 			catch (Exception ex)
 			{
 				var message = $"Error occurred while attempting connect to \"{this._uri}\"";
-				this._logger.LogError(ex, message);
-
-				// events
-				try
-				{
-					this.OnStartFailed?.Invoke(new Exception(message, ex));
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartFailed): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnError?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnError): {uex.Message}");
-				}
-
+				this.OnStartFailed?.Invoke(new Exception(message, ex));
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, message);
 				return;
 			}
 

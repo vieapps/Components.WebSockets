@@ -35,10 +35,16 @@ namespace net.vieapps.Components.WebSockets
 		bool _disposed = false, _useFleck = true;
 		#endregion
 
+		#region Properties
 		/// <summary>
 		/// Sets the certificate for securing connections
 		/// </summary>
 		public X509Certificate2 Certificate { private get; set; } = null;
+
+		/// <summary>
+		/// Gets or Sets the maximum length of the pending connections queue
+		/// </summary>
+		public int Backlog { get; set; } = 1000;
 
 		/// <summary>
 		/// Gets the connections of all current WebSocket clients that are connected with this server
@@ -50,6 +56,7 @@ namespace net.vieapps.Components.WebSockets
 				return WebSocketConnectionManager.Connections.Values.Where(connection => !connection.IsClientConnection).ToList();
 			}
 		}
+		#endregion
 
 		#region Event Handlers
 		/// <summary>
@@ -120,27 +127,17 @@ namespace net.vieapps.Components.WebSockets
 			if (this.Certificate != null)
 				platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 
-			this._logger.LogInformation($"WebSocket Server{(this._useFleck ? " (Fleck) " : " ")}is started - Listening port: {this._port} - Platform: {platform}");
+			this._logger.LogInformation($"WebSocket Server{(this._useFleck ? " (Fleck) " : " ")}is started - Listening port: {this._port} - Queue: {(this.Backlog > 0 && this.Backlog <= 5000 ? this.Backlog : 1000):#,##0} - Platform: {platform}");
 		}
 
 		void StartTcpWebSocketServer()
 		{
 			try
 			{
-				// open the listener
+				// start by open the listener
 				this._listener = new TcpListener(IPAddress.Any, this._port);
-				this._listener.Start(1000);
-
-				// event
-				try
-				{
-					this.OnStartSuccess?.Invoke();
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartSuccess): {uex.Message}");
-				}
+				this._listener.Start(this.Backlog > 0 && this.Backlog <= 5000 ? this.Backlog : 1000);
+				this.OnStartSuccess?.Invoke();
 
 				// listen for incomming requests
 				this.ShowStartInfo();
@@ -149,54 +146,15 @@ namespace net.vieapps.Components.WebSockets
 			catch (SocketException ex)
 			{
 				var message = $"Error occurred while listening on port \"{this._port}\". Make sure another application is not running and consuming this port.";
-				this._logger.LogError(ex, message);
-
-				// events
-				try
-				{
-					this.OnStartFailed?.Invoke(new Exception(message, ex));
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartSuccess): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnError?.Invoke(new Exception(message, ex));
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnError): {uex.Message}");
-				}
+				this.OnStartFailed?.Invoke(new Exception(message, ex));
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, message);
 			}
 			catch (Exception ex)
 			{
-				// logs
-				this._logger.LogError(ex, $"Got an unexpected error when start server: {ex.Message}");
-
-				// events
-				try
-				{
-					this.OnStartFailed?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartFailed): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnError?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnError): {uex.Message}");
-				}
+				this.OnError?.Invoke(ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, $"Got an unexpected error when start server: {ex.Message}");
 			}
 		}
 
@@ -228,162 +186,62 @@ namespace net.vieapps.Components.WebSockets
 						};
 						WebSocketConnectionManager.Add(wsConnection);
 
-						try
-						{
-							this.OnConnectionEstablished?.Invoke(wsConnection);
-						}
-						catch (Exception uex)
-						{
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogWarning(uex, $"(OnConnectionEstablished): {uex.Message}");
-						}
-
-						if (this._logger.IsEnabled(LogLevel.Debug))
-							this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})\r\nCurrent open connection(s): {this.Connections.Count:#,##0}");
+						this.OnConnectionEstablished?.Invoke(wsConnection);
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
 					};
 
 					socket.OnClose = () =>
 					{
-						// remove from the collection
 						var wsConnection = WebSocketConnectionManager.Get(socket.ConnectionInfo.Id);
 						WebSocketConnectionManager.Remove(wsConnection);
-
-						// events
-						try
-						{
-							this.OnConnectionBroken?.Invoke(wsConnection);
-						}
-						catch (Exception uex)
-						{
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
-						}
+						this.OnConnectionBroken?.Invoke(wsConnection);
 					};
 
 					socket.OnError = (ex) =>
 					{
-						// disconnected
-						if (ex is IOException || ex is SocketException)
+						if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 						{
-							// remove from the collection
 							var wsConnection = WebSocketConnectionManager.Get(socket.ConnectionInfo.Id);
 							WebSocketConnectionManager.Remove(wsConnection);
-
-							// event
-							try
-							{
-								this.OnConnectionBroken?.Invoke(wsConnection);
-							}
-							catch (Exception uex)
-							{
-								if (this._logger.IsEnabled(LogLevel.Debug))
-									this._logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
-							}
-
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogInformation($"Disconnect when got an error ({wsConnection?.ID} @ {wsConnection?.EndPoint}) => {ex.GetType().GetTypeName(true)}");
+							this.OnConnectionBroken?.Invoke(wsConnection);
+							if (this._logger.IsEnabled(LogLevel.Trace))
+								this._logger.LogInformation($"Disconnect when got an error ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
 						}
 						else
-							try
-							{
-								this.OnError?.Invoke(ex);
-							}
-							catch (Exception uex)
-							{
-								this._logger.LogError(uex, $"(OnError): {uex.Message}");
-							}
+						{
+							this.OnError?.Invoke(ex);
+							if (this._logger.IsEnabled(LogLevel.Debug))
+								this._logger.LogError(ex, $"Got an unexpected error while processing: {ex.Message}");
+						}
 					};
 
 					socket.OnMessage = (msg) =>
 					{
-						try
-						{
-							this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), WebSocketMessageType.Text, (msg ?? "").ToBytes());
-						}
-						catch (Exception uex)
-						{
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogWarning(uex, $"(OnMessageReceived): {uex.Message}");
-						}
+						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), WebSocketMessageType.Text, (msg ?? "").ToBytes());
 					};
 
 					socket.OnBinary = (msg) =>
 					{
-						try
-						{
-							this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), WebSocketMessageType.Binary, msg);
-						}
-						catch (Exception uex)
-						{
-							if (this._logger.IsEnabled(LogLevel.Debug))
-								this._logger.LogWarning(uex, $"(OnMessageReceived): {uex.Message}");
-						}
+						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), WebSocketMessageType.Binary, msg);
 					};
-				});
+				}, this.Backlog > 0 && this.Backlog <= 5000 ? this.Backlog : 1000);
 
-				// event
-				try
-				{
-					this.OnStartSuccess?.Invoke();
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartSuccess): {uex.Message}");
-				}
+				this.OnStartSuccess?.Invoke();
 				this.ShowStartInfo();
 			}
 			catch (SocketException ex)
 			{
 				var message = $"Error occurred while listening on port \"{this._port}\". Make sure another application is not running and consuming this port.";
-				this._logger.LogError(ex, message);
-
-				// events
-				try
-				{
-					this.OnStartFailed?.Invoke(new Exception(message, ex));
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartSuccess): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnError?.Invoke(new Exception(message, ex));
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnError): {uex.Message}");
-				}
+				this.OnStartFailed?.Invoke(new Exception(message, ex));
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, message);
 			}
 			catch (Exception ex)
 			{
-				// logs
-				this._logger.LogError(ex, $"Got an unexpected error when start server: {ex.Message}");
-
-				// events
-				try
-				{
-					this.OnStartFailed?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnStartFailed): {uex.Message}");
-				}
-
-				try
-				{
-					this.OnError?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogWarning(uex, $"(OnError): {uex.Message}");
-				}
+				this.OnError?.Invoke(ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, $"Got an unexpected error when start server: {ex.Message}");
 			}
 		}
 		
@@ -494,7 +352,7 @@ namespace net.vieapps.Components.WebSockets
 		async Task AcceptClientRequestAsync(TcpClient client)
 		{
 			WebSocketConnection wsConnection = null;
-			if (this._logger.IsEnabled(LogLevel.Information))
+			if (this._logger.IsEnabled(LogLevel.Trace))
 				this._logger.LogInformation("Connection is opened, then reading HTTP header from the stream");
 
 			try
@@ -509,13 +367,13 @@ namespace net.vieapps.Components.WebSockets
 						{
 							try
 							{
-								if (this._logger.IsEnabled(LogLevel.Debug))
+								if (this._logger.IsEnabled(LogLevel.Trace))
 									this._logger.LogInformation("Attempting to secure connection...");
 
 								stream = new SslStream(client.GetStream(), false);
 								await (stream as SslStream).AuthenticateAsServerAsync(this.Certificate, false, SslProtocols.Tls, false).ConfigureAwait(false);
 
-								if (this._logger.IsEnabled(LogLevel.Debug))
+								if (this._logger.IsEnabled(LogLevel.Trace))
 									this._logger.LogInformation("Connection successfully secured");
 							}
 							catch (Exception ex)
@@ -534,12 +392,12 @@ namespace net.vieapps.Components.WebSockets
 				var context = await this._wsFactory.ReadHttpHeaderFromStreamAsync(stream, this._cancellationTokenSource.Token).ConfigureAwait(false);
 				if (!context.IsWebSocketRequest)
 				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
+					if (this._logger.IsEnabled(LogLevel.Trace))
 						this._logger.LogInformation("HTTP header contains no WebSocket upgrade request, then close the connection");
 					return;
 				}
 
-				if (this._logger.IsEnabled(LogLevel.Debug))
+				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
 				wsConnection = new WebSocketConnection()
@@ -556,18 +414,9 @@ namespace net.vieapps.Components.WebSockets
 				wsConnection.ID = (wsConnection.InnerSocket as WebSocketImplementation).ID;
 				WebSocketConnectionManager.Add(wsConnection);
 
-				// event
-				try
-				{
-					this.OnConnectionEstablished?.Invoke(wsConnection);
-				}
-				catch (Exception uex)
-				{
-					this._logger.LogError(uex, $"(OnConnectionEstablished): {uex.Message}");
-				}
-
-				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})\r\nCurrent open connection(s): {this.Connections.Count:#,##0}");
+				this.OnConnectionEstablished?.Invoke(wsConnection);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
 			}
 			catch (IOException) { }
 			catch (SocketException) { }
@@ -575,23 +424,14 @@ namespace net.vieapps.Components.WebSockets
 			catch (OperationCanceledException) { }
 			catch (Exception ex)
 			{
-				try
-				{
-					this.OnError?.Invoke(ex);
-				}
-				catch (Exception uex)
-				{
-					this._logger.LogError(uex, $"(OnError): {uex.Message}");
-				}
-
-				this._logger.LogError(ex, $"Error occurred while accepting request: {ex.Message}");
-
+				this.OnError?.Invoke(ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, $"Error occurred while accepting request: {ex.Message}");
 				return;
 			}
 
 			// receive messages
 			await wsConnection.ReceiveAsync(this._cancellationTokenSource.Token).ConfigureAwait(false);
-
 		}
 		#endregion
 

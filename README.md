@@ -7,8 +7,8 @@ You can safely pass around a general purpose WebSocket instance throughout your 
 This is the same WebSocket abstract class used by .NET Core 2.0 and it allows for asynchronous WebSocket communication for improved performance and scalability.
 
 ## NuGet
-- Package ID: VIEApps.Components.Utility
-- Details: https://www.nuget.org/packages/VIEApps.Components.WebSockets/
+- Package ID: VIEApps.Components.WebSockets
+- Details: https://www.nuget.org/packages/VIEApps.Components.WebSockets
 
 ## Walking on the ground
 
@@ -263,9 +263,16 @@ And take a look at static class named WebSocketConnectionManager to play aroud w
 
 ## Others
 
+### Default server
+
+The Fleck WebSocket server is use by default to handle connections of server (see dependencies below).
+
+### Logging
+
+Please use Microsoft.Extensions.Logging with your favourite provider via dependency injection.
+
 ### Dependencies
 
-- Microsoft.Extensions.Logging.Abstractions
 - Microsoft.IO.RecyclableMemoryStream
 - VIEApps.Components.WebSockets.Fleck
 - VIEApps.Components.Utility

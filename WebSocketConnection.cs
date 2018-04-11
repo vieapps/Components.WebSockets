@@ -97,7 +97,7 @@ namespace net.vieapps.Components.WebSockets
 			if (this.InnerSocket is Fleck.WebSocketConnection)
 				(this.InnerSocket as Fleck.WebSocketConnection)?.Close(closeStatus.GetStatusCode());
 			else
-				(this.InnerSocket as WebSocketImplementation)?.Dispose(closeStatus, "Service is unavailable");
+				(this.InnerSocket as WebSocketImplementation)?.Dispose(closeStatus, closeStatusDescription);
 		}
 
 		~WebSocketConnection()
@@ -183,7 +183,6 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception ex)
 				{
-					// close connection
 					var closeStatus = WebSocketCloseStatus.InternalServerError;
 					var closeStatusDescription = $"Close the connection when got an unexpeted error: {ex.Message}";
 					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
@@ -193,37 +192,17 @@ namespace net.vieapps.Components.WebSockets
 					}
 					WebSocketConnectionManager.Remove(this, closeStatus, closeStatusDescription);
 
-					try
-					{
-						this.OnConnectionBroken?.Invoke(this);
-					}
-					catch (Exception uex)
-					{
-						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
-							WebSocketConnection.Logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
-					}
-
-					// handle error
+					this.OnConnectionBroken?.Invoke(this);
 					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 					{
 						//WebSocketConnection.Logger.LogWarning(ex, closeStatusDescription);
 					}
 					else
 					{
-						try
-						{
-							this.OnError?.Invoke(ex);
-						}
-						catch (Exception uex)
-						{
-							if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
-								WebSocketConnection.Logger.LogWarning(uex, $"(OnError): {uex.Message}");
-						}
-
+						this.OnError?.Invoke(ex);
 						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
 							WebSocketConnection.Logger.LogError(ex, closeStatusDescription);
 					}
-
 					return;
 				}
 
@@ -231,20 +210,9 @@ namespace net.vieapps.Components.WebSockets
 				if (result.MessageType == WebSocketMessageType.Close)
 				{
 					WebSocketConnectionManager.Remove(this);
-
-					try
-					{
-						this.OnConnectionBroken?.Invoke(this);
-					}
-					catch (Exception uex)
-					{
-						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
-							WebSocketConnection.Logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
-					}
-
-					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
+					this.OnConnectionBroken?.Invoke(this);
+					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
 						WebSocketConnection.Logger.LogInformation($"Remote end-point is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({this.ID} @ {this.EndPoint})");
-
 					return;
 				}
 
@@ -254,46 +222,17 @@ namespace net.vieapps.Components.WebSockets
 					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketConnection.BufferLength:#,##0} bytes";
 					await this.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(this);
-
-					try
-					{
-						this.OnConnectionBroken?.Invoke(this);
-					}
-					catch (Exception uex)
-					{
-						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
-							WebSocketConnection.Logger.LogWarning(uex, $"(OnConnectionBroken): {uex.Message}");
-					}
-
-					try
-					{
-						this.OnError?.Invoke(new InvalidOperationException(message));
-					}
-					catch (Exception uex)
-					{
-						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
-							WebSocketConnection.Logger.LogWarning(uex, $"(OnError): {uex.Message}");
-					}
-
+					this.OnConnectionBroken?.Invoke(this);
+					this.OnError?.Invoke(new InvalidOperationException(message));
 					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
 						WebSocketConnection.Logger.LogInformation($"Close the connection because {message} ({this.ID} @ {this.EndPoint})");
-
 					return;
 				}
 
 				// got a message
 				if (result.Count > 0)
 				{
-					try
-					{
-						this.OnMessageReceived?.Invoke(this, result.MessageType, buffer.Take(result.Count).ToArray());
-					}
-					catch (Exception uex)
-					{
-						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
-							WebSocketConnection.Logger.LogWarning(uex, $"(OnMessageReceived): {uex.Message}");
-					}
-
+					this.OnMessageReceived?.Invoke(this, result.MessageType, buffer.Take(result.Count).ToArray());
 					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
 						WebSocketConnection.Logger.LogTrace($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({this.ID} @ {this.EndPoint})");
 				}
