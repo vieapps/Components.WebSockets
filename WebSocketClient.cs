@@ -136,6 +136,9 @@ namespace net.vieapps.Components.WebSockets
 		{
 			try
 			{
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogInformation($"Attempting to connect to \"{this._uri}\"");
+
 				this._wsConnection = new WebSocketConnection()
 				{
 					InnerSocket = await this._wsFactory.ConnectAsync(this._uri, this._cancellationTokenSource.Token).ConfigureAwait(false),
@@ -157,10 +160,17 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				var message = $"Error occurred while attempting connect to \"{this._uri}\"";
-				this.OnStartFailed?.Invoke(new Exception(message, ex));
-				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogError(ex, message);
+				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+				{
+					// do nothing
+				}
+				else
+				{
+					var message = $"Error occurred while attempting to connect to \"{this._uri}\"";
+					this.OnStartFailed?.Invoke(new Exception(message, ex));
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogError(ex, message);
+				}
 				return;
 			}
 

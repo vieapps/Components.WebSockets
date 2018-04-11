@@ -333,10 +333,11 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
+				this.Stop();
 				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 					this._logger.LogInformation("Server is stoped");
 				else
-					this._logger.LogError(ex, $"Got an unexpected error: {ex.Message}");
+					this._logger.LogError(ex, $"Server is stoped when got an unexpected error: {ex.Message}");
 			}
 		}
 
@@ -418,15 +419,18 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({wsConnection.ID} @ {wsConnection.EndPoint})");
 			}
-			catch (IOException) { }
-			catch (SocketException) { }
-			catch (ObjectDisposedException) { }
-			catch (OperationCanceledException) { }
 			catch (Exception ex)
 			{
-				this.OnError?.Invoke(ex);
-				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogError(ex, $"Error occurred while accepting request: {ex.Message}");
+				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+				{
+					// do nothing
+				}
+				else
+				{
+					this.OnError?.Invoke(ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogError(ex, $"Error occurred while accepting request: {ex.Message}");
+				}
 				return;
 			}
 
