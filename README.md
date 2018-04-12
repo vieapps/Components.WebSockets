@@ -268,7 +268,7 @@ And take a look at static class named WebSocketConnectionManager to play aroud w
 
 - The default WebSocket server is Fleck, because Fleck can handle more types of WebSocket message. If you want to change, please change the value of "useFleck" parameter (at the WebSocketServer constructor) to "false" to use other type of server (only support WebSocket version 13).
 - 4096 bytes (4K) is default length of the buffer for receiving messages (usually we are use WebSocket to send/receive small data), and to change the length of the buffer to receive more large messages, use the static method "SetBufferLength" of the WebSocketConnection class.
-- If the incomming messages is continuos messages, the type always be "Binary" and the property named "EndOfMessage" is "true" (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
+- If the incomming messages is continuous messages, the type always be "Binary" and the property named "EndOfMessage" is "true" (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
 
 ### Logging
 

@@ -16,15 +16,15 @@ namespace net.vieapps.Components.WebSockets.Internal
 
         public WebSocketFrame(bool isFinBitSet, WebSocketOpCode webSocketOpCode, int count)
         {
-            IsFinBitSet = isFinBitSet;
-            OpCode = webSocketOpCode;
-            Count = count;
+            this.IsFinBitSet = isFinBitSet;
+			this.OpCode = webSocketOpCode;
+			this.Count = count;
         }
 
         public WebSocketFrame(bool isFinBitSet, WebSocketOpCode webSocketOpCode, int count, WebSocketCloseStatus closeStatus, string closeStatusDescription) : this(isFinBitSet, webSocketOpCode, count)
         {
-            CloseStatus = closeStatus;
-            CloseStatusDescription = closeStatusDescription;
+			this.CloseStatus = closeStatus;
+			this.CloseStatusDescription = closeStatusDescription;
         }
     }
 }

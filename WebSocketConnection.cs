@@ -194,7 +194,7 @@ namespace net.vieapps.Components.WebSockets
 				catch (Exception ex)
 				{
 					var closeStatus = WebSocketCloseStatus.InternalServerError;
-					var closeStatusDescription = $"Close the connection when got an unexpeted error: {ex.Message}";
+					var closeStatusDescription = $"Close the connection when got an error: {ex.Message}";
 					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 					{
 						closeStatus = this.IsClientConnection ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable;
@@ -205,7 +205,8 @@ namespace net.vieapps.Components.WebSockets
 					this.OnConnectionBroken?.Invoke(this);
 					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 					{
-						//WebSocketConnection.Logger.LogWarning(ex, closeStatusDescription);
+						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
+							WebSocketConnection.Logger.LogTrace(ex, $"Close the connection when got an error: {ex.Message}");
 					}
 					else
 					{
@@ -222,7 +223,7 @@ namespace net.vieapps.Components.WebSockets
 					WebSocketConnectionManager.Remove(this);
 					this.OnConnectionBroken?.Invoke(this);
 					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
-						WebSocketConnection.Logger.LogInformation($"Remote end-point is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "None"} ({this.ID} @ {this.EndPoint})");
+						WebSocketConnection.Logger.LogInformation($"Remote end-point is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "N/A"} ({this.ID} @ {this.EndPoint})");
 					return;
 				}
 

@@ -124,7 +124,11 @@ namespace net.vieapps.Components.WebSockets
 		public void Stop()
 		{
 			// cancel all pending process
-			this._cancellationTokenSource.Cancel();
+			try
+			{
+				this._cancellationTokenSource.Cancel();
+			}
+			catch { }
 
 			// close the connection
 			WebSocketConnectionManager.Remove(this._wsConnection, WebSocketCloseStatus.NormalClosure, "Disconnected");

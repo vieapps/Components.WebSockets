@@ -287,7 +287,11 @@ namespace net.vieapps.Components.WebSockets
 		public void Stop()
 		{
 			// cancel all pending processes
-			this._cancellationTokenSource.Cancel();
+			try
+			{
+				this._cancellationTokenSource.Cancel();
+			}
+			catch { }
 
 			// remove all connections that are connected to this server
 			WebSocketConnectionManager.Remove(this.Connections);
