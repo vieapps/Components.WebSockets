@@ -4,7 +4,7 @@ A concrete implementation of the System.Net.WebSockets.WebSocket abstract class 
 
 A WebSocket library that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server.
 You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library.
-This is the same WebSocket abstract class used by .NET Core 2.0 and it allows for asynchronous WebSocket communication for improved performance and scalability.
+This is the same WebSocket abstract class used by .NET Standard 2.0 and it allows for asynchronous WebSocket communication for improved performance and scalability.
 
 ## NuGet
 - Package ID: VIEApps.Components.WebSockets
@@ -119,7 +119,7 @@ wsClient.Start(
     (ex) => Console.WriteLine($"Client got an error: {ex.Message}"),
     (conn) => Console.WriteLine($"Client got an open connection: {conn.ID} - {conn.EndPoint}"),
     (conn) => Console.WriteLine($"Client got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, type, msg) => Console.WriteLine($"Client got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}")
+    (conn, result, data) => Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}")
 );
 
 ```
@@ -149,9 +149,9 @@ var wsClient = new WebSocketClient("ws://localhost:46429/")
     {
         Console.WriteLine($"Client got a broken connection: {conn.ID}");
     },
-    OnMessageReceived = (conn, type, msg) =>
+    OnMessageReceived = (conn, result, data) =>
     {
-        Console.WriteLine($"Client got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}");
+        Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}");
     }
 };
 wsClient.Start();
@@ -180,7 +180,7 @@ wsServer.Start(
     (ex) => Console.WriteLine($"Server got an error: {ex.Message}"),
     (conn) => Console.WriteLine($"Server got an open connection: {conn.ID} - {conn.EndPoint}"),
     (conn) => Console.WriteLine($"Server got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, type, msg) => Console.WriteLine($"Server got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}")
+    (conn, result, data) => Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}")
 );
 
 ```
@@ -210,9 +210,9 @@ var wsServer = new WebSocketServer(46429)
     {
         Console.WriteLine($"Server got a broken connection: {conn.ID}");
     },
-    OnMessageReceived = (conn, type, msg) =>
+    OnMessageReceived = (conn, result, data) =>
     {
-        Console.WriteLine($"Server got a message: {(type == WebSocketMessageType.Text ? msg.GetString() : "BIN")}");
+        Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}");
     }
 };
 wsServer.Start();
@@ -234,11 +234,12 @@ wsServer.Start();
 ```
 
 Want to have a free SSL certificate? Take a look at [Lets Encrypt](https://letsencrypt.org/).
+
 Special: A very simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Lets Encrypt very well.
 
-### WebSocketConnection
+### Using the WebSocketConnection class
 
-While working with WebSocketClient and WebSocketServer classes, the WebSocketConnection class its use as the replacement of WebSocket with more helper information
+While working with WebSocketClient and WebSocketServer classes, the WebSocketConnection class its use as the replacement of WebSocket class with more helper information
 
 #### Properties
 ```csharp
@@ -252,24 +253,30 @@ public WebSocketState State { get; }
 
 ### Methods
 ```csharp
-public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
-public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken)
-public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken)
-public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
-public Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
+public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken);
+public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken);
+public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken);
+public Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken);
 ```
 
 And take a look at static class named WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
 
 ## Others
 
-### Default server
+### The important things
 
-The Fleck WebSocket server is use by default to handle connections of server (see dependencies below).
+- The default WebSocket server is Fleck, because Fleck can handle more types of WebSocket message. If you want to change, please set the value of "useFleck" parameter to "true" (at the WebSocketServer constructor).
+- 4096 bytes (4K) is default length of the buffer for receiving messages (usually we are use WebSocket to send/receive small data), and to change the length of the buffer to receive more large messages, use the static method "SetBufferLength" of the WebSocketConnection class.
+- If the incomming messages is continuos messages, the type always be "Binary" and the property named "EndOfMessage" is "true" (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
 
 ### Logging
 
-Please use Microsoft.Extensions.Logging with your favourite provider via dependency injection.
+Can be any provider that supports extension of Microsoft.Extensions.Logging (via dependency injection).
+
+Our prefers:
+- [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
+- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): for rollinng log files (by date) - high performance, and very simple to use
 
 ### Dependencies
 

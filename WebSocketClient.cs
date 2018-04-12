@@ -37,32 +37,32 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Fired when the client is started successfully
 		/// </summary>
-		public Action OnStartSuccess { get; set; } = () => { };
+		public Action OnStartSuccess { get; set; }
 
 		/// <summary>
 		/// Fired when the client is failed to start
 		/// </summary>
-		public Action<Exception> OnStartFailed { get; set; } = (ex) => { };
+		public Action<Exception> OnStartFailed { get; set; }
 
 		/// <summary>
 		/// Fired when the client got an error exception while processing/receiving
 		/// </summary>
-		public Action<Exception> OnError { get; set; } = (ex) => { };
+		public Action<Exception> OnError { get; set; }
 
 		/// <summary>
 		/// Fired when the connection is established
 		/// </summary>
-		public Action<WebSocketConnection> OnConnectionEstablished { get; set; } = (wsConnection) => { };
+		public Action<WebSocketConnection> OnConnectionEstablished { get; set; }
 
 		/// <summary>
 		/// Fired when the connection is broken
 		/// </summary>
-		public Action<WebSocketConnection> OnConnectionBroken { get; set; } = (wsConnection) => { };
+		public Action<WebSocketConnection> OnConnectionBroken { get; set; }
 
 		/// <summary>
 		/// Fired when the client got a message
 		/// </summary>
-		public Action<WebSocketConnection, WebSocketMessageType, byte[]> OnMessageReceived { get; set; } = (c, t, m) => { };
+		public Action<WebSocketConnection, WebSocketReceiveResult, byte[]> OnMessageReceived { get; set; }
 		#endregion
 
 		/// <summary>
@@ -92,7 +92,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onConnectionEstablished">Fired when the connection is established</param>
 		/// <param name="onConnectionBroken">Fired when the connection is broken</param>
 		/// <param name="onMessageReceived">Fired when the client got a message</param>
-		public void Start(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketMessageType, byte[]> onMessageReceived = null)
+		public void Start(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketReceiveResult, byte[]> onMessageReceived = null)
 		{
 			// assign event handlers
 			this.OnStartSuccess = onStartSuccess ?? this.OnStartSuccess;
@@ -113,7 +113,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Starts this client
 		/// </summary>
 		/// <param name="onMessageReceived">Fired when the client got a message</param>
-		public void Start(Action<WebSocketConnection, WebSocketMessageType, byte[]> onMessageReceived)
+		public void Start(Action<WebSocketConnection, WebSocketReceiveResult, byte[]> onMessageReceived)
 		{
 			this.Start(null, null, null, null, null, onMessageReceived);
 		}

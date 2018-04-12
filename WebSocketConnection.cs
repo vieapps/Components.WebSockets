@@ -27,7 +27,6 @@ namespace net.vieapps.Components.WebSockets
 	{
 
 		#region Static helpers
-		internal const int BufferLength = 4 * 1024 * 1024;
 		const int DefaultBlockSize = 16 * 1024;
 		const int MaxBufferSize = 128 * 1024;
 		internal static ILogger Logger = Fleck.Logger.CreateLogger<WebSocketConnection>();
@@ -39,6 +38,15 @@ namespace net.vieapps.Components.WebSockets
 		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
 		{
 			return new RecyclableMemoryStreamManager(WebSocketConnection.DefaultBlockSize, 4, WebSocketConnection.MaxBufferSize).GetStream;
+		}
+
+		/// <summary>
+		/// Sets the lenght of the buffer for receiving/reading messages from network streams
+		/// </summary>
+		/// <param name="length">The length (in bytes)</param>
+		public static void SetBufferLength(int length = 4096)
+		{
+			Fleck.WebSocketConnection.SetBufferLength(length);
 		}
 		#endregion
 
@@ -111,7 +119,7 @@ namespace net.vieapps.Components.WebSockets
 
 		internal Action<WebSocketConnection> OnConnectionBroken { get; set; }
 
-		internal Action<WebSocketConnection, WebSocketMessageType, byte[]> OnMessageReceived { get; set; }
+		internal Action<WebSocketConnection, WebSocketReceiveResult, byte[]> OnMessageReceived { get; set; }
 		#endregion
 
 		#region Send messages
@@ -172,10 +180,12 @@ namespace net.vieapps.Components.WebSockets
 		internal async Task ReceiveAsync(CancellationToken cancellationToken)
 		{
 			// receive the message (infinity loop)
-			var buffer = new ArraySegment<byte>(new byte[WebSocketConnection.BufferLength]);
+			var buffer = new ArraySegment<byte>(new byte[Fleck.WebSocketConnection.BufferLength]);
 			while (true)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
+				if (!buffer.Array.Length.Equals(Fleck.WebSocketConnection.BufferLength))
+					buffer = new ArraySegment<byte>(new byte[Fleck.WebSocketConnection.BufferLength]);
 				WebSocketReceiveResult result = null;
 				try
 				{
@@ -217,9 +227,9 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// exceed buffer size
-				if (result.Count > WebSocketConnection.BufferLength)
+				if (result.Count > Fleck.WebSocketConnection.BufferLength)
 				{
-					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketConnection.BufferLength:#,##0} bytes";
+					var message = $"WebSocket frame cannot exceed buffer size of {Fleck.WebSocketConnection.BufferLength:#,##0} bytes";
 					await this.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(this);
 					this.OnConnectionBroken?.Invoke(this);
@@ -232,7 +242,7 @@ namespace net.vieapps.Components.WebSockets
 				// got a message
 				if (result.Count > 0)
 				{
-					this.OnMessageReceived?.Invoke(this, result.MessageType, buffer.Take(result.Count).ToArray());
+					this.OnMessageReceived?.Invoke(this, result, buffer.Take(result.Count).ToArray());
 					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
 						WebSocketConnection.Logger.LogTrace($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({this.ID} @ {this.EndPoint})");
 				}

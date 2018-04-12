@@ -62,32 +62,32 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Fired when the server is started successfully
 		/// </summary>
-		public Action OnStartSuccess { get; set; } = () => { };
+		public Action OnStartSuccess { get; set; }
 
 		/// <summary>
 		/// Fired when the server is failed to start
 		/// </summary>
-		public Action<Exception> OnStartFailed { get; set; } = (e) => { };
+		public Action<Exception> OnStartFailed { get; set; }
 
 		/// <summary>
 		/// Fired when the server got any error exception while processing/receiving
 		/// </summary>
-		public Action<Exception> OnError { get; set; } = (e) => { };
+		public Action<Exception> OnError { get; set; }
 
 		/// <summary>
 		/// Fired when a connection is established
 		/// </summary>
-		public Action<WebSocketConnection> OnConnectionEstablished { get; set; } = (c) => { };
+		public Action<WebSocketConnection> OnConnectionEstablished { get; set; }
 
 		/// <summary>
 		/// Fired when a connection is broken
 		/// </summary>
-		public Action<WebSocketConnection> OnConnectionBroken { get; set; } = (c) => { };
+		public Action<WebSocketConnection> OnConnectionBroken { get; set; }
 
 		/// <summary>
 		/// Fired when a connection got a message that sent from a client
 		/// </summary>
-		public Action<WebSocketConnection, WebSocketMessageType, byte[]> OnMessageReceived { get; set; } = (c, t, m) => { };
+		public Action<WebSocketConnection, WebSocketReceiveResult, byte[]> OnMessageReceived { get; set; }
 		#endregion
 
 		/// <summary>
@@ -216,14 +216,15 @@ namespace net.vieapps.Components.WebSockets
 						}
 					};
 
-					socket.OnMessage = (msg) =>
+					socket.OnMessage = (data) =>
 					{
-						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), WebSocketMessageType.Text, (msg ?? "").ToBytes());
+						var buffer = (data ?? "").ToBytes();
+						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), new WebSocketReceiveResult(buffer.Length, WebSocketMessageType.Text, true), buffer);
 					};
 
-					socket.OnBinary = (msg) =>
+					socket.OnBinary = (data) =>
 					{
-						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), WebSocketMessageType.Binary, msg);
+						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), new WebSocketReceiveResult(data.Length, WebSocketMessageType.Binary, true), data);
 					};
 				}, this.Backlog > 0 && this.Backlog <= 5000 ? this.Backlog : 1000);
 
@@ -254,7 +255,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onConnectionEstablished">Fired when a connection is established</param>
 		/// <param name="onConnectionBroken">Fired when a connection is broken</param>
 		/// <param name="onMessageReceived">Fired when a connection got a message that sent from a client</param>
-		public void Start(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketMessageType, byte[]> onMessageReceived = null)
+		public void Start(Action onStartSuccess = null, Action<Exception> onStartFailed = null, Action<Exception> onError = null, Action<WebSocketConnection> onConnectionEstablished = null, Action<WebSocketConnection> onConnectionBroken = null, Action<WebSocketConnection, WebSocketReceiveResult, byte[]> onMessageReceived = null)
 		{
 			// assign event handlers
 			this.OnStartSuccess = onStartSuccess ?? this.OnStartSuccess;
@@ -275,7 +276,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Starts this server
 		/// </summary>
 		/// <param name="onMessageReceived">Fired when a connection got a message that sent from a client</param>
-		public void Start(Action<WebSocketConnection, WebSocketMessageType, byte[]> onMessageReceived)
+		public void Start(Action<WebSocketConnection, WebSocketReceiveResult, byte[]> onMessageReceived)
 		{
 			this.Start(null, null, null, null, null, onMessageReceived);
 		}
