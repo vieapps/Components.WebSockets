@@ -40,8 +40,8 @@ namespace net.vieapps.Components.WebSockets.Internal
             // read and process second byte
             byte maskFlag = 0x80;
             bool isMaskBitSet = (byte2 & maskFlag) == maskFlag;
-            uint len = await WebSocketFrameReader.ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken).ConfigureAwait(false);
-            int count = (int)len;
+            uint length = await WebSocketFrameReader.ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken).ConfigureAwait(false);
+            int count = (int)length;
 
             // use the masking key to decode the data if needed
             if (isMaskBitSet)
@@ -107,10 +107,10 @@ namespace net.vieapps.Components.WebSockets.Internal
 			else if (length == 127)
             {
                 length = (uint)await BinaryReaderWriter.ReadULongExactlyAsync(fromStream, false, smallBuffer, cancellationToken).ConfigureAwait(false);
-                const uint maxLen = 2147483648; // 2GB - not part of the spec but just a precaution. Send large volumes of data in smaller frames.
+                const uint maxLength = 2147483648; // 2GB - not part of the spec but just a precaution. Send large volumes of data in smaller frames.
 
                 // protect ourselves against bad data
-                if (length > maxLen || length < 0)
+                if (length > maxLength || length < 0)
 					throw new ArgumentOutOfRangeException($"Payload length out of range. Min 0 max 2GB. Actual {length:#,##0} bytes.");
 			}
 
