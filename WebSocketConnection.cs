@@ -186,6 +186,7 @@ namespace net.vieapps.Components.WebSockets
 				cancellationToken.ThrowIfCancellationRequested();
 				if (!buffer.Array.Length.Equals(Fleck.WebSocketConnection.BufferLength))
 					buffer = new ArraySegment<byte>(new byte[Fleck.WebSocketConnection.BufferLength]);
+
 				WebSocketReceiveResult result = null;
 				try
 				{

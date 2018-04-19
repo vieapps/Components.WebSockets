@@ -196,6 +196,8 @@ namespace net.vieapps.Components.WebSockets
 						var wsConnection = WebSocketConnectionManager.Get(socket.ConnectionInfo.Id);
 						WebSocketConnectionManager.Remove(wsConnection);
 						this.OnConnectionBroken?.Invoke(wsConnection);
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.LogInformation($"Disconnected ({wsConnection?.ID} @ {wsConnection?.EndPoint})");
 					};
 
 					socket.OnError = (ex) =>
@@ -220,11 +222,15 @@ namespace net.vieapps.Components.WebSockets
 					{
 						var buffer = (data ?? "").ToBytes();
 						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), new WebSocketReceiveResult(buffer.Length, WebSocketMessageType.Text, true), buffer);
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.LogTrace($"Got a message - Type: {WebSocketMessageType.Text} - Length: {buffer.Length:#,##0} ({socket.ConnectionInfo.Id} @ {socket.ConnectionInfo.ClientIpAddress}:{socket.ConnectionInfo.ClientPort})");
 					};
 
 					socket.OnBinary = (data) =>
 					{
 						this.OnMessageReceived?.Invoke(WebSocketConnectionManager.Get(socket.ConnectionInfo.Id), new WebSocketReceiveResult(data.Length, WebSocketMessageType.Binary, true), data);
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.LogTrace($"Got a message - Type: {WebSocketMessageType.Binary} - Length: {data.Length:#,##0} ({socket.ConnectionInfo.Id} @ {socket.ConnectionInfo.ClientIpAddress}:{socket.ConnectionInfo.ClientPort})");
 					};
 				}, this.Backlog > 0 && this.Backlog <= 5000 ? this.Backlog : 1000);
 
@@ -245,7 +251,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(ex, $"Got an unexpected error when start server: {ex.Message}");
 			}
 		}
-		
+
 		/// <summary>
 		/// Starts this server
 		/// </summary>
@@ -284,14 +290,12 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Stops this server
 		/// </summary>
-		public void Stop()
+		/// <param name="doCancel"></param>
+		public void Stop(bool doCancel = true)
 		{
 			// cancel all pending processes
-			try
-			{
+			if (doCancel)
 				this._cancellationTokenSource.Cancel();
-			}
-			catch { }
 
 			// remove all connections that are connected to this server
 			WebSocketConnectionManager.Remove(this.Connections);
@@ -338,7 +342,12 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				this.Stop();
+				try
+				{
+					this.Stop(false);
+				}
+				catch { }
+
 				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 					this._logger.LogInformation("Server is stoped");
 				else
@@ -348,7 +357,7 @@ namespace net.vieapps.Components.WebSockets
 
 		void AcceptClientRequest(TcpClient client)
 		{
-			ListenClientRequest();
+			this.ListenClientRequest();
 			Task.Run(async () =>
 			{
 				await this.AcceptClientRequestAsync(client).ConfigureAwait(false);
@@ -428,7 +437,8 @@ namespace net.vieapps.Components.WebSockets
 			{
 				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
 				{
-					// do nothing
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogDebug(ex, $"Error occurred while accepting request: {ex.Message}");
 				}
 				else
 				{
@@ -500,7 +510,11 @@ namespace net.vieapps.Components.WebSockets
 		{
 			if (!this._disposed)
 			{
-				this.Stop();
+				try
+				{
+					this.Stop();
+				}
+				catch { }
 				this._cancellationTokenSource.Dispose();
 				this._wsFleck.Dispose();
 				this._disposed = true;
