@@ -68,7 +68,7 @@ namespace net.vieapps.Components.WebSockets
         /// <returns>A connected web socket</returns>
         public async Task<WebSocket> AcceptWebSocketAsync(WebSocketHttpContext context, WebSocketServerOptions options, CancellationToken cancellationToken)
         {
-			// handsake
+			// handshake
             var guid = Guid.NewGuid();
             Events.Log.AcceptWebSocketStarted(guid);
 			try
@@ -81,12 +81,12 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var secWebSocketVersion = Convert.ToInt32(match.Groups[1].Value.Trim());
 					if (secWebSocketVersion < WebSocketVersion)
-						throw new WebSocketVersionNotSupportedException(string.Format("WebSocket Version {0} not suported. Must be {1} or above", secWebSocketVersion, WebSocketVersion));
+						throw new VersionNotSupportedException(string.Format("WebSocket Version {0} not suported. Must be {1} or above", secWebSocketVersion, WebSocketVersion));
 				}
 				else
-					throw new WebSocketVersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in HTTP header");
+					throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in HTTP header");
 
-				// handsake
+				// handshake
 				var webSocketKeyRegex = new Regex("Sec-WebSocket-Key: (.*)");
 				match = webSocketKeyRegex.Match(context.HttpHeader);
 				if (match.Success)
@@ -102,9 +102,9 @@ namespace net.vieapps.Components.WebSockets
 					await HttpHelper.WriteHttpHeaderAsync(response, context.Stream, cancellationToken).ConfigureAwait(false);
 				}
 				else
-					throw new SecWebSocketKeyMissingException("Unable to read \"Sec-WebSocket-Key\" from HTTP header");
+					throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from HTTP header");
 			}
-			catch (WebSocketVersionNotSupportedException ex)
+			catch (VersionNotSupportedException ex)
 			{
 				Events.Log.WebSocketVersionNotSupported(guid, ex.ToString());
 				var response = "HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13" + ex.Message;

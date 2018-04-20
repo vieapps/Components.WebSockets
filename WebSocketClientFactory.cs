@@ -117,7 +117,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 			}
 
-			// send handsake
+			// send handshake
 			var secWebSocketKey = CryptoService.GenerateRandomKey(16).ToBase64();
 			using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 			{
@@ -125,11 +125,11 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var handshakeHttpRequest = $"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
 						$"Host: {uri.Host}:{uri.Port}\r\n" +
-						"Upgrade: websocket\r\n" +
-						"Connection: Upgrade\r\n" +
+						$"Upgrade: websocket\r\n" +
+						$"Connection: Upgrade\r\n" +
 						$"Sec-WebSocket-Key: {secWebSocketKey}\r\n" +
 						$"Origin: http://{uri.Host}:{uri.Port}\r\n" +
-						"Sec-WebSocket-Version: 13";
+						$"Sec-WebSocket-Version: 13";
 					if (options.AdditionalHttpHeaders != null && options.AdditionalHttpHeaders.Count > 0)
 						foreach (var kvp in options.AdditionalHttpHeaders)
 							handshakeHttpRequest += "\r\n" + $"{kvp.Key}: {kvp.Value}";
@@ -157,7 +157,7 @@ namespace net.vieapps.Components.WebSockets
             catch (Exception ex)
             {
                 Events.Log.ReadHttpResponseError(guid, ex.ToString());
-                throw new WebSocketHandshakeFailedException("Handshake unexpected failure", ex);
+                throw new HandshakeFailedException("Handshake unexpected failure", ex);
             }
 
 			// throw if got invalid response code
@@ -191,7 +191,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				var warning = string.Format($"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'");
 				Events.Log.HandshakeFailure(guid, warning);
-				throw new WebSocketHandshakeFailedException(warning);
+				throw new HandshakeFailedException(warning);
 			}
 			else
 				Events.Log.ClientHandshakeSuccess(guid);

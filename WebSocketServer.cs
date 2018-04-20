@@ -15,8 +15,9 @@ using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.Logging;
 
-using net.vieapps.Components.WebSockets.Internal;
 using net.vieapps.Components.Utility;
+using net.vieapps.Components.WebSockets.Internal;
+using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
@@ -146,7 +147,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (SocketException ex)
 			{
 				var message = $"Error occurred while listening on port \"{this._port}\". Make sure another application is not running and consuming this port.";
-				this.OnStartFailed?.Invoke(new Exception(message, ex));
+				this.OnStartFailed?.Invoke(new ListenerSocketException(message, ex));
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogError(ex, message);
 			}
@@ -240,7 +241,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (SocketException ex)
 			{
 				var message = $"Error occurred while listening on port \"{this._port}\". Make sure another application is not running and consuming this port.";
-				this.OnStartFailed?.Invoke(new Exception(message, ex));
+				this.OnStartFailed?.Invoke(new ListenerSocketException(message, ex));
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogError(ex, message);
 			}

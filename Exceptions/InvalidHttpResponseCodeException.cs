@@ -17,9 +17,9 @@ namespace net.vieapps.Components.WebSockets.Exceptions
 
         public InvalidHttpResponseCodeException(string responseCode, string responseDetails, string responseHeader) : base(responseCode)
         {
-            ResponseCode = responseCode;
-            ResponseDetails = responseDetails;
-            ResponseHeader = responseHeader;
+            this.ResponseCode = responseCode;
+			this.ResponseDetails = responseDetails;
+			this.ResponseHeader = responseHeader;
         }
 
         public InvalidHttpResponseCodeException(string message, Exception inner) : base(message, inner) { }

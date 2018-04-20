@@ -16,6 +16,7 @@ using Microsoft.Extensions.Logging;
 
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Internal;
+using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
@@ -235,7 +236,7 @@ namespace net.vieapps.Components.WebSockets
 					await this.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
 					WebSocketConnectionManager.Remove(this);
 					this.OnConnectionBroken?.Invoke(this);
-					this.OnError?.Invoke(new InvalidOperationException(message));
+					this.OnError?.Invoke(new BufferOverflowException(message));
 					if (WebSocketConnection.Logger.IsEnabled(LogLevel.Debug))
 						WebSocketConnection.Logger.LogInformation($"Close the connection because {message} ({this.ID} @ {this.EndPoint})");
 					return;

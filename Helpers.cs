@@ -18,7 +18,8 @@ namespace net.vieapps.Components.WebSockets
 {
 	public static class HttpHelper
 	{
-		const string _HTTP_GET_HEADER_REGEX = @"^GET(.*)HTTP\/1\.1";
+		const string HTTP_GET_HEADER_REGEX = @"^GET(.*)HTTP\/1\.1";
+		const string SEC_WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 		/// <summary>
 		/// Calculates a random WebSocket key that can be used to initiate a WebSocket handshake
@@ -40,9 +41,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>A web socket accept string</returns>
 		public static string ComputeSocketAcceptString(string secWebSocketKey)
 		{
-			// this is a guid as per the web socket spec
-			const string webSocketGuid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-			return (secWebSocketKey + webSocketGuid).GetSHA1Hash().ToBase64();
+			return (secWebSocketKey + HttpHelper.SEC_WEBSOCKET_GUID).GetSHA1(true);
 		}
 
 		/// <summary>
@@ -83,7 +82,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>True if this is an http WebSocket upgrade response</returns>
 		public static bool IsWebSocketUpgradeRequest(String header)
 		{
-			var getRegex = new Regex(_HTTP_GET_HEADER_REGEX, RegexOptions.IgnoreCase);
+			var getRegex = new Regex(HttpHelper.HTTP_GET_HEADER_REGEX, RegexOptions.IgnoreCase);
 			var getRegexMatch = getRegex.Match(header);
 
 			if (getRegexMatch.Success)
@@ -104,7 +103,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>The path</returns>
 		public static string GetPathFromHeader(string httpHeader)
 		{
-			var getRegex = new Regex(_HTTP_GET_HEADER_REGEX, RegexOptions.IgnoreCase);
+			var getRegex = new Regex(HttpHelper.HTTP_GET_HEADER_REGEX, RegexOptions.IgnoreCase);
 			var getRegexMatch = getRegex.Match(httpHeader);
 
 			// extract the path attribute from the first line of the header

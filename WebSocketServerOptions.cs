@@ -1,4 +1,5 @@
 ﻿using System;
+
 namespace net.vieapps.Components.WebSockets
 {
     /// <summary>
@@ -14,22 +15,18 @@ namespace net.vieapps.Components.WebSockets
         /// You can manually control ping pong messages using the PingPongManager class.
         /// If you do that it is advisible to set this KeepAliveInterval to zero in the WebSocketServerFactory
         /// </summary>
-        public TimeSpan KeepAliveInterval { get; set; }
+        public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
 
-        /// <summary>
-        /// Include the full exception (with stack trace) in the close response 
-        /// when an exception is encountered and the WebSocket connection is closed
-        /// The default is false
-        /// </summary>
-        public bool IncludeExceptionInCloseResponse { get; set; }
+		/// <summary>
+		/// Include the full exception (with stack trace) in the close response 
+		/// when an exception is encountered and the WebSocket connection is closed
+		/// The default is false
+		/// </summary>
+		public bool IncludeExceptionInCloseResponse { get; set; } = false;
 
-        /// <summary>
-        /// Initialises a new instance of the WebSocketServerOptions class
-        /// </summary>
-        public WebSocketServerOptions()
-        {
-            KeepAliveInterval = TimeSpan.FromSeconds(60);
-            IncludeExceptionInCloseResponse = false;
-        }
+		/// <summary>
+		/// Initialises a new instance of the WebSocketServerOptions class
+		/// </summary>
+		public WebSocketServerOptions() { }
     }
 }
