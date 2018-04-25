@@ -29,7 +29,7 @@ namespace net.vieapps.Components.WebSockets.Internal
             {
 				var read = await stream.ReadAsync(buffer.Array, buffer.Offset + offset, length - offset, cancellationToken).ConfigureAwait(false);
                 if (read == 0)
-					throw new EndOfStreamException(string.Format("Unexpected end of stream encountered whilst attempting to read {0:#,##0} bytes", length));
+					throw new EndOfStreamException($"Unexpected end of stream encountered whilst attempting to read {length:#,##0} bytes");
 				offset += read;
             }
 			while (offset < length);

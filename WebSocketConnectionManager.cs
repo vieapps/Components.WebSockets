@@ -34,15 +34,22 @@ namespace net.vieapps.Components.WebSockets
 				: false;
 		}
 
-		internal static bool Remove(WebSocketConnection connection, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
+		internal static bool Remove(Guid id, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
 		{
-			if (connection != null && WebSocketConnectionManager.Connections.TryRemove(connection.ID, out WebSocketConnection instance))
+			if (WebSocketConnectionManager.Connections.TryRemove(id, out WebSocketConnection instance))
 			{
 				instance.Dispose(closeStatus, closeStatusDescription);
 				GC.Collect();
 				return true;
 			}
 			return false;
+		}
+
+		internal static bool Remove(WebSocketConnection connection, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
+		{
+			return connection != null
+				? WebSocketConnectionManager.Remove(connection.ID, closeStatus, closeStatusDescription)
+				: false;
 		}
 
 		internal static void Remove(List<WebSocketConnection> connections)
@@ -78,7 +85,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public static IEnumerable<WebSocketConnection> GetAll()
 		{
-			return WebSocketConnectionManager.Connections.Select(kvp => kvp.Value);
+			return WebSocketConnectionManager.Connections.Values;
 		}
 
 		/// <summary>

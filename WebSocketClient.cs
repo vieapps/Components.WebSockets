@@ -21,16 +21,20 @@ namespace net.vieapps.Components.WebSockets
 	{
 
 		#region Attributes
-		WebSocketConnection _wsConnection;
 		IWebSocketClientFactory _wsFactory;
 		ILogger _logger;
 		Uri _uri;
 		CancellationTokenSource _cancellationTokenSource;
 
 		/// <summary>
+		/// Gets the identity of this client
+		/// </summary>
+		public Guid ID { get; private set; }
+
+		/// <summary>
 		/// Gest the <see cref="WebSocketConnection">WebSocketConnection</see> object that associates with this client
 		/// </summary>
-		public WebSocketConnection WebSocketConnection { get { return this._wsConnection; } }
+		public WebSocketConnection WebSocketConnection { get { return WebSocketConnectionManager.Get(this.ID); } }
 		#endregion
 
 		#region Event Handlers
@@ -103,10 +107,7 @@ namespace net.vieapps.Components.WebSockets
 			this.OnMessageReceived = onMessageReceived ?? this.OnMessageReceived;
 
 			// connect
-			Task.Run(async () =>
-			{
-				await this.ConnectAsync().ConfigureAwait(false);
-			}).ConfigureAwait(false);
+			Task.Run(() => this.ConnectAsync()).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -131,19 +132,20 @@ namespace net.vieapps.Components.WebSockets
 			catch { }
 
 			// close the connection
-			WebSocketConnectionManager.Remove(this._wsConnection, WebSocketCloseStatus.NormalClosure, "Disconnected");
+			WebSocketConnectionManager.Remove(this.ID, WebSocketCloseStatus.NormalClosure, "Disconnected");
 		}
 		#endregion
 
 		#region Connect to remote end-point and receive messages
 		async Task ConnectAsync()
 		{
+			// connect
 			try
 			{
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation($"Attempting to connect to \"{this._uri}\"");
 
-				this._wsConnection = new WebSocketConnection()
+				var wsConnection = new WebSocketConnection()
 				{
 					InnerSocket = await this._wsFactory.ConnectAsync(this._uri, this._cancellationTokenSource.Token).ConfigureAwait(false),
 					IsSecureConnection = this._uri.Scheme.IsEquals("wss") || this._uri.Scheme.IsEquals("https"),
@@ -154,13 +156,13 @@ namespace net.vieapps.Components.WebSockets
 					OnConnectionBroken = this.OnConnectionBroken,
 					OnMessageReceived = this.OnMessageReceived
 				};
-				this._wsConnection.ID = (this._wsConnection.InnerSocket as WebSocketImplementation).ID;
-				WebSocketConnectionManager.Add(this._wsConnection);
+				wsConnection.ID = this.ID = (wsConnection.InnerSocket as WebSocketImplementation).ID;
+				WebSocketConnectionManager.Add(wsConnection);
 
 				this.OnStartSuccess?.Invoke();
-				this.OnConnectionEstablished?.Invoke(this._wsConnection);
+				this.OnConnectionEstablished?.Invoke(wsConnection);
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogInformation($"Connection is opened ({this._wsConnection.ID} @ {this._wsConnection.EndPoint})");
+					this._logger.LogInformation($"Connection is opened ({wsConnection.ID} @ {wsConnection.EndPoint})");
 			}
 			catch (Exception ex)
 			{
@@ -181,7 +183,19 @@ namespace net.vieapps.Components.WebSockets
 			}
 
 			// receive messages
-			await this._wsConnection.ReceiveAsync(this._cancellationTokenSource.Token).ConfigureAwait(false);
+			this.Receive();
+		}
+
+		void Receive()
+		{
+			Task.Run(() => this.ReceiveAsync()).ConfigureAwait(false);
+		}
+
+		async Task ReceiveAsync()
+		{
+			var wsConnection = WebSocketConnectionManager.Get(this.ID);
+			if (wsConnection != null)
+				await wsConnection.ReceiveAsync(this._cancellationTokenSource.Token).ConfigureAwait(false);
 		}
 		#endregion
 
@@ -194,7 +208,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage = true)
 		{
-			return this._wsConnection.SendAsync(buffer, messageType, endOfMessage, this._cancellationTokenSource.Token);
+			return WebSocketConnectionManager.SendAsync(this.ID, buffer, messageType, endOfMessage, this._cancellationTokenSource.Token);
 		}
 
 		/// <summary>
@@ -204,7 +218,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		public Task SendAsync(string message, bool endOfMessage = true)
 		{
-			return this._wsConnection.SendAsync(message, endOfMessage, this._cancellationTokenSource.Token);
+			return WebSocketConnectionManager.SendAsync(this.ID, message, endOfMessage, this._cancellationTokenSource.Token);
 		}
 
 		/// <summary>
@@ -214,7 +228,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		public Task SendAsync(byte[] message, bool endOfMessage = true)
 		{
-			return this._wsConnection.SendAsync(message, endOfMessage, this._cancellationTokenSource.Token);
+			return WebSocketConnectionManager.SendAsync(this.ID, message, endOfMessage, this._cancellationTokenSource.Token);
 		}
 		#endregion
 
@@ -227,7 +241,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription)
 		{
-			return this._wsConnection.CloseAsync(closeStatus, statusDescription, this._cancellationTokenSource.Token);
+			var wsConnection = WebSocketConnectionManager.Get(this.ID);
+			return wsConnection != null
+				? wsConnection.CloseAsync(closeStatus, statusDescription, this._cancellationTokenSource.Token)
+				: Task.CompletedTask;
 		}
 
 		/// <summary>
@@ -238,7 +255,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription)
 		{
-			return this._wsConnection.CloseOutputAsync(closeStatus, statusDescription, this._cancellationTokenSource.Token);
+			var wsConnection = WebSocketConnectionManager.Get(this.ID);
+			return wsConnection != null
+				? wsConnection.CloseOutputAsync(closeStatus, statusDescription, this._cancellationTokenSource.Token)
+				: Task.CompletedTask;
 		}
 		#endregion
 

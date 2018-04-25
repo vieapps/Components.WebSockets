@@ -197,7 +197,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var closeStatus = WebSocketCloseStatus.InternalServerError;
 					var closeStatusDescription = $"Close the connection when got an error: {ex.Message}";
-					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 					{
 						closeStatus = this.IsClientConnection ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable;
 						closeStatusDescription = this.IsClientConnection ? "Disconnected" : "Service is unavailable";
@@ -205,7 +205,7 @@ namespace net.vieapps.Components.WebSockets
 					WebSocketConnectionManager.Remove(this, closeStatus, closeStatusDescription);
 
 					this.OnConnectionBroken?.Invoke(this);
-					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 					{
 						if (WebSocketConnection.Logger.IsEnabled(LogLevel.Trace))
 							WebSocketConnection.Logger.LogTrace(ex, $"Close the connection when got an error: {ex.Message}");

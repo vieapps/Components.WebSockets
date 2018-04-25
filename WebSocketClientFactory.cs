@@ -189,7 +189,7 @@ namespace net.vieapps.Components.WebSockets
 			var expectedAcceptString = HttpHelper.ComputeSocketAcceptString(secWebSocketKey);
 			if (expectedAcceptString != actualAcceptString)
 			{
-				var warning = string.Format($"Handshake failed because the accept string from the server '{expectedAcceptString}' was not the expected string '{actualAcceptString}'");
+				var warning = $"Handshake failed because the accept string from the server '{actualAcceptString}' was not the expected string '{expectedAcceptString}'";
 				Events.Log.HandshakeFailure(guid, warning);
 				throw new HandshakeFailedException(warning);
 			}

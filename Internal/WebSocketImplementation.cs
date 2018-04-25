@@ -1,11 +1,12 @@
 ﻿#region Related components
 using System;
+using System.Text;
 using System.IO;
 using System.IO.Compression;
-using System.Text;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 
 using Microsoft.Extensions.Logging;
 
@@ -33,12 +34,14 @@ namespace net.vieapps.Components.WebSockets.Internal
 		bool _tryGetBufferFailureLogged = false;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription;
+		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
+		bool _writting = false;
 
 		const int MAX_PING_PONG_PAYLOAD_LEN = 125;
 
 		public event EventHandler<PongEventArgs> Pong;
 
-		internal static Microsoft.Extensions.Logging.ILogger Logger = Fleck.Logger.CreateLogger<WebSocketImplementation>();
+		internal static ILogger Logger = Fleck.Logger.CreateLogger<WebSocketImplementation>();
 
 		internal WebSocketImplementation(Guid guid, Func<MemoryStream> recycledStreamFactory, Stream stream, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, bool isClient)
 		{
@@ -440,11 +443,15 @@ namespace net.vieapps.Components.WebSockets.Internal
 			return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Close, frame.IsFinBitSet, frame.CloseStatus, frame.CloseStatusDescription);
 		}
 
-		ArraySegment<byte> GetBuffer(MemoryStream stream)
+		/// <summary>
+		/// Puts data on the wire
+		/// </summary>
+		/// <param name="stream">The stream to read data from</param>
+		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
-			// Avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
-			// We avaoid this by attempting to access the internal memory stream buffer
-			// This works with supported streams like the recyclable memory stream and writable memory streams
+			// avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
+			// we avoid this by attempting to access the internal memory stream buffer
+			// this works with supported streams like the recyclable memory stream and writable memory streams
 			if (!stream.TryGetBuffer(out ArraySegment<byte> buffer))
 			{
 				if (!this._tryGetBufferFailureLogged)
@@ -458,20 +465,20 @@ namespace net.vieapps.Components.WebSockets.Internal
 				buffer = new ArraySegment<byte>(array, 0, array.Length);
 			}
 
-			return new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
-		}
+			// add into queue
+			this._buffers.Enqueue(new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position));
 
-		/// <summary>
-		/// Puts data on the wire
-		/// </summary>
-		/// <param name="stream">The stream to read data from</param>
-		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
-		{
+			// stop if other thread is writing
+			if (this._writting)
+				return;
+
+			// update state and write
+			this._writting = true;
 			try
 			{
-				var buffer = this.GetBuffer(stream);
-				await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
-				await this._stream.FlushAsync().ConfigureAwait(false);
+				while (this._buffers.Count > 0)
+					if (this._buffers.TryDequeue(out buffer))
+						await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -482,6 +489,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 			finally
 			{
 				GC.Collect();
+				this._writting = false;
 			}
 		}
 
