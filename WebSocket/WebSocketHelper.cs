@@ -11,7 +11,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using Microsoft.IO;
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
@@ -22,9 +21,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
     {
 		const string WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		const int WEBSOCKET_VERSION = 13;
-
-		const int DefaultBlockSize = 16 * 1024;
-		const int MaxBufferSize = 128 * 1024;
 
 		static int _BufferLength = 16 * 1024;
 
@@ -37,9 +33,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// Sets the length of receiving buffer of all WebSocket connections
 		/// </summary>
 		/// <param name="length"></param>
-		public static void SetBufferLength(int length = 4096)
+		public static void SetBufferLength(int length = 16384)
 		{
-			if (length > 1024)
+			if (length >= 1024)
 				WebSocketHelper._BufferLength = length;
 		}
 
@@ -49,7 +45,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <returns></returns>
 		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
 		{
-			return new RecyclableMemoryStreamManager(WebSocketHelper.DefaultBlockSize, 4, WebSocketHelper.MaxBufferSize).GetStream;
+			return new Microsoft.IO.RecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024).GetStream;
 		}
 
 		internal static async Task WithCancellationToken(this Task task, CancellationToken cancellationToken)
@@ -153,9 +149,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 				read = await stream.ReadAsync(buffer, offset, WebSocketHelper.BufferLength - offset, cancellationToken).ConfigureAwait(false);
 				offset += read;
-				var header = Encoding.UTF8.GetString(buffer, 0, offset);
+				var header = buffer.GetString(offset);
 
-				// as per http specification, all headers should end this this
+				// as per HTTP specification, all headers should end this
 				if (header.Contains("\r\n\r\n"))
 					return header;
 			}
@@ -178,13 +174,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 		/// <summary>
 		/// Accept web socket with options specified
-		/// Call ReadHttpHeaderFromStreamAsync first to get WebSocketHttpContext
 		/// </summary>
 		/// <param name="context">The http context used to initiate this web socket request</param>
 		/// <param name="options">The web socket options</param>
 		/// <param name="cancellationToken">The optional cancellation token</param>
 		/// <returns>A connected web socket</returns>
-		public static async Task<WebSocket> AcceptWebSocketAsync(WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> AcceptAsync(WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// handshake
 			var guid = Guid.NewGuid();
@@ -215,6 +210,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						"Sec-WebSocket-Accept: " + WebSocketHelper.ComputeSocketAcceptString(secWebSocketKey);
 					Events.Log.SendingHandshakeResponse(guid, handshake);
 					await WebSocketHelper.WriteHttpHeaderAsync(handshake, context.Stream, cancellationToken).ConfigureAwait(false);
+					Events.Log.HandshakeSent(guid, handshake);
 				}
 				else
 					throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from HTTP header");
@@ -240,7 +236,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Connect with options specified
+		/// Connect web socket with options specified
 		/// </summary>
 		/// <param name="guid"></param>
 		/// <param name="recycledStreamFactory"></param>
@@ -315,7 +311,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Connect with options specified
+		/// Connect web socket with options specified
 		/// </summary>
 		/// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
 		/// <param name="options">The WebSocket client options</param>
@@ -369,7 +365,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			}
 			else
 			{
-				Events.Log.ConnectionNotSecure(guid);
+				Events.Log.ConnectionNotSecured(guid);
 				stream = tcpClient.GetStream();
 			}
 
@@ -387,8 +383,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				foreach (var kvp in options.AdditionalHttpHeaders)
 					handshake += $"{kvp.Key}: {kvp.Value}\r\n";
 
-			var handshakeRequest = (handshake.Trim() + "\r\n\r\n").ToBytes();
-			stream.Write(handshakeRequest, 0, handshakeRequest.Length);
+			await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, cancellationToken).ConfigureAwait(false);
 			Events.Log.HandshakeSent(guid, handshake);
 
 			// connect

@@ -45,7 +45,7 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		[Event(5, Level = EventLevel.Informational)]
-        public void ConnectionNotSecure(Guid guid)
+        public void ConnectionNotSecured(Guid guid)
         {
             if (this.IsEnabled())
 				this.WriteEvent(5, guid);

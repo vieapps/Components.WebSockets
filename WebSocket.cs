@@ -31,7 +31,7 @@ namespace net.vieapps.Components.WebSockets
 		ConcurrentDictionary<Guid, Implementation.WebSocket> _websockets = new ConcurrentDictionary<Guid, Implementation.WebSocket>();
 		ILogger _logger = null;
 		Func<MemoryStream> _recycledStreamFactory = null;
-		TcpListener _listener = null;
+		TcpListener _tcpListener = null;
 		bool _disposing = false, _disposed = false;
 		CancellationTokenSource _processingCTS = null, _listeningCTS = null;
 
@@ -92,7 +92,7 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
 
-		#region Listen to clients as server
+		#region Listen request as server
 		/// <summary>
 		/// Starts to listen for client requests as a WebSocket server
 		/// </summary>
@@ -103,7 +103,7 @@ namespace net.vieapps.Components.WebSockets
 		public void StartListen(int port = 46429, X509Certificate2 certificate = null, Action onSuccess = null, Action<Exception> onFailed = null)
 		{
 			// check
-			if (this._listener != null)
+			if (this._tcpListener != null)
 			{
 				onSuccess?.Invoke();
 				return;
@@ -116,8 +116,8 @@ namespace net.vieapps.Components.WebSockets
 				this.Port = port > 0 && port < 65535 ? port : 46429;
 				this.Certificate = certificate ?? this.Certificate;
 
-				this._listener = new TcpListener(IPAddress.Any, this.Port);
-				this._listener.Start(1024);
+				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
+				this._tcpListener.Start(1024);
 
 				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
 					? "Linux"
@@ -134,8 +134,8 @@ namespace net.vieapps.Components.WebSockets
 				this._logger.LogInformation($"Listener is started - Listening port: {this.Port} - Platform: {platform}");
 				onSuccess?.Invoke();
 
-				// listen for client requests
-				this.ListenClientRequest();
+				// listen incomminng connection requests
+				this.Listen();
 			}
 			catch (SocketException ex)
 			{
@@ -176,8 +176,8 @@ namespace net.vieapps.Components.WebSockets
 			// dispose
 			try
 			{
-				this._listener?.Server?.Close();
-				this._listener?.Stop();
+				this._tcpListener?.Server?.Close();
+				this._tcpListener?.Stop();
 			}
 			catch (Exception ex)
 			{
@@ -185,24 +185,24 @@ namespace net.vieapps.Components.WebSockets
 			}
 			finally
 			{
-				this._listener = null;
+				this._tcpListener = null;
 			}
 		}
 
-		Task ListenClientRequest()
+		Task Listen()
 		{
 			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
-			return this.ListenClientRequestAsync();
+			return this.ListenAsync();
 		}
 
-		async Task ListenClientRequestAsync()
+		async Task ListenAsync()
 		{
 			try
 			{
 				while (true)
 				{
-					var client = await this._listener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
-					var task = this.AcceptClientRequestAsync(client);
+					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
+					var accept = this.AcceptAsync(tcpClient);
 				}
 			}
 			catch (Exception ex)
@@ -220,11 +220,11 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		async Task AcceptClientRequestAsync(TcpClient client)
+		async Task AcceptAsync(TcpClient tcpClient)
 		{
 			Implementation.WebSocket websocket = null;
 			if (this._logger.IsEnabled(LogLevel.Trace))
-				this._logger.LogInformation("Connection is opened, then reading HTTP header from the stream");
+				this._logger.LogInformation("The connection is opened, then reading HTTP header from the stream");
 
 			try
 			{
@@ -234,13 +234,13 @@ namespace net.vieapps.Components.WebSockets
 					try
 					{
 						if (this._logger.IsEnabled(LogLevel.Trace))
-							this._logger.LogInformation("Attempting to secure connection...");
+							this._logger.LogInformation("Attempting to secure the connection...");
 
-						stream = new SslStream(client.GetStream(), false);
+						stream = new SslStream(tcpClient.GetStream(), false);
 						await (stream as SslStream).AuthenticateAsServerAsync(this.Certificate, false, SslProtocols.Tls, false).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 
 						if (this._logger.IsEnabled(LogLevel.Trace))
-							this._logger.LogInformation("Connection secured successfully");
+							this._logger.LogInformation("The connection secured successfully");
 					}
 					catch (OperationCanceledException)
 					{
@@ -254,14 +254,14 @@ namespace net.vieapps.Components.WebSockets
 							throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
 					}
 				else
-					stream = client.GetStream();
+					stream = tcpClient.GetStream();
 
 				// connect
 				var context = await WebSocketHelper.ReadHttpHeaderFromStreamAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
 				if (!context.IsWebSocketRequest)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogInformation("HTTP header contains no WebSocket upgrade request, then close the connection");
+						this._logger.LogInformation("HTTP header contains no WebSocket upgrade request, then ignore");
 					stream.Close();
 					return;
 				}
@@ -269,10 +269,10 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
-				websocket = await WebSocketHelper.AcceptWebSocketAsync(context, this._recycledStreamFactory, new WebSocketServerOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
+				websocket = await WebSocketHelper.AcceptAsync(context, this._recycledStreamFactory, new WebSocketServerOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
 				websocket.IsClient = false;
-				websocket.LocalEndPoint = client.Client.LocalEndPoint;
-				websocket.RemoteEndPoint = client.Client.RemoteEndPoint;
+				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
+				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
 
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({websocket.ID} @ {websocket.RemoteEndPoint})");
@@ -648,7 +648,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Sets the length of receiving buffer of all WebSocket connections
 		/// </summary>
 		/// <param name="length"></param>
-		public static void SetBufferLength(int length = 4096)
+		public static void SetBufferLength(int length = 16384)
 		{
 			WebSocketHelper.SetBufferLength(length);
 		}

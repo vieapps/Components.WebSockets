@@ -15,17 +15,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	internal static class FrameReaderWriter
     {
 		/// <summary>
-		/// This is used for data masking so that web proxies don't cache the data
-		/// Therefore, there are no cryptographic concerns
-		/// </summary>
-		static readonly Random Random;
-
-		static FrameReaderWriter()
-		{
-			FrameReaderWriter.Random = new Random((int)DateTime.Now.Ticks);
-		}
-
-		/// <summary>
 		/// Read a WebSocket frame from the stream
 		/// </summary>
 		/// <param name="fromStream">The stream to read from</param>
@@ -166,8 +155,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			// if we are creating a client frame then we MUST mack the payload as per the spec
 			if (isClient)
 			{
-				var maskKey = new byte[WebSocketFrame.MaskKeyLength];
-				FrameReaderWriter.Random.NextBytes(maskKey);
+				var maskKey = CryptoService.GenerateRandomKey(WebSocketFrame.MaskKeyLength);
 				memoryStream.Write(maskKey, 0, maskKey.Length);
 
 				// mask the payload
