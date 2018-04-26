@@ -18,7 +18,7 @@ using net.vieapps.Components.WebSockets.Exceptions;
 namespace net.vieapps.Components.WebSockets.Implementation
 {
 	public static class WebSocketHelper
-    {
+	{
 		const string WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		const int WEBSOCKET_VERSION = 13;
 
@@ -119,14 +119,14 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Writes an HTTP response string to the stream
+		/// Writes an HTTP header to the stream
 		/// </summary>
-		/// <param name="response">The response (without the new line characters)</param>
+		/// <param name="header">The header (without the new line characters)</param>
 		/// <param name="stream">The stream to write to</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		public static async Task WriteHttpHeaderAsync(string response, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteHttpHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			var bytes = (response.Trim() + "\r\n\r\n").ToBytes();
+			var bytes = (header.Trim() + "\r\n\r\n").ToBytes();
 			await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
 		}
 
@@ -151,7 +151,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				offset += read;
 				var header = buffer.GetString(offset);
 
-				// as per HTTP specification, all headers should end this
+				// as per HTTP specification, all headers should end like this
 				if (header.Contains("\r\n\r\n"))
 					return header;
 			}
@@ -161,7 +161,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocot upgrade
+		/// Reads a http header information from a stream and decodes the parts relating to the WebSocket protocol upgrade
 		/// </summary>
 		/// <param name="stream">The network stream</param>
 		/// <param name="cancellationToken">The optional cancellation token</param>
@@ -192,7 +192,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				{
 					var secWebSocketVersion = match.Groups[1].Value.Trim().CastAs<int>();
 					if (secWebSocketVersion < WEBSOCKET_VERSION)
-						throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} not suported. Must be {WEBSOCKET_VERSION} or above");
+						throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} not suported. Must be {WEBSOCKET_VERSION} or above.");
 				}
 				else
 					throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in HTTP header");
@@ -202,13 +202,13 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				if (match.Success)
 				{
 					var secWebSocketKey = match.Groups[1].Value.Trim();
-					var handshake = 
+					var handshake =
 						"HTTP/1.1 101 Switching Protocols\r\n" +
 						"Connection: Upgrade\r\n" +
 						"Upgrade: websocket\r\n" +
 						"Server: VIEApps NGX WebSockets\r\n" +
 						"Sec-WebSocket-Accept: " + WebSocketHelper.ComputeSocketAcceptString(secWebSocketKey);
-					Events.Log.SendingHandshakeResponse(guid, handshake);
+					Events.Log.SendingHandshake(guid, handshake);
 					await WebSocketHelper.WriteHttpHeaderAsync(handshake, context.Stream, cancellationToken).ConfigureAwait(false);
 					Events.Log.HandshakeSent(guid, handshake);
 				}
@@ -231,8 +231,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			Events.Log.ServerHandshakeSuccess(guid);
 
 			// create new instance
-			string secWebSocketExtensions = null;
-			return new WebSocket(guid, recycledStreamFactory, context.Stream, options.KeepAliveInterval, secWebSocketExtensions, options.IncludeExceptionInCloseResponse);
+			return new WebSocket(guid, false, recycledStreamFactory, context.Stream, options.KeepAliveInterval, null, options.IncludeExceptionInCloseResponse);
 		}
 
 		/// <summary>
@@ -266,7 +265,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 			// throw if got invalid response code
 			var responseCode = WebSocketHelper.ReadHttpResponseCode(response);
-			if (!string.Equals(responseCode, "101 Switching Protocols", StringComparison.InvariantCultureIgnoreCase))
+			if (!"101 Switching Protocols".IsEquals(responseCode))
 			{
 				var lines = response.Split(new string[] { "\r\n" }, StringSplitOptions.None);
 				for (var index = 0; index < lines.Length; index++)
@@ -302,9 +301,8 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				Events.Log.ClientHandshakeSuccess(guid);
 
 			// return the WebSocket connection
-			return new WebSocket(guid, recycledStreamFactory, stream, keepAliveInterval, secWebSocketExtensions, includeExceptionInCloseResponse)
+			return new WebSocket(guid, true, recycledStreamFactory, stream, keepAliveInterval, secWebSocketExtensions, includeExceptionInCloseResponse)
 			{
-				IsClient = true,
 				LocalEndPoint = localEndPoint,
 				RemoteEndPoint = remoteEndPoint
 			};
@@ -320,22 +318,22 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <returns>A connected web socket instance</returns>
 		public static async Task<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, Func<MemoryStream> recycledStreamFactory, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			// prepare
-			var guid = Guid.NewGuid();
-			var host = uri.Host;
-			var port = uri.Port;
-			var tcpClient = new TcpClient() { NoDelay = options.NoDelay };
-
 			// connect the TCP client
-			if (IPAddress.TryParse(host, out IPAddress ipAddress))
+			var guid = Guid.NewGuid();
+			var tcpClient = new TcpClient()
 			{
-				Events.Log.ClientConnectingToIPAddress(guid, ipAddress.ToString(), port);
-				await tcpClient.ConnectAsync(ipAddress, port).WithCancellationToken(cancellationToken).ConfigureAwait(false);
+				NoDelay = options.NoDelay
+			};
+
+			if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
+			{
+				Events.Log.ClientConnectingToIPAddress(guid, ipAddress.ToString(), uri.Port);
+				await tcpClient.ConnectAsync(ipAddress, uri.Port).WithCancellationToken(cancellationToken).ConfigureAwait(false);
 			}
 			else
 			{
-				Events.Log.ClientConnectingToHost(guid, host, port);
-				await tcpClient.ConnectAsync(host, port).WithCancellationToken(cancellationToken).ConfigureAwait(false);
+				Events.Log.ClientConnectingToHost(guid, uri.Host, uri.Port);
+				await tcpClient.ConnectAsync(uri.Host, uri.Port).WithCancellationToken(cancellationToken).ConfigureAwait(false);
 			}
 
 			// get the connected stream
@@ -360,7 +358,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				Events.Log.AttemptingToSecureSslConnection(guid);
 
 				// will throw an AuthenticationException if the certificate is not valid
-				await (stream as SslStream).AuthenticateAsClientAsync(host).WithCancellationToken(cancellationToken).ConfigureAwait(false);
+				await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(cancellationToken).ConfigureAwait(false);
 				Events.Log.ConnectionSecured(guid);
 			}
 			else
@@ -374,15 +372,15 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			var handshake =
 				$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
 				$"Host: {uri.Host}:{uri.Port}\r\n" +
-				$"Origin: http://{uri.Host}:{uri.Port}\r\n" +
-				$"Upgrade: websocket\r\n" +
+				$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}:{uri.Port}\r\n" +
 				$"Connection: Upgrade\r\n" +
+				$"Upgrade: websocket\r\n" +
+				$"Client: VIEApps NGX WebSockets\r\n" +
 				$"Sec-WebSocket-Key: {secWebSocketKey}\r\n" +
 				$"Sec-WebSocket-Version: {WEBSOCKET_VERSION}\r\n";
-			if (options.AdditionalHttpHeaders != null && options.AdditionalHttpHeaders.Count > 0)
-				foreach (var kvp in options.AdditionalHttpHeaders)
-					handshake += $"{kvp.Key}: {kvp.Value}\r\n";
+			options.AdditionalHttpHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
 
+			Events.Log.SendingHandshake(guid, handshake);
 			await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, cancellationToken).ConfigureAwait(false);
 			Events.Log.HandshakeSent(guid, handshake);
 

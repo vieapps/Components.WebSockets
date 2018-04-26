@@ -115,7 +115,7 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		[Event(15, Level = EventLevel.Informational)]
-        public void SendingHandshakeResponse(Guid guid, string response)
+        public void SendingHandshake(Guid guid, string response)
         {
             if (this.IsEnabled())
 				this.WriteEvent(15, guid, response ?? string.Empty);

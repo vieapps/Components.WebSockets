@@ -33,12 +33,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		WebSocketState _state;
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
-		CancellationTokenSource _readingCTS;
-		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 		string _closeStatusDescription;
 		bool _isContinuationFrame;
 		bool _tryGetBufferFailureLogged = false;
 		bool _writting = false, _disposed = false;
+		CancellationTokenSource _readingCTS;
+		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
 		public event EventHandler<PongEventArgs> Pong;
 
@@ -90,26 +90,38 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Gets the state that indicates the WebSocket connection is client mode or not (client mode means the WebSocket connection is connected to a remote endpoint)
 		/// </summary>
-		public bool IsClient { get; internal set; }
+		public bool IsClient { get; private set; }
 		#endregion
 
 		/// <summary>
 		/// Creates new an instance of WebSocket
 		/// </summary>
 		/// <param name="id"></param>
+		/// <param name="isClient"></param>
 		/// <param name="recycledStreamFactory"></param>
 		/// <param name="stream"></param>
 		/// <param name="keepAliveInterval"></param>
 		/// <param name="secWebSocketExtensions"></param>
 		/// <param name="includeExceptionInCloseResponse"></param>
-		public WebSocket(Guid id, Func<MemoryStream> recycledStreamFactory, Stream stream, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse)
+		internal WebSocket(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse)
 		{
 			this.ID = id;
+			this.IsClient = isClient;
 
-			this._recycledStreamFactory = recycledStreamFactory;
+			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._stream = stream;
 			this._state = WebSocketState.Open;
 			this._readingCTS = new CancellationTokenSource();
+			this._includeExceptionInCloseResponse = includeExceptionInCloseResponse;
+
+			this.KeepAliveInterval = keepAliveInterval;
+			if (this.KeepAliveInterval.Ticks < 0)
+				throw new ArgumentException("Keep-Alive interval must be Zero or positive", nameof(keepAliveInterval));
+
+			if (this.KeepAliveInterval == TimeSpan.Zero)
+				Events.Log.KeepAliveIntervalZero(this.ID);
+			else
+				this._pingPongManager = new PingPongManager(this.ID, this, this.KeepAliveInterval, this._readingCTS.Token);
 
 			if (secWebSocketExtensions?.IndexOf("permessage-deflate") >= 0)
 			{
@@ -118,16 +130,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			}
 			else
 				Events.Log.NoMessageCompression(this.ID);
-
-			this.KeepAliveInterval = keepAliveInterval;
-			this._includeExceptionInCloseResponse = includeExceptionInCloseResponse;
-			if (keepAliveInterval.Ticks < 0)
-				throw new InvalidOperationException("KeepAliveInterval must be Zero or positive");
-
-			if (keepAliveInterval == TimeSpan.Zero)
-				Events.Log.KeepAliveIntervalZero(this.ID);
-			else
-				this._pingPongManager = new PingPongManager(this.ID, this, keepAliveInterval, this._readingCTS.Token);
 		}
 
 		#region Receive messages
@@ -222,7 +224,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				// Most exceptions will be caught closer to their source to send an appropriate close message (and set the WebSocketState)
 				// However, if an unhandled exception is encountered and a close message not sent then send one here
 				if (this._state == WebSocketState.Open)
-					await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Unexpected error reading from WebSocket", catchAll).ConfigureAwait(false);
+					await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", catchAll).ConfigureAwait(false);
 				throw;
 			}
 		}

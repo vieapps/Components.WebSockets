@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using net.vieapps.Components.WebSockets.Implementation;
+using net.vieapps.Components.Utility;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
@@ -80,10 +81,10 @@ namespace net.vieapps.Components.WebSockets
 		/// Set this to TimeSpan.Zero if you with to manually control sending ping messages.
 		/// </param>
 		/// <param name="cancellationToken">The token used to cancel a pending ping send AND the automatic sending of ping messages if keepAliveInterval is positive</param>
-		public PingPongManager(Guid guid, Implementation.WebSocket webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken = default(CancellationToken))
+		public PingPongManager(Guid guid, Implementation.WebSocket webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken)
 		{
 			this._webSocket = webSocket;
-			this._webSocket.Pong += this.WebSocketImpl_Pong;
+			this._webSocket.Pong += this.DoPong;
 			this._guid = guid;
 			this._keepAliveInterval = keepAliveInterval;
 			this._cancellationToken = cancellationToken;
@@ -91,7 +92,7 @@ namespace net.vieapps.Components.WebSockets
 
 			this._pingTask = keepAliveInterval == TimeSpan.Zero
 				? Task.CompletedTask
-				: Task.Run(this.PingForeverAsync, cancellationToken);
+				: Task.Run(this.DoPingAsync, cancellationToken);
 		}
 
 		/// <summary>
@@ -104,21 +105,14 @@ namespace net.vieapps.Components.WebSockets
 			return this._webSocket.SendPingAsync(payload, cancellationToken);
 		}
 
-		protected virtual void OnPong(PongEventArgs args)
-		{
-			this.Pong?.Invoke(this, args);
-		}
-
-		async Task PingForeverAsync()
+		async Task DoPingAsync()
 		{
 			Events.Log.PingPongManagerStarted(this._guid, (int)this._keepAliveInterval.TotalSeconds);
 			try
 			{
 				while (!this._cancellationToken.IsCancellationRequested)
 				{
-					if (!this._cancellationToken.IsCancellationRequested)
-						await Task.Delay(this._keepAliveInterval, this._cancellationToken).ConfigureAwait(false);
-
+					await Task.Delay(this._keepAliveInterval, this._cancellationToken).ConfigureAwait(false);
 					if (this._webSocket.State != WebSocketState.Open)
 						break;
 
@@ -129,12 +123,8 @@ namespace net.vieapps.Components.WebSockets
 						break;
 					}
 
-					if (!this._cancellationToken.IsCancellationRequested)
-					{
-						this._pingSentTicks = this._stopwatch.Elapsed.Ticks;
-						var buffer = new ArraySegment<byte>(BitConverter.GetBytes(this._pingSentTicks));
-						await this.SendPingAsync(buffer, this._cancellationToken).ConfigureAwait(false);
-					}
+					this._pingSentTicks = this._stopwatch.Elapsed.Ticks;
+					await this.SendPingAsync(this._pingSentTicks.ToArraySegment(), this._cancellationToken).ConfigureAwait(false);
 				}
 			}
 			catch (OperationCanceledException)
@@ -144,10 +134,15 @@ namespace net.vieapps.Components.WebSockets
 			Events.Log.PingPongManagerEnded(this._guid);
 		}
 
-		void WebSocketImpl_Pong(object sender, PongEventArgs e)
+		protected virtual void OnPong(PongEventArgs args)
+		{
+			this.Pong?.Invoke(this, args);
+		}
+
+		void DoPong(object sender, PongEventArgs arg)
 		{
 			this._pingSentTicks = 0;
-			this.OnPong(e);
+			this.OnPong(arg);
 		}
 	}
 }

@@ -181,7 +181,8 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				this._logger.LogError(ex, $"Error occurred while disposing listener: {ex.Message}");
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, $"Got an unexpected error when stop the listener: {ex.Message}");
 			}
 			finally
 			{
@@ -199,7 +200,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			try
 			{
-				while (true)
+				while (!this._listeningCTS.IsCancellationRequested)
 				{
 					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 					var accept = this.AcceptAsync(tcpClient);
@@ -270,7 +271,6 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
 				websocket = await WebSocketHelper.AcceptAsync(context, this._recycledStreamFactory, new WebSocketServerOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
-				websocket.IsClient = false;
 				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
 				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
 
@@ -302,28 +302,6 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Connect to remote endpoints as client
-		/// <summary>
-		/// Connects to a remote endpoint as a WebSocket client
-		/// </summary>
-		/// <param name="location">The address of the remote endpoint to connect to</param>
-		/// <param name="onSuccess">Action to fire when connect successful</param>
-		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(string location, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
-		{
-			this.Connect(new Uri(location.Trim().ToLower()), onSuccess, onFailed);
-		}
-
-		/// <summary>
-		/// Connects to a remote endpoint as a WebSocket client
-		/// </summary>
-		/// <param name="uri">The address of the remote endpoint to connect to</param>
-		/// <param name="onSuccess">Action to fire when connect successful</param>
-		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
-		{
-			Task.Run(() => this.ConnectAsync(uri, onSuccess, onFailed)).ConfigureAwait(false);
-		}
-
 		async Task ConnectAsync(Uri uri, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			try
@@ -351,6 +329,28 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(ex, $"Could not connect to \"{uri}\": {ex.Message}");
 				onFailed?.Invoke(ex);
 			}
+		}
+
+		/// <summary>
+		/// Connects to a remote endpoint as a WebSocket client
+		/// </summary>
+		/// <param name="uri">The address of the remote endpoint to connect to</param>
+		/// <param name="onSuccess">Action to fire when connect successful</param>
+		/// <param name="onFailed">Action to fire when failed to connect</param>
+		public void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		{
+			Task.Run(() => this.ConnectAsync(uri, onSuccess, onFailed)).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Connects to a remote endpoint as a WebSocket client
+		/// </summary>
+		/// <param name="location">The address of the remote endpoint to connect to</param>
+		/// <param name="onSuccess">Action to fire when connect successful</param>
+		/// <param name="onFailed">Action to fire when failed to connect</param>
+		public void Connect(string location, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		{
+			this.Connect(new Uri(location.Trim().ToLower()), onSuccess, onFailed);
 		}
 		#endregion
 
@@ -461,7 +461,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
 				? websocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
+				: Task.FromException(new InformationNotFoundException($"No WebSocket connection with identity \"{id}\" is found"));
 		}
 
 		/// <summary>
@@ -475,7 +475,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
 				? websocket.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
+				: Task.FromException(new InformationNotFoundException($"No WebSocket connection with identity \"{id}\" is found"));
 		}
 
 		/// <summary>
@@ -489,7 +489,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
 				? websocket.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.CompletedTask;
+				: Task.FromException(new InformationNotFoundException($"No WebSocket connection with identity \"{id}\" is found"));
 		}
 
 		/// <summary>
@@ -500,11 +500,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="messageType">The message type. Can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">the cancellation token</param>
-		public async Task SendAsync(Func<Implementation.WebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(Func<Implementation.WebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			await this.GetWebSockets(websocket => predicate != null ? predicate(websocket) : false)
-				.ToList()
-				.ForEachAsync((connection, token) => connection.SendAsync(buffer.Clone(), messageType, endOfMessage, token), cancellationToken).ConfigureAwait(false);
+			return this.GetWebSockets(predicate).ToList().ForEachAsync((connection, token) => connection.SendAsync(buffer.Clone(), messageType, endOfMessage, token), cancellationToken);
 		}
 
 		/// <summary>
