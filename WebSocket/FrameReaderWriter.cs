@@ -3,26 +3,36 @@ using System;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using net.vieapps.Components.Utility;
+using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Internal
+namespace net.vieapps.Components.WebSockets.Implementation
 {
-    /// <summary>
-    /// Reads a WebSocket frame
-    /// see http://tools.ietf.org/html/rfc6455 for specification
-    /// </summary>
-    internal static class WebSocketFrameReader
+	internal static class FrameReaderWriter
     {
-        /// <summary>
-        /// Read a WebSocket frame from the stream
-        /// </summary>
-        /// <param name="fromStream">The stream to read from</param>
-        /// <param name="intoBuffer">The buffer to read into</param>
-        /// <param name="cancellationToken">the cancellation token</param>
-        /// <returns>A websocket frame</returns>
-        public static async Task<WebSocketFrame> ReadAsync(Stream fromStream, ArraySegment<byte> intoBuffer, CancellationToken cancellationToken)
+		/// <summary>
+		/// This is used for data masking so that web proxies don't cache the data
+		/// Therefore, there are no cryptographic concerns
+		/// </summary>
+		static readonly Random Random;
+
+		static FrameReaderWriter()
+		{
+			FrameReaderWriter.Random = new Random((int)DateTime.Now.Ticks);
+		}
+
+		/// <summary>
+		/// Read a WebSocket frame from the stream
+		/// </summary>
+		/// <param name="fromStream">The stream to read from</param>
+		/// <param name="intoBuffer">The buffer to read into</param>
+		/// <param name="cancellationToken">the cancellation token</param>
+		/// <returns>A websocket frame</returns>
+		public static async Task<WebSocketFrame> ReadAsync(Stream fromStream, ArraySegment<byte> intoBuffer, CancellationToken cancellationToken)
         {
             // allocate a small buffer to read small chunks of data from the stream
             var smallBuffer = new ArraySegment<byte>(new byte[8]);
@@ -40,23 +50,23 @@ namespace net.vieapps.Components.WebSockets.Internal
             // read and process second byte
             byte maskFlag = 0x80;
             bool isMaskBitSet = (byte2 & maskFlag) == maskFlag;
-            uint length = await WebSocketFrameReader.ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken).ConfigureAwait(false);
+            uint length = await FrameReaderWriter.ReadLengthAsync(byte2, smallBuffer, fromStream, cancellationToken).ConfigureAwait(false);
             int count = (int)length;
 
             // use the masking key to decode the data if needed
             if (isMaskBitSet)
             {
-                var maskKey = new ArraySegment<byte>(smallBuffer.Array, 0, WebSocketFrameCommon.MaskKeyLength);
+                var maskKey = new ArraySegment<byte>(smallBuffer.Array, 0, WebSocketFrame.MaskKeyLength);
                 await BinaryReaderWriter.ReadExactlyAsync(maskKey.Count, fromStream, maskKey, cancellationToken).ConfigureAwait(false);
                 await BinaryReaderWriter.ReadExactlyAsync(count, fromStream, intoBuffer, cancellationToken).ConfigureAwait(false);
 				var payloadToMask = new ArraySegment<byte>(intoBuffer.Array, intoBuffer.Offset, count);
-                WebSocketFrameCommon.ToggleMask(maskKey, payloadToMask);
+				WebSocketFrame.ToggleMask(maskKey, payloadToMask);
             }
             else
 				await BinaryReaderWriter.ReadExactlyAsync(count, fromStream, intoBuffer, cancellationToken).ConfigureAwait(false);
 
 			return opCode == WebSocketOpCode.ConnectionClose
-				?  WebSocketFrameReader.DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer)
+				?  FrameReaderWriter.DecodeCloseFrame(isFinBitSet, opCode, count, intoBuffer)
 				: new WebSocketFrame(isFinBitSet, opCode, count); // note that by this point the payload will be populated
         }
 
@@ -95,7 +105,7 @@ namespace net.vieapps.Components.WebSockets.Internal
         /// <summary>
         /// Reads the length of the payload according to the contents of byte2
         /// </summary>
-        private static async Task<uint> ReadLengthAsync(byte byte2, ArraySegment<byte> smallBuffer, Stream fromStream, CancellationToken cancellationToken = default(CancellationToken))
+        static async Task<uint> ReadLengthAsync(byte byte2, ArraySegment<byte> smallBuffer, Stream fromStream, CancellationToken cancellationToken = default(CancellationToken))
         {
             byte payloadLengthFlag = 0x7F;
             var length = (uint) (byte2 & payloadLengthFlag);
@@ -116,5 +126,56 @@ namespace net.vieapps.Components.WebSockets.Internal
 
 			return length;
         }
-    }
+
+		/// <summary>
+		/// No async await stuff here because we are dealing with a memory stream
+		/// </summary>
+		/// <param name="opCode">The web socket opcode</param>
+		/// <param name="fromPayload">Array segment to get payload data from</param>
+		/// <param name="toStream">Stream to write to</param>
+		/// <param name="isLastFrame">True is this is the last frame in this message (usually true)</param>
+		public static void Write(WebSocketOpCode opCode, ArraySegment<byte> fromPayload, MemoryStream toStream, bool isLastFrame, bool isClient)
+		{
+			var memoryStream = toStream;
+			var finBitSetAsByte = isLastFrame ? (byte)0x80 : (byte)0x00;
+			var byte1 = (byte)(finBitSetAsByte | (byte)opCode);
+			memoryStream.WriteByte(byte1);
+
+			// NB, set the mask flag if we are constructing a client frame
+			var maskBitSetAsByte = isClient ? (byte)0x80 : (byte)0x00;
+
+			// depending on the size of the length we want to write it as a byte, ushort or ulong
+			if (fromPayload.Count < 126)
+			{
+				var byte2 = (byte)(maskBitSetAsByte | (byte)fromPayload.Count);
+				memoryStream.WriteByte(byte2);
+			}
+			else if (fromPayload.Count <= ushort.MaxValue)
+			{
+				var byte2 = (byte)(maskBitSetAsByte | 126);
+				memoryStream.WriteByte(byte2);
+				BinaryReaderWriter.WriteUShort((ushort)fromPayload.Count, memoryStream, false);
+			}
+			else
+			{
+				var byte2 = (byte)(maskBitSetAsByte | 127);
+				memoryStream.WriteByte(byte2);
+				BinaryReaderWriter.WriteULong((ulong)fromPayload.Count, memoryStream, false);
+			}
+
+			// if we are creating a client frame then we MUST mack the payload as per the spec
+			if (isClient)
+			{
+				var maskKey = new byte[WebSocketFrame.MaskKeyLength];
+				FrameReaderWriter.Random.NextBytes(maskKey);
+				memoryStream.Write(maskKey, 0, maskKey.Length);
+
+				// mask the payload
+				var maskKeyArraySegment = new ArraySegment<byte>(maskKey, 0, maskKey.Length);
+				WebSocketFrame.ToggleMask(maskKeyArraySegment, fromPayload);
+			}
+
+			memoryStream.Write(fromPayload.Array, fromPayload.Offset, fromPayload.Count);
+		}
+	}
 }

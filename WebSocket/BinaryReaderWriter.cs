@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 using net.vieapps.Components.Utility;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Internal
+namespace net.vieapps.Components.WebSockets.Implementation
 {
-    internal class BinaryReaderWriter
+	internal static class BinaryReaderWriter
     {
         public static async Task ReadExactlyAsync(int length, Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
         {

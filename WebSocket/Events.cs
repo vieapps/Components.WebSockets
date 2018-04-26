@@ -3,20 +3,21 @@ using System;
 using System.Diagnostics.Tracing;
 using System.Net.Security;
 using System.Net.WebSockets;
+using net.vieapps.Components.WebSockets.Implementation;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Internal
+namespace net.vieapps.Components.WebSockets
 {
     /// <summary>
     /// Use the Guid to locate this EventSource in PerfView using the Additional Providers box (without wildcard characters)
     /// </summary>
-    [EventSource(Name = "VIEApps-WebSockets", Guid = "859DAE0C-39B2-4448-B679-66F499E6FEFA")]
-    internal sealed class Events : EventSource
+    [EventSource(Name = "WebSockets", Guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")]
+	internal sealed class Events : EventSource
     {
         public static Events Log = new Events();
 
         [Event(1, Level = EventLevel.Informational)]
-        public void ClientConnectingToIpAddress(Guid guid, string ipAddress, int port)
+        public void ClientConnectingToIPAddress(Guid guid, string ipAddress, int port)
         {
             if (this.IsEnabled())
 				this.WriteEvent(1, guid, ipAddress, port);
@@ -30,7 +31,7 @@ namespace net.vieapps.Components.WebSockets.Internal
 		}
 
 		[Event(3, Level = EventLevel.Informational)]
-        public void AttemtingToSecureSslConnection(Guid guid)
+        public void AttemptingToSecureSslConnection(Guid guid)
         {
             if (this.IsEnabled())
 				this.WriteEvent(3, guid);

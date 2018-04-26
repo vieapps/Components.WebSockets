@@ -5,14 +5,14 @@
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.1.17.1804</AssemblyVersion>
-		<FileVersion>10.1.17.1804</FileVersion>
-		<InformationalVersion>v10.1.netstandard-2+rev:2018.04.11</InformationalVersion>
+		<AssemblyVersion>10.1.18.1805</AssemblyVersion>
+		<FileVersion>10.1.18.1805</FileVersion>
+		<InformationalVersion>v10.1.netstandard-2+rev:2018.05.01</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.1.17.1804</Version>
+		<Version>10.1.18.1805</Version>
 		<SignAssembly>false</SignAssembly>
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
@@ -21,7 +21,7 @@
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2017 NinjaSource, © 2018 VIEApps.net</Copyright>
 		<PackageTags>websocket;websockets;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Migrated from the fork of NinjaSource, integrated Fleck as default server, and add support of client, server and connection manager</PackageReleaseNotes>
+		<PackageReleaseNotes>Refacotring the source and reimplement working model</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
@@ -45,9 +45,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="2.0.1" />
 		<PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="1.2.2" />
 		<PackageReference Include="VIEApps.Components.Utility" Version="10.1.17.1804" />
-		<PackageReference Include="VIEApps.Components.WebSockets.Fleck" Version="10.1.17.1804" />
 	</ItemGroup>
 
 </Project>
