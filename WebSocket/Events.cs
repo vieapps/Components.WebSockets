@@ -1,12 +1,11 @@
 ﻿#region Related components
 using System;
-using System.Diagnostics.Tracing;
 using System.Net.Security;
 using System.Net.WebSockets;
-using net.vieapps.Components.WebSockets.Implementation;
+using System.Diagnostics.Tracing;
 #endregion
 
-namespace net.vieapps.Components.WebSockets
+namespace net.vieapps.Components.WebSockets.Implementation
 {
     /// <summary>
     /// Use the Guid to locate this EventSource in PerfView using the Additional Providers box (without wildcard characters)
