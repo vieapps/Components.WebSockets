@@ -359,15 +359,19 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Polite close (use the close handshake)
 		/// </summary>
-		public override async Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <param name="cancellationToken">The timeout cancellation token</param>
+		/// <returns></returns>
+		public override async Task CloseAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
 		{
 			if (this._state == WebSocketState.Open)
 			{
 				using (var stream = this._recycledStreamFactory())
 				{
-					var buffer = this.BuildClosePayload(closeStatus, statusDescription);
+					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
 					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
-					Events.Log.CloseHandshakeStarted(this.ID, closeStatus, statusDescription);
+					Events.Log.CloseHandshakeStarted(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._state = WebSocketState.CloseSent;
@@ -380,7 +384,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Fire and forget close
 		/// </summary>
-		public override async Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <param name="cancellationToken">The timeout cancellation token</param>
+		/// <returns></returns>
+		public override async Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
 		{
 			if (this._state == WebSocketState.Open)
 			{
@@ -389,9 +397,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 				using (var stream = this._recycledStreamFactory())
 				{
-					var buffer = this.BuildClosePayload(closeStatus, statusDescription);
+					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
 					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
-					Events.Log.CloseOutputNoHandshake(this.ID, closeStatus, statusDescription);
+					Events.Log.CloseOutputNoHandshake(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
@@ -407,33 +415,53 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// Closes the WebSocket connection automatically in response to some invalid data from the remote websocket host
 		/// </summary>
 		/// <param name="closeStatus">The close status to use</param>
-		/// <param name="statusDescription">A description of why we are closing</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <param name="ex">The exception (for logging)</param>
-		async Task CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string statusDescription, Exception ex)
+		internal async Task CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception ex)
 		{
 			var timeSpan = TimeSpan.FromSeconds(5);
-			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, statusDescription, ex.ToString());
+			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, ex.ToString());
 
 			try
 			{
 				// we may not want to send sensitive information to the client / server
 				if (this._includeExceptionInCloseResponse)
-					statusDescription = statusDescription + "\r\n\r\n" + ex.ToString();
+					closeStatusDescription = closeStatusDescription + "\r\n\r\n" + ex.ToString();
 
 				using (var cts = new CancellationTokenSource(timeSpan))
 				{
-					await this.CloseOutputAsync(closeStatus, statusDescription, cts.Token).ConfigureAwait(false);
+					await this.CloseOutputAsync(closeStatus, closeStatusDescription, cts.Token).ConfigureAwait(false);
 				}
 			}
 			catch (OperationCanceledException)
 			{
 				// do not throw an exception because that will mask the original exception
-				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timeSpan.TotalSeconds, closeStatus, statusDescription, ex.ToString());
+				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timeSpan.TotalSeconds, closeStatus, closeStatusDescription, ex.ToString());
 			}
 			catch (Exception closeException)
 			{
 				// do not throw an exception because that will mask the original exception
-				Events.Log.CloseOutputAutoTimeoutError(this.ID, closeException.ToString(), closeStatus, statusDescription, ex.ToString());
+				Events.Log.CloseOutputAutoTimeoutError(this.ID, closeException.ToString(), closeStatus, closeStatusDescription, ex.ToString());
+			}
+		}
+
+		/// <summary>
+		/// Closes the WebSocket connection with time-out cancellation token
+		/// </summary>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <param name="cancellationToken">The time-out cancellation token</param>
+		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
+		{
+			try
+			{
+				await this.CloseOutputAsync(closeStatus, closeStatusDescription, cancellationToken).ConfigureAwait(false);
+			}
+			catch { }
+			finally
+			{
+				this._readingCTS.Cancel();
+				this._stream.Close();
 			}
 		}
 

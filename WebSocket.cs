@@ -32,9 +32,8 @@ namespace net.vieapps.Components.WebSockets
 		ILogger _logger = null;
 		Func<MemoryStream> _recycledStreamFactory = null;
 		TcpListener _listener = null;
-		int _port = 46429;
 		bool _disposing = false, _disposed = false;
-		CancellationTokenSource _instanceCTS = null, _listeningCTS = null;
+		CancellationTokenSource _processingCTS = null, _listeningCTS = null;
 
 		/// <summary>
 		/// Gets or sets await interval (miliseconds)
@@ -45,6 +44,11 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets or sets keep-alive interval (seconds)
 		/// </summary>
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
+
+		/// <summary>
+		/// Gets the listening port of the listener
+		/// </summary>
+		public int Port { get; private set; } = 46429;
 
 		/// <summary>
 		/// Gets or sets the SSL certificate for securing connections (when act as a server - listen to clients)
@@ -85,7 +89,7 @@ namespace net.vieapps.Components.WebSockets
 			Logger.AssignLoggerFactory(loggerFactory);
 			this._logger = Logger.CreateLogger<WebSocket>();
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
-			this._instanceCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			this._processingCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
 
 		#region Listen to clients as server
@@ -109,10 +113,10 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				// open the listener
+				this.Port = port > 0 && port < 65535 ? port : 46429;
 				this.Certificate = certificate ?? this.Certificate;
-				this._port = port > 0 && port < 65535 ? port : 46429;
 
-				this._listener = new TcpListener(IPAddress.Any, this._port);
+				this._listener = new TcpListener(IPAddress.Any, this.Port);
 				this._listener.Start(1024);
 
 				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
@@ -125,9 +129,9 @@ namespace net.vieapps.Components.WebSockets
 
 				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 				if (this.Certificate != null)
-					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
+					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} : Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 
-				this._logger.LogInformation($"WebSocket Listener is started - Listening port: {this._port} - Platform: {platform}");
+				this._logger.LogInformation($"Listener is started - Listening port: {this.Port} - Platform: {platform}");
 				onSuccess?.Invoke();
 
 				// listen for client requests
@@ -135,7 +139,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (SocketException ex)
 			{
-				var message = $"Error occurred while listening on port \"{this._port}\". Make sure another application is not running and consuming this port.";
+				var message = $"Error occurred while listening on port \"{this.Port}\". Make sure another application is not running and consuming this port.";
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogError(ex, message);
 				onFailed?.Invoke(new ListenerSocketException(message, ex));
@@ -143,7 +147,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (Exception ex)
 			{
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogError(ex, $"Got an unexpected error when start to listen: {ex.Message}");
+					this._logger.LogError(ex, $"Got an unexpected error while listening: {ex.Message}");
 				onFailed?.Invoke(ex);
 			}
 		}
@@ -165,7 +169,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="doCancel">true to cancel the current listening process</param>
 		public void StopListen(bool doCancel = true)
 		{
-			// cancel the listing task
+			// cancel all pending connections
 			if (doCancel)
 				this._listeningCTS?.Cancel();
 
@@ -187,7 +191,7 @@ namespace net.vieapps.Components.WebSockets
 
 		Task ListenClientRequest()
 		{
-			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._instanceCTS.Token);
+			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
 			return this.ListenClientRequestAsync();
 		}
 
@@ -207,12 +211,12 @@ namespace net.vieapps.Components.WebSockets
 				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogInformation($"WebSocket Listener is stoped ({ex.GetType().GetTypeName(true)})");
+						this._logger.LogInformation($"Listener is stoped ({ex.GetType().GetTypeName(true)})");
 					else
-						this._logger.LogInformation("WebSocket Listener is stoped");
+						this._logger.LogInformation("Listener is stoped");
 				}
 				else
-					this._logger.LogError(ex, $"WebSocket Listener is stoped ({ex.Message})");
+					this._logger.LogError(ex, $"Listener is stoped ({ex.Message})");
 			}
 		}
 
@@ -225,7 +229,6 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				// get stream
-				this._listeningCTS.Token.ThrowIfCancellationRequested();
 				Stream stream = null;
 				if (this.Certificate != null)
 					try
@@ -278,20 +281,20 @@ namespace net.vieapps.Components.WebSockets
 				this.Receive(websocket);
 
 				// handling callback event
-				this.AddWebSocket(websocket);
 				this.OnConnectionEstablished?.Invoke(websocket);
+				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
 				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogDebug(ex, $"Error occurred while accepting a request: {ex.Message}");
+						this._logger.LogDebug(ex, $"Error occurred while accepting an incomming connection request: {ex.Message}");
 				}
 				else
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogError(ex, $"Error occurred while accepting a request: {ex.Message}");
+						this._logger.LogError(ex, $"Error occurred while accepting an incomming connection request: {ex.Message}");
 					this.OnError?.Invoke(websocket, ex);
 				}
 			}
@@ -326,17 +329,21 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				// connect
-				var websocket = await WebSocketHelper.ConnectAsync(uri, new WebSocketClientOptions { KeepAliveInterval = this.KeepAliveInterval }, this._recycledStreamFactory, this._instanceCTS.Token).ConfigureAwait(false);
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogDebug($"Endpoint \"{uri}\" is connected");
+					this._logger.LogDebug($"Attempting to connect to \"{uri}\"...");
+
+				var websocket = await WebSocketHelper.ConnectAsync(uri, new WebSocketClientOptions { KeepAliveInterval = this.KeepAliveInterval }, this._recycledStreamFactory, this._processingCTS.Token).ConfigureAwait(false);
+
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogDebug($"Endpoint is connected \"{uri}\" => {websocket.ID} @ {websocket.RemoteEndPoint}");
 
 				// receive messages
 				this.Receive(websocket);
 
 				// handling callback event
-				this.AddWebSocket(websocket);
 				this.OnConnectionEstablished?.Invoke(websocket);
 				onSuccess?.Invoke(websocket);
+				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
@@ -359,7 +366,7 @@ namespace net.vieapps.Components.WebSockets
 			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
 			while (true)
 			{
-				if (this._instanceCTS.Token.IsCancellationRequested)
+				if (this._processingCTS.Token.IsCancellationRequested)
 					return;
 
 				if (!buffer.Array.Length.Equals(WebSocketHelper.BufferLength))
@@ -368,7 +375,7 @@ namespace net.vieapps.Components.WebSockets
 				WebSocketReceiveResult result = null;
 				try
 				{
-					result = await websocket.ReceiveAsync(buffer, this._instanceCTS.Token).ConfigureAwait(false);
+					result = await websocket.ReceiveAsync(buffer, this._processingCTS.Token).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -431,7 +438,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this.AwaitInterval > 0)
 					try
 					{
-						await Task.Delay(this.AwaitInterval, this._instanceCTS.Token).ConfigureAwait(false);
+						await Task.Delay(this.AwaitInterval, this._processingCTS.Token).ConfigureAwait(false);
 					}
 					catch
 					{
@@ -533,6 +540,17 @@ namespace net.vieapps.Components.WebSockets
 				: false;
 		}
 
+		async Task<bool> AddWebSocketAsync(Implementation.WebSocket websocket)
+		{
+			if (!this.AddWebSocket(websocket))
+			{
+				if (websocket != null)
+					await Task.Delay(UtilityService.GetRandomNumber(123, 234)).ConfigureAwait(false);
+				return this.AddWebSocket(websocket);
+			}
+			return true;
+		}
+
 		/// <summary>
 		/// Gets a WebSocket connection that specifed by identity
 		/// </summary>
@@ -552,26 +570,17 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public IEnumerable<Implementation.WebSocket> GetWebSockets(Func<Implementation.WebSocket, bool> predicate = null)
 		{
-			return predicate != null 
-				? this._websockets.Where(kvp => predicate(kvp.Value)).Select(kvp => kvp.Value)
+			return predicate != null
+				? this._websockets.Values.Where(websocket => predicate(websocket))
 				: this._websockets.Values;
-		}
-
-		/// <summary>
-		/// Gets the collection of all WebSocket connections
-		/// </summary>
-		/// <returns></returns>
-		public IEnumerable<Implementation.WebSocket> GetAllWebSockets()
-		{
-			return this.GetWebSockets();
 		}
 
 		/// <summary>
 		/// Closes the WebSocket connection and remove from centralized collections
 		/// </summary>
 		/// <param name="id">The identity of a WebSocket connection to close</param>
-		/// <param name="closeStatus">The status to close</param>
-		/// <param name="closeStatusDescription">The status description to close</param>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(Guid id, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
 		{
@@ -587,8 +596,8 @@ namespace net.vieapps.Components.WebSockets
 		/// Closes the WebSocket connection and remove from centralized collections
 		/// </summary>
 		/// <param name="websocket">The WebSocket connection to close</param>
-		/// <param name="closeStatus">The status to close</param>
-		/// <param name="closeStatusDescription">The status description to close</param>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(Implementation.WebSocket websocket, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
 		{
@@ -611,11 +620,15 @@ namespace net.vieapps.Components.WebSockets
 			// stop listener
 			this.StopListen();
 
-			// dispose all WebSocket connections
-			this._websockets.Keys.ToList().ForEach(id => this.CloseWebSocket(id, WebSocketCloseStatus.NormalClosure, "Disconnected"));
+			// close all WebSocket connections
+			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+			{
+				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.State == WebSocketState.Open ? websocket.CloseOutputTimeoutAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token) : Task.CompletedTask).ToArray(), TimeSpan.FromSeconds(4));
+				this._websockets.Clear();
+			}
 
 			// cancel all pending operations
-			this._instanceCTS.Cancel();
+			this._processingCTS.Cancel();
 
 			// update state
 			this._disposed = true;
@@ -626,7 +639,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			this.Dispose();
 			this._listeningCTS?.Dispose();
-			this._instanceCTS?.Dispose();
+			this._processingCTS?.Dispose();
 			GC.SuppressFinalize(this);
 		}
 		#endregion
