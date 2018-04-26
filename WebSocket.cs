@@ -204,10 +204,10 @@ namespace net.vieapps.Components.WebSockets
 			catch (Exception ex)
 			{
 				this.StopListen(false);
-				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogInformation(ex, $"WebSocket Listener is stoped ({ex.GetType().GetTypeName(true)})");
+						this._logger.LogInformation($"WebSocket Listener is stoped ({ex.GetType().GetTypeName(true)})");
 					else
 						this._logger.LogInformation("WebSocket Listener is stoped");
 				}
@@ -283,7 +283,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException)
+				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogDebug(ex, $"Error occurred while accepting a request: {ex.Message}");
@@ -359,7 +359,9 @@ namespace net.vieapps.Components.WebSockets
 			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
 			while (true)
 			{
-				this._instanceCTS.Token.ThrowIfCancellationRequested();
+				if (this._instanceCTS.Token.IsCancellationRequested)
+					return;
+
 				if (!buffer.Array.Length.Equals(WebSocketHelper.BufferLength))
 					buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
 
@@ -427,7 +429,14 @@ namespace net.vieapps.Components.WebSockets
 
 				// wait for next round
 				if (this.AwaitInterval > 0)
-					await Task.Delay(this.AwaitInterval, this._instanceCTS.Token).ConfigureAwait(false);
+					try
+					{
+						await Task.Delay(this.AwaitInterval, this._instanceCTS.Token).ConfigureAwait(false);
+					}
+					catch
+					{
+						return;
+					}
 			}
 		}
 		#endregion
@@ -539,11 +548,13 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Gets the collection of WebSocket connections that matched with the predicate
 		/// </summary>
-		/// <param name="predicate"></param>
+		/// <param name="predicate">Predicate for selecting WebSocket connections, if no predicate is provied then return all</param>
 		/// <returns></returns>
-		public IEnumerable<Implementation.WebSocket> GetWebSockets(Func<Implementation.WebSocket, bool> predicate)
+		public IEnumerable<Implementation.WebSocket> GetWebSockets(Func<Implementation.WebSocket, bool> predicate = null)
 		{
-			return this._websockets.Where(kvp => predicate != null ? predicate(kvp.Value) : false).Select(kvp => kvp.Value);
+			return predicate != null 
+				? this._websockets.Where(kvp => predicate(kvp.Value)).Select(kvp => kvp.Value)
+				: this._websockets.Values;
 		}
 
 		/// <summary>
@@ -552,7 +563,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public IEnumerable<Implementation.WebSocket> GetAllWebSockets()
 		{
-			return this._websockets.Values;
+			return this.GetWebSockets();
 		}
 
 		/// <summary>
