@@ -100,9 +100,9 @@ websocket.Certificate = new X509Certificate2("my-certificate.pfx");
 websocket.Start(46429);
 ```
 
-Want to have a free SSL certificate? Take a look at [Lets Encrypt](https://letsencrypt.org/).
+Want to have a free SSL certificate? Take a look at [Let's Encrypt](https://letsencrypt.org/).
 
-Special: A very simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Lets Encrypt very well.
+Special: A simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Let's Encrypt very well.
 
 ### Receiving and Sending messages:
 
@@ -110,9 +110,25 @@ Messages are received automatically via parallel tasks, and you only need to ass
 
 Sending messages are the same with **Implementation.WebSocket** class with a little different: you need a WebSocket connection (instance of *Implementation.WebSocket*) that specified by an identity.
 
+```csharp
+Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Func<Implementation.WebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Func<Implementation.WebSocket, bool> predicate, string message, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken);
+```
+
 ### Connection management
 
 Take a look at some methods named GetWebSocket, GetWebSockets, CloseWebSocket, ... to work with WebSocket connections.
+
+```csharp
+Implementation.WebSocket GetWebSocket(Guid id);
+IEnumerable<Implementation.WebSocket> GetWebSockets(Func<Implementation.WebSocket, bool> predicate);
+bool CloseWebSocket(Guid id, WebSocketCloseStatus closeStatus, string closeStatusDescription);
+bool CloseWebSocket(Implementation.WebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription);
+```
 
 ## Others
 
@@ -157,7 +173,7 @@ using net.vieapps.Components.WebSockets;
 
 ### The results
 - Server is servived after 01 week (60 * 24 * 7 = 10,080 minutes)
-- No dropped connections
+- No dropped connection
 - No hang
 - Used memory: 1.3 GB - 1.7 GB
 - CPU usages: 3% - 15% while receiving messages, 18% - 35% while sending messages
