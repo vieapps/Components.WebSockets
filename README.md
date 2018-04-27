@@ -134,9 +134,9 @@ bool CloseWebSocket(Implementation.WebSocket websocket, WebSocketCloseStatus clo
 
 ### The important things
 
-- 16K is default length of the buffer for receiving messages (its large enough for most case because we are usually use WebSocket to send/receive small data), and to change the length of the buffer to receive more large messages, use the static method **SetBufferLength** of the *WebSocket* class.
+- 16K is default length of the buffer for receiving messages (its large enough for most case because we are usually use WebSocket to send/receive small data). If you want to change the length to receive large messages, use the static method **SetBufferLength** of the *WebSocket* class.
 - If the incomming messages is continuous messages, the type always be "Binary", and the property named "EndOfMessage" is "true" in the last message - "false" in the previous messages (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
-- Some portion of codes are reference from [NinjaSource WebSocket](https://github.com/ninjasource/Ninja.WebSockets)
+- Some portion of codes are reference from [NinjaSource WebSocket](https://github.com/ninjasource/Ninja.WebSockets).
 
 ### Logging
 
@@ -159,7 +159,7 @@ using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets;
 ```
 
-## A simple stress test
+## A very simple stress test
 
 ### Environment
 
@@ -167,9 +167,9 @@ using net.vieapps.Components.WebSockets;
 - 05 clients with Windows 10 x64 and Ubuntu Linux 16.04 x64
 
 ### The scenario
-- Clients (05 stations) made 20,000 concurrent connections to the server
+- Clients (05 stations) made 20,000 concurrent connections to the server, all connections are secured (use Let's Encrypt SSL certificate)
 - Clients send 02 messages per second to server (means server receives 40,000 messages/second) - size of 01 message: 1024 bytes (1K)
-- Server sends 01 messages to all connections each 10 minutes - size of 01 messages: 1024 bytes (1K)
+- Server sends 01 message to all connections (20,000 messages) each 10 minutes - size of 01 message: 1024 bytes (1K)
 
 ### The results
 - Server is servived after 01 week (60 * 24 * 7 = 10,080 minutes)
