@@ -49,7 +49,7 @@ async Task SendAsync(Implementation.WebSocket websocket)
 ### Useful properties:
 ```csharp
 public Guid ID { get; } // the identity of the connection
-public bool IsClient { get; } // true if connection was made while working as client role (connect to a remote endpoint)
+public bool IsClient { get; } // true if the connection was made when connect to a remote endpoint (mean client role)
 public DateTime Time { get; } // the time when the connection is established
 public EndPoint LocalEndPoint { get; } // local endpoint
 public EndPoint RemoteEndPoint { get; } // remote endpoint (usually IP address and port)
@@ -60,7 +60,7 @@ public EndPoint RemoteEndPoint { get; } // remote endpoint (usually IP address a
 ### Using the WebSocket class
 
 This is a centralized element for working with both side of client and server role.
-This class has 4 action properties (event handlers) to take care of all working cases, you just need to assign your code to cover its.
+This class has 04 action properties (event handlers) to take care of all working cases, you just need to assign your code to cover its.
 ```csharp
 Action<Implementation.WebSocket, Exception> OnError; // fire when got any error
 Action<Implementation.WebSocket> OnConnectionEstablished; // fire when a connection is established
@@ -74,7 +74,7 @@ void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess, Action<Excepti
 void Connect(string location, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
 void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
 void StartListen(int port, Action onSuccess, Action<Exception> onFailed);
-void StopListen(bool doCancel);
+void StopListen();
 ```
 
 ### WebSocket client
@@ -97,7 +97,7 @@ Enabling secure connections requires two things:
 var websocket = new WebSocket();
 websocket.Certificate = new X509Certificate2("my-certificate.pfx");
 // websocket.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
-websocket.Start(46429);
+websocket.StartListen(46429);
 ```
 
 Want to have a free SSL certificate? Take a look at [Let's Encrypt](https://letsencrypt.org/).
@@ -108,7 +108,7 @@ Special: A simple tool named [lets-encrypt-win-simple](https://github.com/PKISha
 
 Messages are received automatically via parallel tasks, and you only need to assign **OnMessageReceived** event for handling its.
 
-Sending messages are the same with **Implementation.WebSocket** class with a little different: you need a WebSocket connection (instance of *Implementation.WebSocket*) that specified by an identity.
+Sending messages are the same **Implementation.WebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity - instance of *Implementation.WebSocket*) for sending messages.
 
 ```csharp
 Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
@@ -121,7 +121,7 @@ Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, b
 
 ### Connection management
 
-Take a look at some methods named GetWebSocket, GetWebSockets, CloseWebSocket, ... to work with WebSocket connections.
+Take a look at some methods named GetWebSocket, GetWebSockets, CloseWebSocket, ... to work with all connections.
 
 ```csharp
 Implementation.WebSocket GetWebSocket(Guid id);
