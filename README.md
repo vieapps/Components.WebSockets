@@ -12,46 +12,24 @@ This is the same WebSocket abstract class used by .NET Standard 2.0 and it allow
 
 ## Walking on the ground
 
-As a client, use the WebSocketClientFactory
+The class **net.vieapps.Components.WebSockets.Implementation.WebSocket** is an implementation of the System.Net.WebSockets.WebSocket abstract class,
+that allows you send and receive messages in the same way for both client and server side.
 
+### Receiving messages:
 ```csharp
-var factory = new WebSocketClientFactory();
-var webSocket = await factory.ConnectAsync(new Uri("ws://localhost:46429/")).ConfigureAwait(false);
-```
-
-As a server, use the WebSocketServerFactory
-
-```csharp
-var stream = tcpClient.GetStream();
-var factory = new WebSocketServerFactory();
-var context = await factory.ReadHttpHeaderFromStreamAsync(stream).ConfigureAwait(false);
-
-if (context.IsWebSocketRequest)
-{
-    var webSocket = await factory.AcceptWebSocketAsync(context).ConfigureAwait(false);
-}
-```
-## Using the WebSocket class
-
-Client and Server send and receive data in the same way.
-
-### Receiving data:
-
-Receive data in an infinite loop until we receive a close frame from the server
-```csharp
-async Task ReceiveAsync(WebSocket webSocket)
+async Task ReceiveAsync(Implementation.WebSocket websocket)
 {
     var buffer = new ArraySegment<byte>(new byte[1024]);
     while (true)
     {
-        WebSocketReceiveResult result = await webSocket.ReceiveAsync(buffer, CancellationToken.None).ConfigureAwait(false);
+        WebSocketReceiveResult result = await websocket.ReceiveAsync(buffer, CancellationToken.None).ConfigureAwait(false);
         switch (result.MessageType)
         {
             case WebSocketMessageType.Close:
                 return;
             case WebSocketMessageType.Text:
             case WebSocketMessageType.Binary:
-                var value = buffer.GetString(result.Count);
+                var value = Encoding.UTF8.GetString(buffer, result.Count);
                 Console.WriteLine(value);
                 break;
         }
@@ -59,216 +37,90 @@ async Task ReceiveAsync(WebSocket webSocket)
 }
 ```
 
-### Sending data:
+### Sending messages:
 ```csharp
-async Task SendAsync(WebSocket webSocket)
+async Task SendAsync(Implementation.WebSocket websocket)
 {
-    var array = Encoding.UTF8.GetBytes("Hello World");
-    var buffer = new ArraySegment<byte>(array);
-    await webSocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
+    var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes("Hello World"));
+    await websocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
 } 
 ```
 
-### Simple client request / response:
-The best approach to communicating using a web socket is to send and receive data on different worker threads as shown below. 
-
+### Useful properties:
 ```csharp
-public async Task Run()
-{
-    var factory = new WebSocketClientFactory();
-    var uri = new Uri("ws://localhost:46429/notifications");
-    using (var webSocket = await factory.ConnectAsync(uri).ConfigureAwait(false))
-    {
-        // receive loop
-        var readTask = ReceiveAsync(webSocket);
-
-        // send a message
-        await SendAsync(webSocket).ConfigureAwait(false);
-
-        // initiate the close handshake
-        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None).ConfigureAwait(false);
-
-        // wait for server to respond with a close frame
-        await readTask.ConfigureAwait(false);
-    }
-}
+public Guid ID { get; }
+public bool IsClient { get; }
+public DateTime Time { get; }
+public string LocalEndPoint { get; }
+public string RemoteEndPoint { get; }
 ```
 
 ## Fly on the sky with Event-liked driven
 
-### WebSocketClient
+### Using the WebSocket class
 
-As a client, use the WebSocketClient
-
-Use constructor with URI of the end-point want to connect to
-
-Use Start method to start the client with 6 action parameters:
-
-- onStartSuccess: Fired when the client is started successfully
-- onStarFailed: Fired when the client is failed to start
-- onError: Fired when the client got an error exception while processing/receiving
-- onConnectionEstablished: Fired when the connection is established
-- onConnectionBroken: Fired when the connection is broken
-- onMessageReceived: Fired when the client got a message
-
+This is a centralized element for working with both client and server mode.
+This class has 4 action properties (event handlers) to take are all cases of work, you just need to assign your code to cover its.
 ```csharp
-var wsClient = new WebSocketClient("ws://localhost:46429/");
-wsClient.Start(
-    () => Console.WriteLine("The client is stared"),
-    (ex) => Console.WriteLine($"Cannot start the client: {ex.Message}"),
-    (ex) => Console.WriteLine($"Client got an error: {ex.Message}"),
-    (conn) => Console.WriteLine($"Client got an open connection: {conn.ID} - {conn.EndPoint}"),
-    (conn) => Console.WriteLine($"Client got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, result, data) => Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}")
-);
-
+Action<WebSocket, Exception> OnError; // fire when got any error
+Action<WebSocket> OnConnectionEstablished; // fire when a connection is established
+Action<WebSocket> OnConnectionBroken; // fire when a connection is broken
+Action<WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived; // fire when got a message (when a message is received)
 ```
 
-Or if you don't like these function parameters, just assign event handlers by your code
-
+And this class has some methods for working on both client and server role:
 ```csharp
-var wsClient = new WebSocketClient("ws://localhost:46429/")
-{
-    OnStartSuccess = () =>
-    {
-        Console.WriteLine("The client is stared");
-    },
-    OnStartFailed = (ex) =>
-    {
-        Console.WriteLine($"Cannot start the client: {ex.Message}");
-    },
-    OnError = (ex) =>
-    {
-        Console.WriteLine($"Client got an error: {ex.Message}");
-    },
-    OnConnectionEstablished = (conn) =>
-    {
-        Console.WriteLine($"Client got an open connection: {conn.ID}");
-    },
-    OnConnectionBroken = (conn) =>
-    {
-        Console.WriteLine($"Client got a broken connection: {conn.ID}");
-    },
-    OnMessageReceived = (conn, result, data) =>
-    {
-        Console.WriteLine($"Client got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}");
-    }
-};
-wsClient.Start();
-
-```
-### WebSocketServer
-
-As a server, use the WebSocketServer
-
-Use constructor with port for listing all incomming requests
-
-Use Start method to start the server with 6 action parameters:
-
-- onStartSuccess: Fired when the server is started successfully
-- onStarFailed: Fired when the server is failed to start
-- onError: Fired when the server got an error exception while processing/receiving
-- onConnectionEstablished: Fired when the connection is established
-- onConnectionBroken: Fired when the connection is broken
-- onMessageReceived: Fired when the server got a message
-
-```csharp
-var wsServer = new WebSocketServer(46429);
-wsServer.Start(
-    () => Console.WriteLine("The server is stared"),
-    (ex) => Console.WriteLine($"Cannot start the server: {ex.Message}"),
-    (ex) => Console.WriteLine($"Server got an error: {ex.Message}"),
-    (conn) => Console.WriteLine($"Server got an open connection: {conn.ID} - {conn.EndPoint}"),
-    (conn) => Console.WriteLine($"Server got a broken connection: {conn.ID} - {conn.EndPoint}"),
-    (conn, result, data) => Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}")
-);
-
+void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
+void Connect(string location, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
+void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
+void StartListen(int port, Action onSuccess, Action<Exception> onFailed);
+void StopListen(bool doCancel);
 ```
 
-Or if you don't like these function parameters, just assign event handlers by your code
+### WebSocket client
 
-```csharp
-var wsServer = new WebSocketServer(46429)
-{
-    OnStartSuccess = () =>
-    {
-        Console.WriteLine("The server is stared");
-    },
-    OnStartFailed = (ex) =>
-    {
-        Console.WriteLine($"Cannot start the server: {ex.Message}");
-    },
-    OnError = (ex) =>
-    {
-        Console.WriteLine($"Server got an error: {ex.Message}");
-    },
-    OnConnectionEstablished = (conn) =>
-    {
-        Console.WriteLine($"Server got an open connection: {conn.ID}");
-    },
-    OnConnectionBroken = (conn) =>
-    {
-        Console.WriteLine($"Server got a broken connection: {conn.ID}");
-    },
-    OnMessageReceived = (conn, result, data) =>
-    {
-        Console.WriteLine($"Server got a message: {(result.MessageType == WebSocketMessageType.Text ? data.GetString() : "BIN")}");
-    }
-};
-wsServer.Start();
-```
+Use the **Connect** method to connect to a remote endpoint
 
-And if you want to see all current connections of the server, then take a look at property "Connections" of the server.
+### WebSocket server
 
-### WebSocketServer with Secure WebSockets (wss://)
+Use the **StartListen** method to start the listener to listen incomming connection requests.
+
+Use the **StopListen** method to stop the listener.
+
+### WebSocket server with Secure WebSockets (wss://)
 
 Enabling secure connections requires two things:
 - Pointing certificate to an x509 certificate that containing a public and private key.
-- Using the scheme 'wss://' instead of 'ws://' (or 'https://' instead of 'http://') on all clients
+- Using the scheme **wss** instead of **ws** (or **https** instead of **http**) on all clients
 
 ```csharp
-var wsServer = new WebSocketServer(46429);
-wsServer.Certificate = new X509Certificate2("my-certificate.pfx");
-// wsServer.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
-wsServer.Start();
+var websocket = new WebSocket();
+websocket.Certificate = new X509Certificate2("my-certificate.pfx");
+// websocket.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
+websocket.Start(46429);
 ```
 
 Want to have a free SSL certificate? Take a look at [Lets Encrypt](https://letsencrypt.org/).
 
 Special: A very simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Lets Encrypt very well.
 
-### Using the WebSocketConnection class
+### Receiving and Sending messages:
 
-While working with WebSocketClient and WebSocketServer classes, the WebSocketConnection class its use as the replacement of WebSocket class with more helper information
+Messages are received automatically via parallel tasks, and you only need to assign **OnMessageReceived** event for handling its.
 
-#### Properties
-```csharp
-public Guid ID { get; }
-public bool IsClientConnection { get; }
-public bool IsSecureConnection { get; }
-public DateTime Time { get; }
-public string EndPoint { get; }
-public WebSocketState State { get; }
-```
+Sending messages are the same with **Implementation.WebSocket** class with a little diffirent: you need a WebSocket connection (instance of *Implementation.WebSocket*) that specified by an identity.
 
-### Methods
-```csharp
-public Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
-public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken);
-public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken);
-public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken);
-public Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken);
-```
+### Connection management
 
-And take a look at static class named WebSocketConnectionManager to play aroud with connections, that is centralized management of all current connections
+Take a look at some methods named GetWebSocket, GetWebSocket, CloseWebSocket, ... to work with WebSocket connections.
 
 ## Others
 
 ### The important things
 
-- The default WebSocket server is Fleck, because Fleck can handle more types of WebSocket message. If you want to change, please change the value of "useFleck" parameter (at the WebSocketServer constructor) to "false" to use other type of server (only support WebSocket version 13).
-- 4096 bytes (4K) is default length of the buffer for receiving messages (usually we are use WebSocket to send/receive small data), and to change the length of the buffer to receive more large messages, use the static method "SetBufferLength" of the WebSocketConnection class.
-- If the incomming messages is continuous messages, the type always be "Binary" and the property named "EndOfMessage" is "true" (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
+- 16K is default length of the buffer for receiving messages (its large enough for most case because we are usually use WebSocket to send/receive small data), and to change the length of the buffer to receive more large messages, use the static method **SetBufferLength** of the *WebSocket* class.
+- If the incomming messages is continuous messages, the type always be "Binary", and the property named "EndOfMessage" is "true" in the last message - "false" in the previous messages (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
+- Some portion of codes are reference from [NinjaSource WebSocket](https://github.com/ninjasource/Ninja.WebSockets)
 
 ### Logging
 
@@ -280,8 +132,8 @@ Our prefers:
 
 ### Dependencies
 
+- Microsoft.Extensions.Logging.Abstractions
 - Microsoft.IO.RecyclableMemoryStream
-- VIEApps.Components.WebSockets.Fleck
 - VIEApps.Components.Utility
 
 ### Namespaces
