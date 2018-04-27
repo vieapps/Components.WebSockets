@@ -7,16 +7,16 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// Initialize options for a server side WebSocket connection
 	/// </summary>
 	public class WebSocketServerOptions
-    {
-        /// <summary>
-        /// How often to send ping requests to the Client
-        /// The default is 60 seconds
-        /// This is done to prevent proxy servers from closing your connection
-        /// A timespan of zero will disable the automatic ping pong mechanism
-        /// You can manually control ping pong messages using the PingPongManager class.
-        /// If you do that it is advisible to set this KeepAliveInterval to zero
-        /// </summary>
-        public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
+	{
+		/// <summary>
+		/// How often to send ping requests to the Client
+		/// The default is 60 seconds
+		/// This is done to prevent proxy servers from closing your connection
+		/// A timespan of zero will disable the automatic ping pong mechanism
+		/// You can manually control ping pong messages using the PingPongManager class.
+		/// If you do that it is advisible to set this KeepAliveInterval to zero
+		/// </summary>
+		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
 
 		/// <summary>
 		/// Include the full exception (with stack trace) in the close response 
@@ -26,7 +26,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public bool IncludeExceptionInCloseResponse { get; set; } = false;
 
 		public WebSocketServerOptions() { }
-    }
+	}
 
 	/// <summary>
 	/// Initialize options for a client side WebSocket connection

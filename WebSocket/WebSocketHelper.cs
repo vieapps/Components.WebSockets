@@ -73,11 +73,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Gets the path from the HTTP header
 		/// </summary>
-		/// <param name="httpHeader">The HTTP header to read</param>
+		/// <param name="header">The HTTP header to read</param>
 		/// <returns>The path</returns>
-		public static string GetPathFromHeader(string httpHeader)
+		public static string GetPathFromHeader(string header)
 		{
-			var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(httpHeader);
+			var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(header);
 			return match.Success
 				? match.Groups[1].Value.Trim()
 				: null;
@@ -111,7 +111,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Reads an HTTP header as per the HTTP specification
 		/// </summary>
-		/// <param name="stream">The stream to read UTF8 text from</param>
+		/// <param name="stream">The stream to read text from</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>The HTTP header</returns>
 		public static async Task<string> ReadHttpHeaderAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))

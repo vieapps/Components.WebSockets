@@ -2,13 +2,13 @@
 
 namespace net.vieapps.Components.WebSockets.Exceptions
 {
-    [Serializable]
-    public class KeyMissingException : Exception
-    {
-        public KeyMissingException() : base() { }
+	[Serializable]
+	public class KeyMissingException : Exception
+	{
+		public KeyMissingException() : base() { }
 
-        public KeyMissingException(string message) : base(message) { }
+		public KeyMissingException(string message) : base(message) { }
 
-        public KeyMissingException(string message, Exception inner) : base(message, inner) { }
-    }
+		public KeyMissingException(string message, Exception inner) : base(message, inner) { }
+	}
 }
