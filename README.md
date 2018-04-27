@@ -13,7 +13,7 @@ This is the same WebSocket abstract class used by .NET Standard 2.0 and it allow
 ## Walking on the ground
 
 The class **net.vieapps.Components.WebSockets.Implementation.WebSocket** is an implementation of the System.Net.WebSockets.WebSocket abstract class,
-that allows you send and receive messages in the same way for both client and server side.
+that allows you send and receive messages in the same way for both side of client and server role.
 
 ### Receiving messages:
 ```csharp
@@ -59,16 +59,16 @@ public string RemoteEndPoint { get; }
 
 ### Using the WebSocket class
 
-This is a centralized element for working with both client and server mode.
-This class has 4 action properties (event handlers) to take are all cases of work, you just need to assign your code to cover its.
+This is a centralized element for working with both side of client and server role.
+This class has 4 action properties (event handlers) to take care of all working cases, you just need to assign your code to cover its.
 ```csharp
-Action<WebSocket, Exception> OnError; // fire when got any error
-Action<WebSocket> OnConnectionEstablished; // fire when a connection is established
-Action<WebSocket> OnConnectionBroken; // fire when a connection is broken
-Action<WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived; // fire when got a message (when a message is received)
+Action<Implementation.WebSocket, Exception> OnError; // fire when got any error
+Action<Implementation.WebSocket> OnConnectionEstablished; // fire when a connection is established
+Action<Implementation.WebSocket> OnConnectionBroken; // fire when a connection is broken
+Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived; // fire when got a message (when a message is received)
 ```
 
-And this class has some methods for working on both client and server role:
+And this class has some methods for working on both side of client and server role:
 ```csharp
 void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
 void Connect(string location, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
@@ -108,11 +108,11 @@ Special: A very simple tool named [lets-encrypt-win-simple](https://github.com/P
 
 Messages are received automatically via parallel tasks, and you only need to assign **OnMessageReceived** event for handling its.
 
-Sending messages are the same with **Implementation.WebSocket** class with a little diffirent: you need a WebSocket connection (instance of *Implementation.WebSocket*) that specified by an identity.
+Sending messages are the same with **Implementation.WebSocket** class with a little different: you need a WebSocket connection (instance of *Implementation.WebSocket*) that specified by an identity.
 
 ### Connection management
 
-Take a look at some methods named GetWebSocket, GetWebSocket, CloseWebSocket, ... to work with WebSocket connections.
+Take a look at some methods named GetWebSocket, GetWebSockets, CloseWebSocket, ... to work with WebSocket connections.
 
 ## Others
 
@@ -142,3 +142,22 @@ Our prefers:
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets;
 ```
+
+## A simple stress test
+
+### Environment
+
+- 01 server with Windows 2012 R2 x64 on Intel Xeon E3-1220 v3 3.1GHz - 8GB RAM
+- 05 clients with Windows 10 x64 and Ubuntu Linux 16.04 x64
+
+### The scenario
+- Clients (05 stations) made 20,000 concurrent connections to the server
+- Clients send 02 messages per second to server (means server receives 40,000 messages/second) - size of 01 message: 1024 bytes (1K)
+- Server sends 01 messages to all connections each 10 minutes - size of 01 messages: 1024 bytes (1K)
+
+### The results
+- Server is servived after 01 week (60 * 24 * 7 = 10,080 minutes)
+- No dropped connections
+- No hang
+- Used memory: 1.3 GB - 1.7 GB
+- CPU usages: 3% - 15% while receiving messages, 18% - 35% while sending messages
