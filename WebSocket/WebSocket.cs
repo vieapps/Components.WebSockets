@@ -619,8 +619,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				buffer = stream.ToArray().ToArraySegment();
 			}
 
+			// set count
+			else
+				buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
+
 			// add into queue
-			this._buffers.Enqueue(new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position));
+			this._buffers.Enqueue(buffer);
 
 			// stop if other thread is writing
 			if (this._writting)
