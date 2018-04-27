@@ -48,28 +48,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			return new Microsoft.IO.RecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024).GetStream;
 		}
 
-		internal static async Task WithCancellationToken(this Task task, CancellationToken cancellationToken)
-		{
-			var tcs = new TaskCompletionSource<bool>();
-			using (cancellationToken.Register(state => ((TaskCompletionSource<bool>)state).TrySetResult(true), tcs, false))
-			{
-				if (task != await Task.WhenAny(task, tcs.Task))
-					throw new OperationCanceledException(cancellationToken);
-			}
-			await task;
-		}
-
-		internal static async Task<T> WithCancellationToken<T>(this Task<T> task, CancellationToken cancellationToken)
-		{
-			var tcs = new TaskCompletionSource<bool>();
-			using (cancellationToken.Register(state => ((TaskCompletionSource<bool>)state).TrySetResult(true), tcs, false))
-			{
-				if (task != await Task.WhenAny(task, tcs.Task))
-					throw new OperationCanceledException(cancellationToken);
-			}
-			return await task;
-		}
-
 		/// <summary>
 		/// Computes a WebSocket accept string from a given key
 		/// </summary>
@@ -218,7 +196,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			catch (VersionNotSupportedException ex)
 			{
 				Events.Log.WebSocketVersionNotSupported(guid, ex.ToString());
-				var response = "HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13" + ex.Message;
+				var response = $"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: {WEBSOCKET_VERSION}\r\nException: {ex.Message}";
 				await WebSocketHelper.WriteHttpHeaderAsync(response, context.Stream, cancellationToken).ConfigureAwait(false);
 				throw;
 			}

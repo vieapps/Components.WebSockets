@@ -157,12 +157,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						}
 						catch (InternalBufferOverflowException ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame too large to fit in buffer. Use message fragmentation", ex).ConfigureAwait(false);
+							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame is too large to fit in buffer. Use message fragmentation.", ex).ConfigureAwait(false);
 							throw;
 						}
 						catch (ArgumentOutOfRangeException ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length out of range", ex).ConfigureAwait(false);
+							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length is out of range", ex).ConfigureAwait(false);
 							throw;
 						}
 						catch (EndOfStreamException ex)
@@ -177,8 +177,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						}
 						catch (Exception ex)
 						{
-							if (Logger.IsEnabled(LogLevel.Debug) && ex is OperationCanceledException)
-								Logger.LogDebug("Cancel (ReceiveAsync)");
 							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
 							throw;
 						}
@@ -249,17 +247,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				// The code below is very inefficient for small messages. Ideally we would like to have some sort of moving window of data to get the best compression.
 				// And we don't want to create new buffers which is bad for GC.
 				if (this._usePerMessageDeflate)
-					using (var temp = new MemoryStream())
-					{
-						using (var deflateStream = new DeflateStream(temp, CompressionMode.Compress))
-						{
-							deflateStream.Write(buffer.Array, buffer.Offset, buffer.Count);
-							deflateStream.Flush();
-						}
-						var compressedBuffer = new ArraySegment<byte>(temp.ToArray());
-						FrameReaderWriter.Write(opCode, compressedBuffer, stream, endOfMessage, this.IsClient);
-						Events.Log.SendingFrame(this.ID, opCode, endOfMessage, compressedBuffer.Count, true);
-					}
+				{
+					var compressedBuffer = buffer.Compress();
+					FrameReaderWriter.Write(opCode, compressedBuffer, stream, endOfMessage, this.IsClient);
+					Events.Log.SendingFrame(this.ID, opCode, endOfMessage, compressedBuffer.Count, true);
+				}
 
 				else
 				{
@@ -281,7 +273,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="cancellationToken">the cancellation token</param>
 		public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return this.SendAsync(new ArraySegment<byte>(message.ToBytes()), WebSocketMessageType.Text, endOfMessage, cancellationToken);
+			return this.SendAsync(message.ToArraySegment(), WebSocketMessageType.Text, endOfMessage, cancellationToken);
 		}
 
 		/// <summary>
@@ -293,7 +285,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="cancellationToken">the cancellation token</param>
 		public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return this.SendAsync(new ArraySegment<byte>(message), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
+			return this.SendAsync(message.ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 		}
 		#endregion
 
@@ -426,13 +418,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 			try
 			{
-				// we may not want to send sensitive information to the client / server
-				if (this._includeExceptionInCloseResponse)
-					closeStatusDescription = closeStatusDescription + "\r\n\r\n" + ex.ToString();
-
 				using (var cts = new CancellationTokenSource(timeSpan))
 				{
-					await this.CloseOutputAsync(closeStatus, closeStatusDescription, cts.Token).ConfigureAwait(false);
+					await this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this._includeExceptionInCloseResponse ? "\r\n\r\n" + ex.ToString() : ""), cts.Token).ConfigureAwait(false);
 				}
 			}
 			catch (OperationCanceledException)
@@ -564,24 +552,15 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// As per the spec, write the close status followed by the close reason
 		/// </summary>
 		/// <param name="closeStatus">The close status</param>
-		/// <param name="statusDescription">Optional extra close details</param>
+		/// <param name="closeStatusDescription">Optional extra close details</param>
 		/// <returns>The payload to sent in the close frame</returns>
-		ArraySegment<byte> BuildClosePayload(WebSocketCloseStatus closeStatus, string statusDescription)
+		ArraySegment<byte> BuildClosePayload(WebSocketCloseStatus closeStatus, string closeStatusDescription)
 		{
-			var statusBuffer = BitConverter.GetBytes((ushort)closeStatus);
-			Array.Reverse(statusBuffer); // network byte order (big endian)
-
-			if (statusDescription == null)
-				return new ArraySegment<byte>(statusBuffer);
-
-			else
-			{
-				var descBuffer = statusDescription.ToBytes();
-				var payload = new byte[statusBuffer.Length + descBuffer.Length];
-				Buffer.BlockCopy(statusBuffer, 0, payload, 0, statusBuffer.Length);
-				Buffer.BlockCopy(descBuffer, 0, payload, statusBuffer.Length, descBuffer.Length);
-				return new ArraySegment<byte>(payload);
-			}
+			var buffer = ((ushort)closeStatus).ToBytes();
+			Array.Reverse(buffer); // network byte order (big endian)
+			return string.IsNullOrWhiteSpace(closeStatusDescription)
+				? buffer.ToArraySegment()
+				: buffer.Concat(closeStatusDescription.ToBytes()).ToArraySegment();
 		}
 
 		/// <summary>
@@ -637,8 +616,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				}
 
 				// internal buffer not suppoted, fall back to ToArray()
-				var array = stream.ToArray();
-				buffer = new ArraySegment<byte>(array, 0, array.Length);
+				buffer = stream.ToArray().ToArraySegment();
 			}
 
 			// add into queue
@@ -648,7 +626,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			if (this._writting)
 			{
 				if (Logger.IsEnabled(LogLevel.Debug))
-					Logger.LogWarning($"({this.ID} @ {this.RemoteEndPoint}) => Pending write operations [{this._buffers.Count:#,##0}]");
+					Logger.LogWarning($"{this.ID} @ {this.RemoteEndPoint} => Pending write operations [{this._buffers.Count:#,##0}]");
 				return;
 			}
 

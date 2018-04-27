@@ -51,9 +51,14 @@ namespace net.vieapps.Components.WebSockets
 		public int Port { get; private set; } = 46429;
 
 		/// <summary>
-		/// Gets or sets the SSL certificate for securing connections (when act as a server - listen to clients)
+		/// Gets or sets the SSL certificate for securing connections
 		/// </summary>
 		public X509Certificate2 Certificate { get; set; } = null;
+
+		/// <summary>
+		/// Gets or sets the SSL protocol for securing connections with SSL Certificate
+		/// </summary>
+		public SslProtocols SslProtocol { get; set; } = SslProtocols.Tls;
 		#endregion
 
 		#region Event Handlers
@@ -238,10 +243,10 @@ namespace net.vieapps.Components.WebSockets
 							this._logger.LogInformation("Attempting to secure the connection...");
 
 						stream = new SslStream(tcpClient.GetStream(), false);
-						await (stream as SslStream).AuthenticateAsServerAsync(this.Certificate, false, SslProtocols.Tls, false).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
+						await (stream as SslStream).AuthenticateAsServerAsync(this.Certificate, false, this.SslProtocol, false).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 
 						if (this._logger.IsEnabled(LogLevel.Trace))
-							this._logger.LogInformation("The connection secured successfully");
+							this._logger.LogInformation("The connection successfully secured");
 					}
 					catch (OperationCanceledException)
 					{
@@ -362,16 +367,14 @@ namespace net.vieapps.Components.WebSockets
 
 		async Task ReceiveAsync(Implementation.WebSocket websocket)
 		{
-			// receive the message (infinity loop)
 			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
-			while (true)
+			while (!this._processingCTS.IsCancellationRequested)
 			{
-				if (this._processingCTS.Token.IsCancellationRequested)
-					return;
-
+				// check buffer
 				if (!buffer.Array.Length.Equals(WebSocketHelper.BufferLength))
 					buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
 
+				// receive message from the WebSocket connection
 				WebSocketReceiveResult result = null;
 				try
 				{
@@ -380,14 +383,14 @@ namespace net.vieapps.Components.WebSockets
 				catch (Exception ex)
 				{
 					var closeStatus = WebSocketCloseStatus.InternalServerError;
-					var closeStatusDescription = $"Close the connection when got an error: {ex.Message}";
+					var closeStatusDescription = $"Got an unexpected error: {ex.Message}";
 					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 					{
 						closeStatus = websocket.IsClient ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable;
 						closeStatusDescription = websocket.IsClient ? "Disconnected" : "Service is unavailable";
 					}
 
-					this.CloseWebSocket(websocket);
+					this.CloseWebSocket(websocket, closeStatus, closeStatusDescription);
 					this.OnConnectionBroken?.Invoke(websocket);
 					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
 					{
@@ -442,6 +445,8 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch
 					{
+						this.CloseWebSocket(websocket, websocket.IsClient ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable, websocket.IsClient ? "Disconnected" : "Service is unavailable");
+						this.OnConnectionBroken?.Invoke(websocket);
 						return;
 					}
 			}
@@ -526,7 +531,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="cancellationToken">the cancellation token</param>
 		public Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return this.SendAsync(predicate, new ArraySegment<byte>(message), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
+			return this.SendAsync(predicate, message.ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 		}
 		#endregion
 
@@ -626,7 +631,9 @@ namespace net.vieapps.Components.WebSockets
 			}
 
 			// cancel all pending operations
+			this._listeningCTS?.Dispose();
 			this._processingCTS.Cancel();
+			this._processingCTS.Dispose();
 
 			// update state
 			this._disposed = true;
@@ -636,8 +643,6 @@ namespace net.vieapps.Components.WebSockets
 		~WebSocket()
 		{
 			this.Dispose();
-			this._listeningCTS?.Dispose();
-			this._processingCTS?.Dispose();
 			GC.SuppressFinalize(this);
 		}
 		#endregion
