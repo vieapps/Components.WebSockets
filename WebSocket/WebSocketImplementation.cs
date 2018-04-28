@@ -1,9 +1,7 @@
 ﻿#region Related components
 using System;
-using System.Text;
 using System.IO;
 using System.IO.Compression;
-using System.Net;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,9 +26,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription;
-		bool _isContinuationFrame;
-		bool _tryGetBufferFailureLogged = false;
-		bool _writting = false, _disposed = false;
+		bool _isContinuationFrame, _tryGetBufferFailureLogged = false, _writting = false;
 		CancellationTokenSource _readingCTS;
 		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
@@ -49,7 +45,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Gets the current state of the WebSocket connection
 		/// </summary>
-		public override WebSocketState State { get { return this._state; } }
+		public override WebSocketState State => this._state;
 
 		/// <summary>
 		/// Gets the subprotocol that was negotiated during the opening handshake
@@ -320,9 +316,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		{
 			if (this._state == WebSocketState.Open)
 			{
-				// set this before we write to the network because the write may fail
+				// set the state before we write to the network because the write may fail
 				this._state = WebSocketState.Closed;
 
+				// send close frame
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
@@ -350,41 +347,14 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		#endregion
 
 		#region Dispose
-		/// <summary>
-		/// Dispose will send a close frame if the connection is still open
-		/// </summary>
-		public override void Dispose()
+		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
 		{
-			this.DisposeAsync().Wait();
-		}
-
-		/// <summary>
-		/// Dispose will send a close frame if the connection is still open
-		/// </summary>
-		/// <param name="closeStatus"></param>
-		/// <param name="closeStatusDescription"></param>
-		/// <param name="cancellationToken"></param>
-		internal override async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken))
-		{
-			if (!this._disposed)
+			return base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
-				Events.Log.WebSocketDispose(this.ID, this._state);
-				if (this._state == WebSocketState.Open)
-					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token))
-					{
-						await this.CloseOutputTimeoutAsync(
-							closeStatus,
-							closeStatusDescription,
-							cts.Token,
-							() => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this._state),
-							(ex) => Events.Log.WebSocketDisposeError(this.ID, this._state, ex.ToString())
-						).ConfigureAwait(false);
-					}
 				this._readingCTS.Cancel();
 				this._stream.Close();
-				Events.Log.WebSocketDispose(this.ID, this._state);
-				this._disposed = true;
-			}
+				onCompleted?.Invoke();
+			});
 		}
 
 		~WebSocketImplementation()
@@ -496,9 +466,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._buffers.Enqueue(buffer);
 			if (this._writting)
 			{
-				var logger = Logger.CreateLogger<WebSocket>();
+				var logger = Logger.CreateLogger<WebSocketImplementation>();
 				if (logger.IsEnabled(LogLevel.Debug))
-					logger.LogWarning($"Pending write operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 

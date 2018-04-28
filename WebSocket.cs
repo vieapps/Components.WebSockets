@@ -22,7 +22,7 @@ using net.vieapps.Components.WebSockets.Exceptions;
 namespace net.vieapps.Components.WebSockets
 {
 	/// <summary>
-	/// Centralized web socket with both client and server
+	/// The centralized WebSocket
 	/// </summary>
 	public class WebSocket : IDisposable
 	{
@@ -84,7 +84,7 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		/// <summary>
-		/// Creates new instance of WebSocket
+		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
 		/// </summary>
 		/// <param name="loggerFactory">The logger factory</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream (this can be used with the Microsoft.IO.RecyclableMemoryStreamManager class)</param>
@@ -99,7 +99,7 @@ namespace net.vieapps.Components.WebSockets
 
 		#region Listen request as server
 		/// <summary>
-		/// Starts to listen for client requests as a WebSocket server
+		/// Starts to listen for client requests as a <see cref="WebSocket">WebSocket</see> server
 		/// </summary>
 		/// <param name="port">The port for listening</param>
 		/// <param name="certificate">The SSL Certificate to secure connections</param>
@@ -158,14 +158,23 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Starts to listen for client requests as a WebSocket server
+		/// Starts to listen for client requests as a <see cref="WebSocket">WebSocket</see> server
 		/// </summary>
 		/// <param name="port">The port for listening</param>
 		/// <param name="onSuccess">Action to fire when start successful</param>
 		/// <param name="onFailed">Action to fire when failed to start</param>
-		public void StartListen(int port, Action onSuccess = null, Action<Exception> onFailed = null)
+		public void StartListen(int port, Action onSuccess, Action<Exception> onFailed)
 		{
 			this.StartListen(port, null, onSuccess, onFailed);
+		}
+
+		/// <summary>
+		/// Starts to listen for client requests as a <see cref="WebSocket">WebSocket</see> server
+		/// </summary>
+		/// <param name="port">The port for listening</param>
+		public void StartListen(int port)
+		{
+			this.StartListen(port, null, null);
 		}
 
 		/// <summary>
@@ -262,8 +271,8 @@ namespace net.vieapps.Components.WebSockets
 				else
 					stream = tcpClient.GetStream();
 
-				// connect
-				var context = await WebSocketHelper.ReadHttpHeaderFromStreamAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
+				// get context and verify WebSocket upgrade request
+				var context = await WebSocketHelper.GetContextAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
 				if (!context.IsWebSocketRequest)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
@@ -272,11 +281,12 @@ namespace net.vieapps.Components.WebSockets
 					return;
 				}
 
+				// connect
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
 				websocket = await WebSocketHelper.AcceptAsync(context, this._recycledStreamFactory, new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
-				websocket.RequestUri = new Uri(context.Path);
+				websocket.RequestUri = new Uri($"ws{(this.Certificate != null ? "s" : "")}://{context.Host}{context.Path}");
 				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
 				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
 
@@ -338,7 +348,7 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Connects to a remote endpoint as a WebSocket client
+		/// Connects to a remote endpoint as a <see cref="WebSocket">WebSocket</see> client
 		/// </summary>
 		/// <param name="uri">The address of the remote endpoint to connect to</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
@@ -349,7 +359,7 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Connects to a remote endpoint as a WebSocket client
+		/// Connects to a remote endpoint as a <see cref="WebSocket">WebSocket</see> client
 		/// </summary>
 		/// <param name="location">The address of the remote endpoint to connect to</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
@@ -357,6 +367,38 @@ namespace net.vieapps.Components.WebSockets
 		public void Connect(string location, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			this.Connect(new Uri(location.Trim().ToLower()), onSuccess, onFailed);
+		}
+		#endregion
+
+		#region Wrap a ASP.NET/ASP.NET Core WebSocket as server connection
+		/// <summary>
+		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acta like a <see cref="WebSocket">WebSocket</see> server
+		/// </summary>
+		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
+		/// <param name="requestUri">The request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="onSuccess">Action to fire when wrap successful</param>
+		/// <param name="onFailed">Action to fire when failed to wrap</param>
+		public void Wrap(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint localEndPoint = null, EndPoint remoteEndPoint = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		{
+			try
+			{
+				// create new instance and receive messages
+				var websocket = new WebSocketWrapper(webSocket, requestUri, localEndPoint, remoteEndPoint);
+				this.Receive(websocket);
+
+				// handling callback event
+				this.OnConnectionEstablished?.Invoke(websocket);
+				onSuccess?.Invoke(websocket);
+				this.AddWebSocket(websocket);
+			}
+			catch (Exception ex)
+			{
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogError(ex, $"Cannot wrap the WebSocket connection of ASP.NET / ASP.NET Core: {ex.Message}");
+				onFailed?.Invoke(ex);
+			}
 		}
 		#endregion
 
@@ -456,13 +498,14 @@ namespace net.vieapps.Components.WebSockets
 
 		#region Send messages
 		/// <summary>
-		/// Sends the message to a WebSocket connection
+		/// Sends the message to a <see cref="Implementation.WebSocket">WebSocket</see> connection
 		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to send</param>
-		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type. Can be Text or Binary</param>
+		/// <param name="id">The identity of a <see cref="Implementation.WebSocket">WebSocket</see> connection to send</param>
+		/// <param name="buffer">The buffer containing message to send</param>
+		/// <param name="messageType">The message type, can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
 		public Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
@@ -471,12 +514,13 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Sends the message to a WebSocket connection
+		/// Sends the message to a <see cref="Implementation.WebSocket">WebSocket</see> connection
 		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to send</param>
+		/// <param name="id">The identity of a <see cref="Implementation.WebSocket">WebSocket</see> connection to send</param>
 		/// <param name="message">The text message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
 		public Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
@@ -485,12 +529,13 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Sends the message to a WebSocket connection
+		/// Sends the message to a <see cref="Implementation.WebSocket">WebSocket</see> connection
 		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to send</param>
+		/// <param name="id">The identity of a <see cref="Implementation.WebSocket">WebSocket</see> connection to send</param>
 		/// <param name="message">The binary message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
 		public Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
@@ -499,37 +544,40 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Sends the message to the WebSocket connections that matched with the predicate
+		/// Sends the message to the <see cref="Implementation.WebSocket">WebSocket</see> connections that matched with the predicate
 		/// </summary>
-		/// <param name="predicate">The predicate for selecting connections</param>
-		/// <param name="buffer">The buffer containing data to send</param>
+		/// <param name="predicate">The predicate for selecting <see cref="Implementation.WebSocket">WebSocket</see> connections</param>
+		/// <param name="buffer">The buffer containing message to send</param>
 		/// <param name="messageType">The message type. Can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
 		public Task SendAsync(Func<Implementation.WebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return this.GetWebSockets(predicate).ToList().ForEachAsync((connection, token) => connection.SendAsync(buffer.Clone(), messageType, endOfMessage, token), cancellationToken);
 		}
 
 		/// <summary>
-		/// Sends the message to the WebSocket connections that matched with the predicate
+		/// Sends the message to the <see cref="Implementation.WebSocket">WebSocket</see> connections that matched with the predicate
 		/// </summary>
-		/// <param name="predicate">The predicate for selecting connections</param>
+		/// <param name="predicate">The predicate for selecting <see cref="Implementation.WebSocket">WebSocket</see> connections</param>
 		/// <param name="message">The text message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
 		public Task SendAsync(Func<Implementation.WebSocket, bool> predicate, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return this.SendAsync(predicate, message.ToArraySegment(), WebSocketMessageType.Text, endOfMessage, cancellationToken);
 		}
 
 		/// <summary>
-		/// Sends the message to the WebSocket connections that matched with the predicate
+		/// Sends the message to the <see cref="Implementation.WebSocket">WebSocket</see> connections that matched with the predicate
 		/// </summary>
-		/// <param name="predicate">The predicate for selecting connections</param>
+		/// <param name="predicate">The predicate for selecting <see cref="Implementation.WebSocket">WebSocket</see> connections</param>
 		/// <param name="message">The binary message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
 		public Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			return this.SendAsync(predicate, message.ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
@@ -556,7 +604,7 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Gets a WebSocket connection that specifed by identity
+		/// Gets a <see cref="Implementation.WebSocket">WebSocket</see> connection that specifed by identity
 		/// </summary>
 		/// <param name="id"></param>
 		/// <returns></returns>
@@ -568,9 +616,9 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Gets the collection of WebSocket connections that matched with the predicate
+		/// Gets the collection of <see cref="Implementation.WebSocket">WebSocket</see> connections that matched with the predicate
 		/// </summary>
-		/// <param name="predicate">Predicate for selecting WebSocket connections, if no predicate is provied then return all</param>
+		/// <param name="predicate">Predicate for selecting <see cref="Implementation.WebSocket">WebSocket</see> connections, if no predicate is provied then return all</param>
 		/// <returns></returns>
 		public IEnumerable<Implementation.WebSocket> GetWebSockets(Func<Implementation.WebSocket, bool> predicate = null)
 		{
@@ -580,9 +628,9 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Closes the WebSocket connection and remove from centralized collections
+		/// Closes the <see cref="Implementation.WebSocket">WebSocket</see> connection and remove from the centralized collections
 		/// </summary>
-		/// <param name="id">The identity of a WebSocket connection to close</param>
+		/// <param name="id">The identity of a <see cref="Implementation.WebSocket">WebSocket</see> connection to close</param>
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
@@ -597,9 +645,9 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Closes the WebSocket connection and remove from centralized collections
+		/// Closes the <see cref="Implementation.WebSocket">WebSocket</see> connection and remove from the centralized collections
 		/// </summary>
-		/// <param name="websocket">The WebSocket connection to close</param>
+		/// <param name="websocket">The <see cref="Implementation.WebSocket">WebSocket</see> connection to close</param>
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
@@ -625,9 +673,9 @@ namespace net.vieapps.Components.WebSockets
 			this.StopListen();
 
 			// close all WebSocket connections
-			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
 			{
-				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token)).ToArray(), TimeSpan.FromSeconds(4));
+				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token)).ToArray(), TimeSpan.FromSeconds(5));
 				this._websockets.Clear();
 			}
 
@@ -649,9 +697,9 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		/// <summary>
-		/// Sets the length of receiving buffer of all WebSocket connections
+		/// Sets the length of the receiving buffer of all <see cref="Implementation.WebSocket">WebSocket</see> connections
 		/// </summary>
-		/// <param name="length"></param>
+		/// <param name="length">The buffer length (in bytes)</param>
 		public static void SetBufferLength(int length = 16384)
 		{
 			WebSocketHelper.SetBufferLength(length);

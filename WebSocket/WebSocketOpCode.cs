@@ -1,10 +1,5 @@
-﻿using System;
-
-namespace net.vieapps.Components.WebSockets.Implementation
+﻿namespace net.vieapps.Components.WebSockets.Implementation
 {
-	/// <summary>
-	/// WebSocket OpCode
-	/// </summary>
 	internal enum WebSocketOpCode
 	{
 		ContinuationFrame = 0,

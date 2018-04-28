@@ -17,11 +17,11 @@
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<Title>VIEApps NGX WebSockets</Title>
-		<Description>Implementation of the System.Net.WebSockets.WebSocket abstract class (for both server and client with high performance) on .NET Standard 2.0</Description>
+		<Description>High performance WebSocket (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket) on .NET Standard 2.0</Description>
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2017 NinjaSource, © 2018 VIEApps.net</Copyright>
-		<PackageTags>websocket;websockets;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Refactoring the source and reimplement the working model</PackageReleaseNotes>
+		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
+		<PackageReleaseNotes>Improvement: add wrapper for System.Net.WebSockets.WebSocket connection of ASP.NET/ASP.NET Core</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
