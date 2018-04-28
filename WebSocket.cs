@@ -276,7 +276,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
 				websocket = await WebSocketHelper.AcceptAsync(context, this._recycledStreamFactory, new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
-				websocket.UriPath = context.Path;
+				websocket.RequestUri = new Uri(context.Path);
 				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
 				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
 

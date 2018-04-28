@@ -35,9 +35,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public DateTime Time { get; internal set; } = DateTime.Now;
 
 		/// <summary>
-		/// Gets the path from the requesting uri of the WebSocket connection
+		/// Gets the original Uniform Resource Identifier (URI) of the WebSocket connection
 		/// </summary>
-		public string UriPath { get; internal set; }
+		public Uri RequestUri { get; internal set; }
 
 		/// <summary>
 		/// Gets the local endpoint of the WebSocket connection

@@ -343,7 +343,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			// return the WebSocket connection
 			return new WebSocketImplementation(guid, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
 			{
-				UriPath = $"{uri.Scheme}://{uri.Host}:{uri.Port}{uri.PathAndQuery}",
+				RequestUri = uri,
 				LocalEndPoint = tcpClient.Client.LocalEndPoint,
 				RemoteEndPoint = tcpClient.Client.RemoteEndPoint
 			};
