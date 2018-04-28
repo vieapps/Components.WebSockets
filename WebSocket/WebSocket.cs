@@ -157,27 +157,27 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						}
 						catch (InternalBufferOverflowException ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame is too large to fit in buffer. Use message fragmentation.", ex).ConfigureAwait(false);
+							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame is too large to fit in buffer. Use message fragmentation.", ex).ConfigureAwait(false);
 							throw;
 						}
 						catch (ArgumentOutOfRangeException ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length is out of range", ex).ConfigureAwait(false);
+							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length is out of range", ex).ConfigureAwait(false);
 							throw;
 						}
 						catch (EndOfStreamException ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InvalidPayloadData, "Unexpected end of stream encountered", ex).ConfigureAwait(false);
+							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InvalidPayloadData, "Unexpected end of stream encountered", ex).ConfigureAwait(false);
 							throw;
 						}
 						catch (OperationCanceledException ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Operation cancelled", ex).ConfigureAwait(false);
+							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Operation cancelled", ex).ConfigureAwait(false);
 							throw;
 						}
 						catch (Exception ex)
 						{
-							await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
+							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
 							throw;
 						}
 
@@ -211,7 +211,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 							default:
 								var ex = new NotSupportedException($"Unknown WebSocket opcode {frame.OpCode}");
-								await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
+								await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
 								throw ex;
 						}
 					}
@@ -222,7 +222,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				// Most exceptions will be caught closer to their source to send an appropriate close message (and set the WebSocketState)
 				// However, if an unhandled exception is encountered and a close message not sent then send one here
 				if (this._state == WebSocketState.Open)
-					await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", catchAll).ConfigureAwait(false);
+					await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", catchAll).ConfigureAwait(false);
 				throw;
 			}
 		}
@@ -312,29 +312,27 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// Pong should contain the same payload as the ping
 		async Task SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
-			// as per websocket spec
+			// exceeded max length
 			if (payload.Count > MAX_PING_PONG_PAYLOAD_LENGTH)
 			{
-				Exception ex = new InvalidOperationException($"Max ping message size {MAX_PING_PONG_PAYLOAD_LENGTH} exceeded: {payload.Count}");
-				await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
+				var ex = new InvalidOperationException($"Max ping message size {MAX_PING_PONG_PAYLOAD_LENGTH} exceeded: {payload.Count}");
+				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
 				throw ex;
 			}
 
 			try
 			{
 				if (this._state == WebSocketState.Open)
-				{
 					using (var stream = this._recycledStreamFactory())
 					{
 						FrameReaderWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this.IsClient);
 						Events.Log.SendingFrame(this.ID, WebSocketOpCode.Pong, true, payload.Count, false);
 						await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					}
-				}
 			}
 			catch (Exception ex)
 			{
-				await this.CloseOutputAutoTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Unable to send Pong response", ex).ConfigureAwait(false);
+				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Unable to send Pong response", ex).ConfigureAwait(false);
 				throw;
 			}
 		}
@@ -406,14 +404,14 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Closes the WebSocket connection automatically in response to some invalid data from the remote websocket host
+		/// Closes the WebSocket connection automatically in response to some invalid data from the remote host
 		/// </summary>
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <param name="ex">The exception (for logging)</param>
-		internal async Task CloseOutputAutoTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception ex)
+		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception ex)
 		{
-			var timeSpan = TimeSpan.FromSeconds(5);
+			var timeSpan = TimeSpan.FromSeconds(3);
 			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, ex.ToString());
 
 			try
@@ -441,17 +439,21 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <param name="cancellationToken">The time-out cancellation token</param>
-		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
+		/// <param name="onCanceled">The action to fire when cancellation token is raised</param>
+		/// <param name="onError">The action to fire when got error</param>
+		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken, Action onCanceled = null, Action <Exception> onError = null)
 		{
 			try
 			{
 				await this.CloseOutputAsync(closeStatus, closeStatusDescription, cancellationToken).ConfigureAwait(false);
 			}
-			catch { }
-			finally
+			catch (OperationCanceledException)
 			{
-				this._readingCTS.Cancel();
-				this._stream.Close();
+				onCanceled?.Invoke();
+			}
+			 catch (Exception ex)
+			{
+				onError?.Invoke(ex);
 			}
 		}
 
@@ -471,49 +473,43 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// </summary>
 		public override void Dispose()
 		{
-			this.Dispose(WebSocketCloseStatus.EndpointUnavailable);
+			this.DisposeAsync().Wait();
 		}
 
 		/// <summary>
 		/// Dispose will send a close frame if the connection is still open
 		/// </summary>
-		public void Dispose(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable")
+		/// <param name="closeStatus"></param>
+		/// <param name="closeStatusDescription"></param>
+		/// <param name="cancellationToken"></param>
+		internal async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken))
 		{
+			// check state
 			if (this._disposed)
 				return;
 
 			Events.Log.WebSocketDispose(this.ID, this._state);
-			try
-			{
-				if (this._state == WebSocketState.Open)
-					using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
-					{
-						try
-						{
-							this.CloseOutputAsync(closeStatus, closeStatusDescription, cts.Token).Wait();
-						}
-						catch (OperationCanceledException)
-						{
-							Events.Log.WebSocketDisposeCloseTimeout(this.ID, this._state);
-						}
-						catch (Exception)
-						{
-							Events.Log.WebSocketDispose(this.ID, this._state);
-						}
-					}
 
-				// cancel pending reads - usually does nothing
-				this._readingCTS.Cancel();
-				this._stream.Close();
-			}
-			catch (Exception ex)
-			{
-				Events.Log.WebSocketDisposeError(this.ID, this._state, ex.ToString());
-			}
-			finally
-			{
-				this._disposed = true;
-			}
+			// close output
+			if (this._state == WebSocketState.Open)
+				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token))
+				{
+					await this.CloseOutputTimeoutAsync(
+						closeStatus,
+						closeStatusDescription,
+						cts.Token,
+						() => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this._state),
+						(ex) => Events.Log.WebSocketDisposeError(this.ID, this._state, ex.ToString())
+					).ConfigureAwait(false);
+				}
+
+			// cancel pending reads (usually does nothing)
+			this._readingCTS.Cancel();
+			this._stream.Close();
+
+			// update state
+			Events.Log.WebSocketDispose(this.ID, this._state);
+			this._disposed = true;
 		}
 
 		~WebSocket()

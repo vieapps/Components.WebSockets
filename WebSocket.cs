@@ -589,7 +589,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			if (this._websockets.TryRemove(id, out Implementation.WebSocket websocket))
 			{
-				websocket.Dispose(closeStatus, closeStatusDescription);
+				Task.Run(() => websocket.DisposeAsync(closeStatus, closeStatusDescription)).ConfigureAwait(false);
 				return true;
 			}
 			return false;
@@ -626,7 +626,7 @@ namespace net.vieapps.Components.WebSockets
 			// close all WebSocket connections
 			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
 			{
-				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.State == WebSocketState.Open ? websocket.CloseOutputTimeoutAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token) : Task.CompletedTask).ToArray(), TimeSpan.FromSeconds(4));
+				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token)).ToArray(), TimeSpan.FromSeconds(4));
 				this._websockets.Clear();
 			}
 
