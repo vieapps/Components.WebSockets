@@ -30,7 +30,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		[Event(3, Level = EventLevel.Informational)]
-		public void AttemptingToSecureSslConnection(Guid guid)
+		public void AttemptingToSecureConnection(Guid guid)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(3, guid);

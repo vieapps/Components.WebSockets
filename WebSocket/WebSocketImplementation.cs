@@ -20,7 +20,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 		readonly Func<MemoryStream> _recycledStreamFactory;
 		readonly Stream _stream;
-		readonly IPingPongManager _pingPongManager;
+		readonly IPingPongManager _pingpongManager;
 		readonly bool _usePerMessageDeflate = false;
 		WebSocketState _state;
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
@@ -76,7 +76,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			if (this.KeepAliveInterval == TimeSpan.Zero)
 				Events.Log.KeepAliveIntervalZero(this.ID);
 			else
-				this._pingPongManager = new PingPongManager(this.ID, this, this.KeepAliveInterval, this._readingCTS.Token);
+				this._pingpongManager = new PingPongManager(this.ID, this, this.KeepAliveInterval, this._readingCTS.Token);
 
 			if (secWebSocketExtensions?.IndexOf("permessage-deflate") >= 0)
 			{
@@ -351,10 +351,15 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		{
 			return base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
-				this._readingCTS.Cancel();
-				this._stream.Close();
+				this.Close();
 				onCompleted?.Invoke();
 			});
+		}
+
+		internal override void Close()
+		{
+			this._readingCTS.Cancel();
+			this._stream.Close();
 		}
 
 		~WebSocketImplementation()
@@ -382,10 +387,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 					return WebSocketOpCode.Text;
 
 				case WebSocketMessageType.Close:
-					throw new NotSupportedException("Cannot use Send function to send a close frame. Use Close function.");
+					throw new NotSupportedException("Cannot use Send function to send a close frame, change to use Close function");
 
 				default:
-					throw new NotSupportedException($"MessageType {messageType} not supported");
+					throw new NotSupportedException($"MessageType \"{messageType}\" is not supported");
 			}
 		}
 

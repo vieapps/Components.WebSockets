@@ -36,7 +36,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Initialises a new instance of the WebSocketContext class
 		/// </summary>
-		/// <param name="isWebSocketRequest">True if this is a valid WebSocket request</param>
+		/// <param name="isWebSocketRequest">true if this is a valid WebSocket request</param>
 		/// <param name="host">The Host extracted from the HTTP header</param>
 		/// <param name="path">The Path extracted from the HTTP header</param>
 		/// <param name="header">The raw HTTP header extracted from the stream</param>

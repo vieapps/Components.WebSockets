@@ -1,11 +1,11 @@
 ﻿#region Related components
 using System;
 using System.IO;
+using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Net.Security;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -128,15 +128,15 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Accept a WebSocket request with options specified
 		/// </summary>
+		/// <param name="id">The identity of this WebSocket request</param>
 		/// <param name="context">The context used to initiate this WebSocket request</param>
 		/// <param name="options">The WebSocket options</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>A connected WebSocket instance</returns>
-		public static async Task<WebSocket> AcceptAsync(WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> AcceptAsync(Guid id, WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// handshake
-			var guid = Guid.NewGuid();
-			Events.Log.AcceptWebSocketStarted(guid);
+			Events.Log.AcceptWebSocketStarted(id);
 			try
 			{
 				// check the version (support version 13 and above)
@@ -145,10 +145,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				{
 					var secWebSocketVersion = match.Groups[1].Value.Trim().CastAs<int>();
 					if (secWebSocketVersion < WEBSOCKET_VERSION)
-						throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} not suported. Must be {WEBSOCKET_VERSION} or above.");
+						throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} is not supported, must be {WEBSOCKET_VERSION} or above");
 				}
 				else
-					throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in HTTP header");
+					throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in the HTTP header");
 
 				// handshake
 				match = new Regex("Sec-WebSocket-Key: (.*)").Match(context.Header);
@@ -163,44 +163,44 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						"Sec-WebSocket-Accept: " + WebSocketHelper.ComputeAcceptKey(secWebSocketKey) + "\r\n";
 					options.AdditionalHttpHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
 
-					Events.Log.SendingHandshake(guid, handshake);
+					Events.Log.SendingHandshake(id, handshake);
 					await WebSocketHelper.WriteHttpHeaderAsync(handshake, context.Stream, cancellationToken).ConfigureAwait(false);
-					Events.Log.HandshakeSent(guid, handshake);
+					Events.Log.HandshakeSent(id, handshake);
 				}
 				else
-					throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from HTTP header");
+					throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from the HTTP header");
 			}
 			catch (VersionNotSupportedException ex)
 			{
-				Events.Log.WebSocketVersionNotSupported(guid, ex.ToString());
+				Events.Log.WebSocketVersionNotSupported(id, ex.ToString());
 				var response = $"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: {WEBSOCKET_VERSION}\r\nException: {ex.Message}";
 				await WebSocketHelper.WriteHttpHeaderAsync(response, context.Stream, cancellationToken).ConfigureAwait(false);
 				throw;
 			}
 			catch (Exception ex)
 			{
-				Events.Log.BadRequest(guid, ex.ToString());
+				Events.Log.BadRequest(id, ex.ToString());
 				await WebSocketHelper.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", context.Stream, cancellationToken).ConfigureAwait(false);
 				throw;
 			}
-			Events.Log.ServerHandshakeSuccess(guid);
+			Events.Log.ServerHandshakeSuccess(id);
 
 			// return the connected WebSocket connection
-			return new WebSocketImplementation(guid, false, recycledStreamFactory, context.Stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse);
+			return new WebSocketImplementation(id, false, recycledStreamFactory, context.Stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse);
 		}
 
 		/// <summary>
 		/// Connect to a WebSocket endpoint with options specified
 		/// </summary>
+		/// <param name="id">The identity of this WebSocket request</param>
 		/// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
 		/// <param name="options">The WebSocket options</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream. This can be used with the RecyclableMemoryStreamManager class</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>A connected WebSocket instance</returns>
-		public static async Task<WebSocket> ConnectAsync(Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> ConnectAsync(Guid id, Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// connect the TCP client
-			var guid = Guid.NewGuid();
 			var tcpClient = new TcpClient()
 			{
 				NoDelay = options.NoDelay
@@ -208,12 +208,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 			if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
 			{
-				Events.Log.ClientConnectingToIPAddress(guid, ipAddress.ToString(), uri.Port);
+				Events.Log.ClientConnectingToIPAddress(id, ipAddress.ToString(), uri.Port);
 				await tcpClient.ConnectAsync(ipAddress, uri.Port).WithCancellationToken(cancellationToken).ConfigureAwait(false);
 			}
 			else
 			{
-				Events.Log.ClientConnectingToHost(guid, uri.Host, uri.Port);
+				Events.Log.ClientConnectingToHost(id, uri.Host, uri.Port);
 				await tcpClient.ConnectAsync(uri.Host, uri.Port).WithCancellationToken(cancellationToken).ConfigureAwait(false);
 			}
 
@@ -226,25 +226,22 @@ namespace net.vieapps.Components.WebSockets.Implementation
 					false,
 					(sender, certificate, chain, sslPolicyErrors) =>
 					{
-						// valid certificate
 						if (sslPolicyErrors == SslPolicyErrors.None)
 							return true;
 
-						// do not allow this client to communicate with unauthenticated servers
 						Events.Log.SslCertificateError(sslPolicyErrors);
 						return false;
 					},
 					null
 				);
-				Events.Log.AttemptingToSecureSslConnection(guid);
+				Events.Log.AttemptingToSecureConnection(id);
 
-				// will throw an AuthenticationException if the certificate is not valid
 				await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(cancellationToken).ConfigureAwait(false);
-				Events.Log.ConnectionSecured(guid);
+				Events.Log.ConnectionSecured(id);
 			}
 			else
 			{
-				Events.Log.ConnectionNotSecured(guid);
+				Events.Log.ConnectionNotSecured(id);
 				stream = tcpClient.GetStream();
 			}
 
@@ -261,12 +258,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				$"Sec-WebSocket-Version: {WEBSOCKET_VERSION}\r\n";
 			options.AdditionalHttpHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
 
-			Events.Log.SendingHandshake(guid, handshake);
+			Events.Log.SendingHandshake(id, handshake);
 			await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, cancellationToken).ConfigureAwait(false);
-			Events.Log.HandshakeSent(guid, handshake);
+			Events.Log.HandshakeSent(id, handshake);
 
 			// read response
-			Events.Log.ReadingHttpResponse(guid);
+			Events.Log.ReadingHttpResponse(id);
 			var response = string.Empty;
 			try
 			{
@@ -274,7 +271,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			}
 			catch (Exception ex)
 			{
-				Events.Log.ReadHttpResponseError(guid, ex.ToString());
+				Events.Log.ReadHttpResponseError(id, ex.ToString());
 				throw new HandshakeFailedException("Handshake unexpected failure", ex);
 			}
 
@@ -301,25 +298,23 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				}
 			}
 
-			// make sure we escape the accept key which could contain special regex characters
+			// check the accept key
 			match = new Regex("Sec-WebSocket-Accept: (.*)").Match(response);
 			var actualAcceptKey = match.Success
 				? match.Groups[1].Value.Trim()
 				: null;
-
-			// check the accept key
 			var expectedAcceptKey = WebSocketHelper.ComputeAcceptKey(secWebSocketKey);
 			if (!expectedAcceptKey.IsEquals(actualAcceptKey))
 			{
 				var warning = $"Handshake failed because the accept key from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"";
-				Events.Log.HandshakeFailure(guid, warning);
+				Events.Log.HandshakeFailure(id, warning);
 				throw new HandshakeFailedException(warning);
 			}
 			else
-				Events.Log.ClientHandshakeSuccess(guid);
+				Events.Log.ClientHandshakeSuccess(id);
 
 			// return the connected WebSocket connection
-			return new WebSocketImplementation(guid, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
+			return new WebSocketImplementation(id, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
 			{
 				RequestUri = uri,
 				LocalEndPoint = tcpClient.Client.LocalEndPoint,

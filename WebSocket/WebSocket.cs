@@ -145,6 +145,8 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._disposing = false;
 		}
 
+		internal virtual void Close() { }
+
 		~WebSocket()
 		{
 			this.Dispose();

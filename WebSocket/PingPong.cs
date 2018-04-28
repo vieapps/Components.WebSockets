@@ -57,7 +57,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	internal class PingPongManager : IPingPongManager
 	{
 		readonly WebSocketImplementation _websocket;
-		readonly Guid _guid;
+		readonly Guid _id;
 		readonly TimeSpan _keepAliveInterval;
 		readonly Task _pingTask;
 		readonly CancellationToken _cancellationToken;
@@ -80,11 +80,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// Set this to TimeSpan.Zero if you with to manually control sending ping messages.
 		/// </param>
 		/// <param name="cancellationToken">The token used to cancel a pending ping send AND the automatic sending of ping messages if keepAliveInterval is positive</param>
-		public PingPongManager(Guid guid, WebSocketImplementation webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken)
+		public PingPongManager(Guid id, WebSocketImplementation webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken)
 		{
+			this._id = id;
 			this._websocket = webSocket;
 			this._websocket.Pong += this.DoPong;
-			this._guid = guid;
 			this._keepAliveInterval = keepAliveInterval;
 			this._cancellationToken = cancellationToken;
 			this._stopwatch = Stopwatch.StartNew();
@@ -106,7 +106,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 		async Task DoPingAsync()
 		{
-			Events.Log.PingPongManagerStarted(this._guid, (int)this._keepAliveInterval.TotalSeconds);
+			Events.Log.PingPongManagerStarted(this._id, (int)this._keepAliveInterval.TotalSeconds);
 			try
 			{
 				while (!this._cancellationToken.IsCancellationRequested)
@@ -117,7 +117,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 					if (this._pingSentTicks != 0)
 					{
-						Events.Log.KeepAliveIntervalExpired(this._guid, (int)this._keepAliveInterval.TotalSeconds);
+						Events.Log.KeepAliveIntervalExpired(this._id, (int)this._keepAliveInterval.TotalSeconds);
 						await this._websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No Pong message received in response to a Ping after KeepAliveInterval ({this._keepAliveInterval})", this._cancellationToken).ConfigureAwait(false);
 						break;
 					}
@@ -130,7 +130,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			{
 				// normal, do nothing
 			}
-			Events.Log.PingPongManagerEnded(this._guid);
+			Events.Log.PingPongManagerEnded(this._id);
 		}
 
 		protected virtual void OnPong(PongEventArgs args)

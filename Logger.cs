@@ -1,18 +1,5 @@
-﻿#region Related components
-using System;
-using System.IO;
-using System.Text;
-using System.Text.RegularExpressions;
-using System.Security.Cryptography;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Net.WebSockets;
+﻿using System;
 using Microsoft.Extensions.Logging;
-
-using net.vieapps.Components.Utility;
-using net.vieapps.Components.WebSockets.Exceptions;
-#endregion
 
 namespace net.vieapps.Components.WebSockets
 {
