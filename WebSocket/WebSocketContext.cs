@@ -14,14 +14,14 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public bool IsWebSocketRequest { get; private set; }
 
 		/// <summary>
-		/// Gets the Path from the HTTP header
-		/// </summary>
-		public string Path { get; private set; }
-
-		/// <summary>
 		/// Gets the Host from the HTTP header
 		/// </summary>
 		public string Host { get; private set; }
+
+		/// <summary>
+		/// Gets the Path from the HTTP header
+		/// </summary>
+		public string Path { get; private set; }
 
 		/// <summary>
 		/// Gets the raw HTTP header

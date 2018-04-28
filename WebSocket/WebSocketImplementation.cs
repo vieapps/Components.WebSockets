@@ -149,17 +149,17 @@ namespace net.vieapps.Components.WebSockets.Implementation
 								this.Pong?.Invoke(this, new PongEventArgs(new ArraySegment<byte>(buffer.Array, frame.Count, buffer.Offset)));
 								break;
 
-							case WebSocketOpCode.TextFrame:
+							case WebSocketOpCode.Text:
 								if (!frame.IsFinBitSet)
 									this._continuationFrameMessageType = WebSocketMessageType.Text; // continuation frames will follow, record the message type Text
 								return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Text, frame.IsFinBitSet);
 
-							case WebSocketOpCode.BinaryFrame:
+							case WebSocketOpCode.Binary:
 								if (!frame.IsFinBitSet)
 									this._continuationFrameMessageType = WebSocketMessageType.Binary; // continuation frames will follow, record the message type Binary
 								return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Binary, frame.IsFinBitSet);
 
-							case WebSocketOpCode.ContinuationFrame:
+							case WebSocketOpCode.Continuation:
 								return new WebSocketReceiveResult(frame.Count, this._continuationFrameMessageType, frame.IsFinBitSet);
 
 							default:
@@ -371,15 +371,15 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		WebSocketOpCode GetOpCode(WebSocketMessageType messageType)
 		{
 			if (this._isContinuationFrame)
-				return WebSocketOpCode.ContinuationFrame;
+				return WebSocketOpCode.Continuation;
 
 			switch (messageType)
 			{
 				case WebSocketMessageType.Binary:
-					return WebSocketOpCode.BinaryFrame;
+					return WebSocketOpCode.Binary;
 
 				case WebSocketMessageType.Text:
-					return WebSocketOpCode.TextFrame;
+					return WebSocketOpCode.Text;
 
 				case WebSocketMessageType.Close:
 					throw new NotSupportedException("Cannot use Send function to send a close frame. Use Close function.");

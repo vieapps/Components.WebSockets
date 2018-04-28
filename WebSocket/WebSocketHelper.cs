@@ -301,13 +301,13 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				}
 			}
 
-			// make sure we escape the accept string which could contain special regex characters
+			// make sure we escape the accept key which could contain special regex characters
 			match = new Regex("Sec-WebSocket-Accept: (.*)").Match(response);
 			var actualAcceptKey = match.Success
 				? match.Groups[1].Value.Trim()
 				: null;
 
-			// check the accept string
+			// check the accept key
 			var expectedAcceptKey = WebSocketHelper.ComputeAcceptKey(secWebSocketKey);
 			if (!expectedAcceptKey.IsEquals(actualAcceptKey))
 			{
