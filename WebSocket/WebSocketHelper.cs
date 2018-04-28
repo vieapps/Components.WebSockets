@@ -211,7 +211,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			Events.Log.ServerHandshakeSuccess(guid);
 
 			// create new instance
-			return new WebSocket(guid, false, recycledStreamFactory, context.Stream, options.KeepAliveInterval, null, options.IncludeExceptionInCloseResponse);
+			return new WebSocketImplementation(guid, false, recycledStreamFactory, context.Stream, options.KeepAliveInterval, null, options.IncludeExceptionInCloseResponse);
 		}
 
 		/// <summary>
@@ -341,7 +341,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				Events.Log.ClientHandshakeSuccess(guid);
 
 			// return the WebSocket connection
-			return new WebSocket(guid, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
+			return new WebSocketImplementation(guid, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
 			{
 				UriPath = $"{uri.Scheme}://{uri.Host}:{uri.Port}{uri.PathAndQuery}",
 				LocalEndPoint = tcpClient.Client.LocalEndPoint,

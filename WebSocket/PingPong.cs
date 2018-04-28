@@ -12,7 +12,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// <summary>
 	/// Pong EventArgs
 	/// </summary>
-	public class PongEventArgs : EventArgs
+	internal class PongEventArgs : EventArgs
 	{
 		/// <summary>
 		/// The data extracted from a Pong WebSocket frame
@@ -56,7 +56,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// </summary>
 	internal class PingPongManager : IPingPongManager
 	{
-		readonly WebSocket _websocket;
+		readonly WebSocketImplementation _websocket;
 		readonly Guid _guid;
 		readonly TimeSpan _keepAliveInterval;
 		readonly Task _pingTask;
@@ -80,7 +80,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// Set this to TimeSpan.Zero if you with to manually control sending ping messages.
 		/// </param>
 		/// <param name="cancellationToken">The token used to cancel a pending ping send AND the automatic sending of ping messages if keepAliveInterval is positive</param>
-		public PingPongManager(Guid guid, WebSocket webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken)
+		public PingPongManager(Guid guid, WebSocketImplementation webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken)
 		{
 			this._websocket = webSocket;
 			this._websocket.Pong += this.DoPong;
