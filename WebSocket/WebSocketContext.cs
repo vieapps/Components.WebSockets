@@ -6,25 +6,25 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// <summary>
 	/// The WebSocket context used to initiate a WebSocket handshake
 	/// </summary>
-	public class WebSocketContext
+	internal class WebSocketContext
 	{
 		/// <summary>
-		/// True if this is a valid WebSocket request
+		/// Gets the state that specified this is a valid WebSocket request or not
 		/// </summary>
 		public bool IsWebSocketRequest { get; private set; }
 
 		/// <summary>
-		/// The raw http header extracted from the stream
+		/// Gets the raw HTTP header
 		/// </summary>
 		public string HttpHeader { get; private set; }
 
 		/// <summary>
-		/// The Path extracted from the http header
+		/// Gets the Path from the HTTP header
 		/// </summary>
 		public string Path { get; private set; }
 
 		/// <summary>
-		/// The stream AFTER the header has already been read
+		/// Getst the stream AFTER the header has already been read
 		/// </summary>
 		public Stream Stream { get; private set; }
 

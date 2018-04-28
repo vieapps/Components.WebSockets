@@ -23,8 +23,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		#region Properties
 		const int MAX_PING_PONG_PAYLOAD_LENGTH = 125;
 
-		internal static ILogger Logger = WebSockets.Logger.CreateLogger<WebSocket>();
-
 		readonly Func<MemoryStream> _recycledStreamFactory;
 		readonly Stream _stream;
 		readonly bool _includeExceptionInCloseResponse;
@@ -76,6 +74,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// Gets the time when the WebSocket connection is established
 		/// </summary>
 		public DateTime Time { get; } = DateTime.Now;
+
+		/// <summary>
+		/// Gets the path from the requesting uri of the WebSocket connection
+		/// </summary>
+		public string UriPath { get; internal set; }
 
 		/// <summary>
 		/// Gets the local endpoint of the WebSocket connection
@@ -187,13 +190,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 								return await this.RespondToCloseFrameAsync(frame, buffer, cts.Token).ConfigureAwait(false);
 
 							case WebSocketOpCode.Ping:
-								var pingPayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count);
-								await this.SendPongAsync(pingPayload, cts.Token).ConfigureAwait(false);
+								await this.SendPongAsync(new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count), cts.Token).ConfigureAwait(false);
 								break;
 
 							case WebSocketOpCode.Pong:
-								var pongBuffer = new ArraySegment<byte>(buffer.Array, frame.Count, buffer.Offset);
-								this.Pong?.Invoke(this, new PongEventArgs(pongBuffer));
+								this.Pong?.Invoke(this, new PongEventArgs(new ArraySegment<byte>(buffer.Array, frame.Count, buffer.Offset)));
 								break;
 
 							case WebSocketOpCode.TextFrame:
@@ -217,12 +218,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 					}
 				}
 			}
-			catch (Exception catchAll)
+			catch (Exception ex)
 			{
-				// Most exceptions will be caught closer to their source to send an appropriate close message (and set the WebSocketState)
-				// However, if an unhandled exception is encountered and a close message not sent then send one here
+				// most exceptions will be caught closer to their source to send an appropriate close message (and set the WebSocketState)
+				// however, if an unhandled exception is encountered and a close message not sent then send one here
 				if (this._state == WebSocketState.Open)
-					await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", catchAll).ConfigureAwait(false);
+					await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", ex).ConfigureAwait(false);
 				throw;
 			}
 		}
@@ -243,7 +244,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			{
 				var opCode = this.GetOpCode(messageType);
 
-				// NOTE: Compression is currently work in progress and should NOT be used in this library.
+				// NOTE: Compression is currently work in progress and should NOT be used.
 				// The code below is very inefficient for small messages. Ideally we would like to have some sort of moving window of data to get the best compression.
 				// And we don't want to create new buffers which is bad for GC.
 				if (this._usePerMessageDeflate)
@@ -291,8 +292,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 		#region Send ping/pong
 		/// <summary>
-		/// Call this automatically from server side each keepAliveInterval period
-		/// NOTE: ping payload must be 125 bytes or less
+		/// Calls this automatically from server side each KeepAliveInterval period (ping payload must be 125 bytes or less)
 		/// </summary>
 		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
@@ -308,8 +308,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				}
 		}
 
-		/// NOTE: pong payload must be 125 bytes or less
-		/// Pong should contain the same payload as the ping
+		/// <summary>
+		/// Calls this when got ping messages (pong payload must be 125 bytes or less, pong should contain the same payload as the ping)
+		/// </summary>
+		/// <param name="payload"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
 		async Task SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			// exceeded max length
@@ -364,7 +368,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
 					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
 					Events.Log.CloseHandshakeStarted(this.ID, closeStatus, closeStatusDescription);
-					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._state = WebSocketState.CloseSent;
 				}
@@ -392,7 +396,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
 					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
 					Events.Log.CloseOutputNoHandshake(this.ID, closeStatus, closeStatusDescription);
-					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, true);
+					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
 			}
@@ -411,12 +415,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="ex">The exception (for logging)</param>
 		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception ex)
 		{
-			var timeSpan = TimeSpan.FromSeconds(3);
+			var timespan = TimeSpan.FromSeconds(3);
 			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, ex.ToString());
 
 			try
 			{
-				using (var cts = new CancellationTokenSource(timeSpan))
+				using (var cts = new CancellationTokenSource(timespan))
 				{
 					await this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this._includeExceptionInCloseResponse ? "\r\n\r\n" + ex.ToString() : ""), cts.Token).ConfigureAwait(false);
 				}
@@ -424,7 +428,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			catch (OperationCanceledException)
 			{
 				// do not throw an exception because that will mask the original exception
-				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timeSpan.TotalSeconds, closeStatus, closeStatusDescription, ex.ToString());
+				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timespan.TotalSeconds, closeStatus, closeStatusDescription, ex.ToString());
 			}
 			catch (Exception closeException)
 			{
@@ -441,7 +445,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="cancellationToken">The time-out cancellation token</param>
 		/// <param name="onCanceled">The action to fire when cancellation token is raised</param>
 		/// <param name="onError">The action to fire when got error</param>
-		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken, Action onCanceled = null, Action <Exception> onError = null)
+		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken, Action onCanceled = null, Action<Exception> onError = null)
 		{
 			try
 			{
@@ -451,7 +455,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			{
 				onCanceled?.Invoke();
 			}
-			 catch (Exception ex)
+			catch (Exception ex)
 			{
 				onError?.Invoke(ex);
 			}
@@ -484,32 +488,25 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="cancellationToken"></param>
 		internal async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken))
 		{
-			// check state
-			if (this._disposed)
-				return;
-
-			Events.Log.WebSocketDispose(this.ID, this._state);
-
-			// close output
-			if (this._state == WebSocketState.Open)
-				using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token))
-				{
-					await this.CloseOutputTimeoutAsync(
-						closeStatus,
-						closeStatusDescription,
-						cts.Token,
-						() => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this._state),
-						(ex) => Events.Log.WebSocketDisposeError(this.ID, this._state, ex.ToString())
-					).ConfigureAwait(false);
-				}
-
-			// cancel pending reads (usually does nothing)
-			this._readingCTS.Cancel();
-			this._stream.Close();
-
-			// update state
-			Events.Log.WebSocketDispose(this.ID, this._state);
-			this._disposed = true;
+			if (!this._disposed)
+			{
+				Events.Log.WebSocketDispose(this.ID, this._state);
+				if (this._state == WebSocketState.Open)
+					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token))
+					{
+						await this.CloseOutputTimeoutAsync(
+							closeStatus,
+							closeStatusDescription,
+							cts.Token,
+							() => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this._state),
+							(ex) => Events.Log.WebSocketDisposeError(this.ID, this._state, ex.ToString())
+						).ConfigureAwait(false);
+					}
+				this._readingCTS.Cancel();
+				this._stream.Close();
+				Events.Log.WebSocketDispose(this.ID, this._state);
+				this._disposed = true;
+			}
 		}
 
 		~WebSocket()
@@ -614,23 +611,20 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				// internal buffer not suppoted, fall back to ToArray()
 				buffer = stream.ToArray().ToArraySegment();
 			}
-
-			// set count
 			else
 				buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
 
-			// add into queue
+			// add into queue and check pending write operations
 			this._buffers.Enqueue(buffer);
-
-			// stop if other thread is writing
 			if (this._writting)
 			{
-				if (Logger.IsEnabled(LogLevel.Debug))
-					Logger.LogWarning($"{this.ID} @ {this.RemoteEndPoint} => Pending write operations [{this._buffers.Count:#,##0}]");
+				var logger = Logger.CreateLogger<WebSocket>();
+				if (logger.IsEnabled(LogLevel.Debug))
+					logger.LogWarning($"Pending write operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
-			// update state and write
+			// put data to wire
 			this._writting = true;
 			try
 			{

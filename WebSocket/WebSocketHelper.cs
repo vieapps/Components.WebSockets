@@ -17,7 +17,7 @@ using net.vieapps.Components.WebSockets.Exceptions;
 
 namespace net.vieapps.Components.WebSockets.Implementation
 {
-	public static class WebSocketHelper
+	internal static class WebSocketHelper
 	{
 		const string WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 		const int WEBSOCKET_VERSION = 13;
@@ -157,7 +157,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="options">The web socket options</param>
 		/// <param name="cancellationToken">The optional cancellation token</param>
 		/// <returns>A connected web socket</returns>
-		public static async Task<WebSocket> AcceptAsync(WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketServerOptions options, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> AcceptAsync(WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// handshake
 			var guid = Guid.NewGuid();
@@ -185,7 +185,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						"Connection: Upgrade\r\n" +
 						"Upgrade: websocket\r\n" +
 						"Server: VIEApps NGX WebSockets\r\n" +
-						"Sec-WebSocket-Accept: " + WebSocketHelper.ComputeSocketAcceptString(secWebSocketKey);
+						"Sec-WebSocket-Accept: " + WebSocketHelper.ComputeSocketAcceptString(secWebSocketKey) + "\r\n";
+					options.AdditionalHttpHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
+
 					Events.Log.SendingHandshake(guid, handshake);
 					await WebSocketHelper.WriteHttpHeaderAsync(handshake, context.Stream, cancellationToken).ConfigureAwait(false);
 					Events.Log.HandshakeSent(guid, handshake);
@@ -215,86 +217,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Connect web socket with options specified
 		/// </summary>
-		/// <param name="guid"></param>
-		/// <param name="recycledStreamFactory"></param>
-		/// <param name="stream"></param>
-		/// <param name="secWebSocketKey"></param>
-		/// <param name="keepAliveInterval"></param>
-		/// <param name="secWebSocketExtensions"></param>
-		/// <param name="includeExceptionInCloseResponse"></param>
-		/// <param name="localEndPoint"></param>
-		/// <param name="remoteEndPoint"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public static async Task<WebSocket> ConnectAsync(Guid guid, Func<MemoryStream> recycledStreamFactory, Stream stream, string secWebSocketKey, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse, EndPoint localEndPoint, EndPoint remoteEndPoint, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			// read response
-			Events.Log.ReadingHttpResponse(guid);
-			var response = string.Empty;
-			try
-			{
-				response = await WebSocketHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				Events.Log.ReadHttpResponseError(guid, ex.ToString());
-				throw new HandshakeFailedException("Handshake unexpected failure", ex);
-			}
-
-			// throw if got invalid response code
-			var responseCode = WebSocketHelper.ReadHttpResponseCode(response);
-			if (!"101 Switching Protocols".IsEquals(responseCode))
-			{
-				var lines = response.Split(new string[] { "\r\n" }, StringSplitOptions.None);
-				for (var index = 0; index < lines.Length; index++)
-				{
-					// if there is more to the message than just the header
-					if (string.IsNullOrWhiteSpace(lines[index]))
-					{
-						var builder = new StringBuilder();
-						for (var idx = index + 1; idx < lines.Length - 1; idx++)
-							builder.AppendLine(lines[idx]);
-
-						var responseDetails = builder.ToString();
-						throw new InvalidHttpResponseCodeException(responseCode, responseDetails, response);
-					}
-				}
-			}
-
-			// make sure we escape the accept string which could contain special regex characters
-			var match = new Regex("Sec-WebSocket-Accept: (.*)").Match(response);
-			var actualAcceptKey = match.Success
-				? match.Groups[1].Value.Trim()
-				: null;
-
-			// check the accept string
-			var expectedAcceptKey = WebSocketHelper.ComputeSocketAcceptString(secWebSocketKey);
-			if (!expectedAcceptKey.IsEquals(actualAcceptKey))
-			{
-				var warning = $"Handshake failed because the accept key from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"";
-				Events.Log.HandshakeFailure(guid, warning);
-				throw new HandshakeFailedException(warning);
-			}
-			else
-				Events.Log.ClientHandshakeSuccess(guid);
-
-			// return the WebSocket connection
-			return new WebSocket(guid, true, recycledStreamFactory, stream, keepAliveInterval, secWebSocketExtensions, includeExceptionInCloseResponse)
-			{
-				LocalEndPoint = localEndPoint,
-				RemoteEndPoint = remoteEndPoint
-			};
-		}
-
-		/// <summary>
-		/// Connect web socket with options specified
-		/// </summary>
 		/// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
 		/// <param name="options">The WebSocket client options</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream. This can be used with the RecyclableMemoryStreamManager class</param>
 		/// <param name="cancellationToken">The optional cancellation token</param>
 		/// <returns>A connected web socket instance</returns>
-		public static async Task<WebSocket> ConnectAsync(Uri uri, WebSocketClientOptions options, Func<MemoryStream> recycledStreamFactory, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> ConnectAsync(Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// connect the TCP client
 			var guid = Guid.NewGuid();
@@ -362,8 +290,63 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, cancellationToken).ConfigureAwait(false);
 			Events.Log.HandshakeSent(guid, handshake);
 
-			// connect
-			return await WebSocketHelper.ConnectAsync(guid, recycledStreamFactory, stream, secWebSocketKey, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse, tcpClient.Client.LocalEndPoint, tcpClient.Client.RemoteEndPoint, cancellationToken).ConfigureAwait(false);
+			// read response
+			Events.Log.ReadingHttpResponse(guid);
+			var response = string.Empty;
+			try
+			{
+				response = await WebSocketHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				Events.Log.ReadHttpResponseError(guid, ex.ToString());
+				throw new HandshakeFailedException("Handshake unexpected failure", ex);
+			}
+
+			// throw if got invalid response code
+			var responseCode = WebSocketHelper.ReadHttpResponseCode(response);
+			if (!"101 Switching Protocols".IsEquals(responseCode))
+			{
+				var lines = response.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+				for (var index = 0; index < lines.Length; index++)
+				{
+					// if there is more to the message than just the header
+					if (string.IsNullOrWhiteSpace(lines[index]))
+					{
+						var builder = new StringBuilder();
+						for (var idx = index + 1; idx < lines.Length - 1; idx++)
+							builder.AppendLine(lines[idx]);
+
+						var responseDetails = builder.ToString();
+						throw new InvalidHttpResponseCodeException(responseCode, responseDetails, response);
+					}
+				}
+			}
+
+			// make sure we escape the accept string which could contain special regex characters
+			var match = new Regex("Sec-WebSocket-Accept: (.*)").Match(response);
+			var actualAcceptKey = match.Success
+				? match.Groups[1].Value.Trim()
+				: null;
+
+			// check the accept string
+			var expectedAcceptKey = WebSocketHelper.ComputeSocketAcceptString(secWebSocketKey);
+			if (!expectedAcceptKey.IsEquals(actualAcceptKey))
+			{
+				var warning = $"Handshake failed because the accept key from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"";
+				Events.Log.HandshakeFailure(guid, warning);
+				throw new HandshakeFailedException(warning);
+			}
+			else
+				Events.Log.ClientHandshakeSuccess(guid);
+
+			// return the WebSocket connection
+			return new WebSocket(guid, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
+			{
+				UriPath = $"{uri.Scheme}://{uri.Host}:{uri.Port}{uri.PathAndQuery}",
+				LocalEndPoint = tcpClient.Client.LocalEndPoint,
+				RemoteEndPoint = tcpClient.Client.RemoteEndPoint
+			};
 		}
 	}
 }

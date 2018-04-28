@@ -34,7 +34,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// <summary>
 	/// Ping Pong Manager used to facilitate ping pong WebSocket messages
 	/// </summary>
-	public interface IPingPongManager
+	internal interface IPingPongManager
 	{
 		/// <summary>
 		/// Raised when a Pong frame is received
@@ -54,9 +54,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// <summary>
 	/// Ping Pong Manager used to facilitate ping pong WebSocket messages
 	/// </summary>
-	public class PingPongManager : IPingPongManager
+	internal class PingPongManager : IPingPongManager
 	{
-		readonly WebSocket _webSocket;
+		readonly WebSocket _websocket;
 		readonly Guid _guid;
 		readonly TimeSpan _keepAliveInterval;
 		readonly Task _pingTask;
@@ -82,8 +82,8 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="cancellationToken">The token used to cancel a pending ping send AND the automatic sending of ping messages if keepAliveInterval is positive</param>
 		public PingPongManager(Guid guid, WebSocket webSocket, TimeSpan keepAliveInterval, CancellationToken cancellationToken)
 		{
-			this._webSocket = webSocket;
-			this._webSocket.Pong += this.DoPong;
+			this._websocket = webSocket;
+			this._websocket.Pong += this.DoPong;
 			this._guid = guid;
 			this._keepAliveInterval = keepAliveInterval;
 			this._cancellationToken = cancellationToken;
@@ -101,7 +101,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="cancellationToken">The cancellation token</param>
 		public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			return this._webSocket.SendPingAsync(payload, cancellationToken);
+			return this._websocket.SendPingAsync(payload, cancellationToken);
 		}
 
 		async Task DoPingAsync()
@@ -112,13 +112,13 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				while (!this._cancellationToken.IsCancellationRequested)
 				{
 					await Task.Delay(this._keepAliveInterval, this._cancellationToken).ConfigureAwait(false);
-					if (this._webSocket.State != WebSocketState.Open)
+					if (this._websocket.State != WebSocketState.Open)
 						break;
 
 					if (this._pingSentTicks != 0)
 					{
 						Events.Log.KeepAliveIntervalExpired(this._guid, (int)this._keepAliveInterval.TotalSeconds);
-						await this._webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No Pong message received in response to a Ping after KeepAliveInterval {this._keepAliveInterval}", this._cancellationToken).ConfigureAwait(false);
+						await this._websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No Pong message received in response to a Ping after KeepAliveInterval ({this._keepAliveInterval})", this._cancellationToken).ConfigureAwait(false);
 						break;
 					}
 

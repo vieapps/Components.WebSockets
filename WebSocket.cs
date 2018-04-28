@@ -41,9 +41,9 @@ namespace net.vieapps.Components.WebSockets
 		public int AwaitInterval { get; set; } = 0;
 
 		/// <summary>
-		/// Gets or sets keep-alive interval (seconds)
+		/// Gets or sets keep-alive interval (seconds) for sending ping messages
 		/// </summary>
-		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
+		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
 
 		/// <summary>
 		/// Gets the listening port of the listener
@@ -78,7 +78,7 @@ namespace net.vieapps.Components.WebSockets
 		public Action<Implementation.WebSocket> OnConnectionBroken { get; set; }
 
 		/// <summary>
-		/// Action to fire when got a message (when receive a message from a remote endpoint)
+		/// Action to fire when received a message
 		/// </summary>
 		public Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived { get; set; }
 		#endregion
@@ -214,7 +214,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (Exception ex)
 			{
 				this.StopListen(false);
-				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
+				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogInformation($"Listener is stoped ({ex.GetType().GetTypeName(true)})");
@@ -275,7 +275,8 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
-				websocket = await WebSocketHelper.AcceptAsync(context, this._recycledStreamFactory, new WebSocketServerOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
+				websocket = await WebSocketHelper.AcceptAsync(context, this._recycledStreamFactory, new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
+				websocket.UriPath = context.Path;
 				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
 				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
 
@@ -291,7 +292,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
+				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
 				{
 					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogDebug(ex, $"Error occurred while accepting an incomming connection request: {ex.Message}");
@@ -315,7 +316,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogDebug($"Attempting to connect to \"{uri}\"...");
 
-				var websocket = await WebSocketHelper.ConnectAsync(uri, new WebSocketClientOptions { KeepAliveInterval = this.KeepAliveInterval }, this._recycledStreamFactory, this._processingCTS.Token).ConfigureAwait(false);
+				var websocket = await WebSocketHelper.ConnectAsync(uri, new WebSocketOptions(), this._recycledStreamFactory, this._processingCTS.Token).ConfigureAwait(false);
 
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogDebug($"Endpoint is connected \"{uri}\" => {websocket.ID} @ {websocket.RemoteEndPoint}");
@@ -384,7 +385,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var closeStatus = WebSocketCloseStatus.InternalServerError;
 					var closeStatusDescription = $"Got an unexpected error: {ex.Message}";
-					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
+					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
 					{
 						closeStatus = websocket.IsClient ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable;
 						closeStatusDescription = websocket.IsClient ? "Disconnected" : "Service is unavailable";
@@ -392,7 +393,7 @@ namespace net.vieapps.Components.WebSockets
 
 					this.CloseWebSocket(websocket, closeStatus, closeStatusDescription);
 					this.OnConnectionBroken?.Invoke(websocket);
-					if (ex is IOException || ex is SocketException || ex is ObjectDisposedException || ex is OperationCanceledException || ex is TaskCanceledException)
+					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
 					{
 						if (this._logger.IsEnabled(LogLevel.Trace))
 							this._logger.LogTrace(ex, $"Close the connection when got an error: {ex.Message}");
@@ -423,7 +424,7 @@ namespace net.vieapps.Components.WebSockets
 					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogInformation($"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					await websocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
-					this.CloseWebSocket(websocket);
+					this.CloseWebSocket(websocket, WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.");
 					this.OnConnectionBroken?.Invoke(websocket);
 					this.OnError?.Invoke(websocket, new BufferOverflowException(message));
 					return;

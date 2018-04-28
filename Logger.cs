@@ -16,8 +16,6 @@ using net.vieapps.Components.WebSockets.Exceptions;
 
 namespace net.vieapps.Components.WebSockets
 {
-
-	#region Logger
 	public static class Logger
 	{
 		static ILoggerFactory LoggerFactory;
@@ -61,7 +59,6 @@ namespace net.vieapps.Components.WebSockets
 			return Logger.CreateLogger(typeof(T));
 		}
 	}
-	#endregion
 
 	#region NullLogger
 

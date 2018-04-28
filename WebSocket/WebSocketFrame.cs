@@ -3,7 +3,7 @@ using System.Net.WebSockets;
 
 namespace net.vieapps.Components.WebSockets.Implementation
 {
-	public class WebSocketFrame
+	internal class WebSocketFrame
 	{
 		public bool IsFinBitSet { get; private set; }
 

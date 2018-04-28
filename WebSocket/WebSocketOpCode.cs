@@ -5,7 +5,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 	/// <summary>
 	/// WebSocket OpCode
 	/// </summary>
-	public enum WebSocketOpCode
+	internal enum WebSocketOpCode
 	{
 		ContinuationFrame = 0,
 		TextFrame = 1,
