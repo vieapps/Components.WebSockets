@@ -1,14 +1,9 @@
 ﻿#region Related components
 using System;
-using System.Text;
-using System.IO;
-using System.IO.Compression;
 using System.Net;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 using net.vieapps.Components.Utility;
 #endregion
 
@@ -62,7 +57,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Sends data over the <see cref="WebSocket">WebSocket</see> connection asynchronously
 		/// </summary>
-		/// <param name="data">The text data send</param>
+		/// <param name="data">The text data to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
@@ -74,7 +69,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Sends data over the <see cref="WebSocket">WebSocket</see> connection asynchronously
 		/// </summary>
-		/// <param name="data">The binary data send</param>
+		/// <param name="data">The binary data to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
