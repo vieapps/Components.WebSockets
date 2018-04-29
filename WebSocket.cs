@@ -295,9 +295,8 @@ namespace net.vieapps.Components.WebSockets
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
 						this._logger.LogTrace($"The HTTP header contains no WebSocket upgrade request, then ignore ({id} @ {tcpClient.Client.RemoteEndPoint})");
-					tcpClient.Client?.Close();
-					tcpClient.Close();
 					stream.Close();
+					tcpClient.Close();
 					return;
 				}
 
