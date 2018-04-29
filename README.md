@@ -12,7 +12,7 @@ This is the same WebSocket abstract class used by .NET Standard 2.0 and it allow
 
 ## Walking on the ground
 
-The class **net.vieapps.Components.WebSockets.Implementation.WebSocket** is an implementation of the System.Net.WebSockets.WebSocket abstract class,
+The class **net.vieapps.Components.WebSockets.Implementation.WebSocket** is an implementation or a wrapper of the *System.Net.WebSockets.WebSocket* abstract class,
 that allows you send and receive messages in the same way for both side of client and server role.
 
 ### Receiving messages:
@@ -103,6 +103,99 @@ websocket.StartListen(46429);
 Want to have a free SSL certificate? Take a look at [Let's Encrypt](https://letsencrypt.org/).
 
 Special: A simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Let's Encrypt very well.
+
+### Wrap an existing WebSocket connection of ASP.NET / ASP.NET Core
+
+When integrate this component with your app that hosted by ASP.NET / ASP.NET Core, you might want to use the WebSocket connections of ASP.NET / ASP.NET Core directly,
+then the method **WrapAsync** is here to help. This method will return a task that run a process for receiving messages from this WebSocket connection.
+
+```csharp
+Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint);
+```
+
+And might be you need an extension method to wrap an existing WebSocket connection, then take a look at some lines of code below:
+
+**ASP.NET**
+```csharp
+public static Task WrapWebSocketAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, AspNetWebSocketContext context)
+{
+    var serviceProvider = (IServiceProvider)HttpContext.Current;
+    var httpWorker = serviceProvider?.GetService<HttpWorkerRequest>();
+    var remoteAddress = httpWorker == null ? context.UserHostAddress : httpWorker.GetRemoteAddress();
+    var remotePort = httpWorker == null ? 0 : httpWorker.GetRemotePort();
+    var remoteEndpoint = IPAddress.TryParse(remoteAddress, out IPAddress ipAddress)
+        ? new IPEndPoint(ipAddress, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint
+        : new DnsEndPoint(context.UserHostName, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint;
+    var localAddress = httpWorker == null ? context.RequestUri.Host : httpWorker.GetLocalAddress();
+    var localPort = httpWorker == null ? 0 : httpWorker.GetLocalPort();
+    var localEndpoint = IPAddress.TryParse(localAddress, out ipAddress)
+        ? new IPEndPoint(ipAddress, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint
+        : new DnsEndPoint(context.RequestUri.Host, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint;
+    return websocket.WrapAsync(context.WebSocket, context.RequestUri, remoteEndpoint, localEndpoint);
+}
+```
+
+**ASP.NET Core**
+```csharp
+public static async Task WrapWebSocketAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, HttpContext context)
+{
+    var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+    var requestUri = new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
+    var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
+    var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
+    await websocket.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint).ConfigureAwait(false);
+}
+```
+
+While working with ASP.NET Core, we think that you need a middle-ware to handle all request of WebSocket connections, just look like this:
+```csharp
+public class WebSocketMiddleware
+{
+    readonly RequestDelegate _next;
+    ILoggerFactory _loggerFactory;
+    ILogger _logger;
+    net.vieapps.Components.WebSockets.WebSocket _websocket;
+
+    public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
+    {
+        this._next = next;
+        this._loggerFactory = loggerFactory;
+        this._logger = this._loggerFactory.CreateLogger<WebSocketMiddleware>();
+        this._websocket = new net.vieapps.Components.WebSockets.WebSocket(this._loggerFactory)
+        {
+            OnError = (websocket, exception) =>
+            {
+                this._logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
+            },
+            OnConnectionEstablished = (websocket) =>
+            {
+                this._logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
+            },
+            OnConnectionBroken = (websocket) =>
+            {
+                this._logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
+            },
+            OnMessageReceived = (websocket, result, data) =>
+            {
+                var message = result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text ? data.GetString() : "(binary message)";
+                this._logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
+            }
+        };
+    }
+
+    public async Task Invoke(HttpContext context)
+    {
+        if (context.WebSockets.IsWebSocketRequest)
+            await this._websocket.WrapWebSocketAsync(context).ConfigureAwait(false);
+    }
+}
+```
+
+And remember to tell APS.NET Core uses your middleware (at **Configure** method of *Startup.cs*)
+```csharp
+app.UseWebSockets();
+app.UseMiddleware<WebSocketMiddleware>();
+```
 
 ### Receiving and Sending messages:
 
