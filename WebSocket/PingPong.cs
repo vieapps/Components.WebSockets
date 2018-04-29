@@ -78,7 +78,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._websocket.Pong += this.DoPong;
 			this._cancellationToken = cancellationToken;
 			this._stopwatch = Stopwatch.StartNew();
-			this._pingTask = Task.Run(this.DoPingAsync, cancellationToken);
+			this._pingTask = Task.Run(this.DoPingAsync);
 		}
 
 		/// <summary>
