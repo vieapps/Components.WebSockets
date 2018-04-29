@@ -50,7 +50,8 @@ async Task SendAsync(Implementation.WebSocket websocket)
 ```csharp
 public Guid ID { get; } // the identity of the connection
 public bool IsClient { get; } // true if the connection was made when connect to a remote endpoint (mean client role)
-public DateTime Time { get; } // the time when the connection is established
+public Uri RequestUri { get; } // original requesting URI of the connection
+public DateTime Timestamp { get; } // the time when the connection is established
 public EndPoint LocalEndPoint { get; } // local endpoint
 public EndPoint RemoteEndPoint { get; } // remote endpoint (usually IP address and port)
 ```
@@ -65,15 +66,14 @@ This class has 04 action properties (event handlers) to take care of all working
 Action<Implementation.WebSocket, Exception> OnError; // fire when got any error
 Action<Implementation.WebSocket> OnConnectionEstablished; // fire when a connection is established
 Action<Implementation.WebSocket> OnConnectionBroken; // fire when a connection is broken
-Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived; // fire when got a message (when a message is received)
+Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived; // fire when a message is received
 ```
 
 And this class has some methods for working on both side of client and server role:
 ```csharp
-void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
-void Connect(string location, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
+void Connect(Uri uri, string subProtocol, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
+void Connect(string location, string subProtocol, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
 void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
-void StartListen(int port, Action onSuccess, Action<Exception> onFailed);
 void StopListen();
 ```
 

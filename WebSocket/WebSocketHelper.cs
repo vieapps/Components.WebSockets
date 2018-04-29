@@ -127,7 +127,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="supportedSubProtocols">The collection of subpported sub-protocol</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>A connected WebSocket instance</returns>
-		public static async Task<WebSocket> AcceptAsync(Guid id, WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, IEnumerable<string> supportedSubProtocols, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> AcceptAsync(Guid id, WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, IEnumerable<string> supportedSubProtocols, CancellationToken cancellationToken)
 		{
 			// handshake
 			Events.Log.AcceptWebSocketStarted(id);
@@ -204,7 +204,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="subProtocol">The sub-protocol</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>A connected WebSocket instance</returns>
-		public static async Task<WebSocket> ConnectAsync(Guid id, Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, string subProtocol = null, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> ConnectAsync(Guid id, Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, string subProtocol, CancellationToken cancellationToken)
 		{
 			// connect the TCP client
 			var tcpClient = new TcpClient()
