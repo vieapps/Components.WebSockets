@@ -59,8 +59,13 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options)
 		{
+			if (options.KeepAliveInterval.Ticks < 0)
+				throw new ArgumentException("KeepAliveInterval must be Zero or positive", nameof(options));
+
 			this.ID = id;
 			this.IsClient = isClient;
+			this.IncludeExceptionInCloseResponse = options.IncludeExceptionInCloseResponse;
+			this.KeepAliveInterval = options.KeepAliveInterval;
 
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._stream = stream;
@@ -68,16 +73,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._subProtocol = options.SubProtocol;
 			this._readingCTS = new CancellationTokenSource();
 
-			this.KeepAliveInterval = options.KeepAliveInterval;
-			if (this.KeepAliveInterval.Ticks < 0)
-				throw new ArgumentException("Keep-Alive interval must be Zero or positive");
-
 			if (this.KeepAliveInterval == TimeSpan.Zero)
 				Events.Log.KeepAliveIntervalZero(this.ID);
 			else
-				this._pingpongManager = new PingPongManager(this.ID, this, this.KeepAliveInterval, this._readingCTS.Token);
-
-			this.IncludeExceptionInCloseResponse = options.IncludeExceptionInCloseResponse;
+				this._pingpongManager = new PingPongManager(this, this._readingCTS.Token);
 		}
 
 		#region Receive messages
