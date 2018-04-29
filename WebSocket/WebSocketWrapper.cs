@@ -44,7 +44,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		internal WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint localEndPoint = null, EndPoint remoteEndPoint = null)
+		public WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint localEndPoint = null, EndPoint remoteEndPoint = null)
 		{
 			this._websocket = websocket;
 			this.ID = Guid.NewGuid();
@@ -67,17 +67,17 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// </summary>
 		/// <param name="buffer">The buffer to copy data into</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		/// <returns>The web socket result details</returns>
+		/// <returns></returns>
 		public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			return this._websocket.ReceiveAsync(buffer, cancellationToken);
 		}
 
 		/// <summary>
-		/// Sends data over the WebSocket connection 
+		/// Sends data over the WebSocket connection asynchronously
 		/// </summary>
 		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type. Can be Text or Binary</param>
+		/// <param name="messageType">The message type, can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">the cancellation token</param>
 		/// <returns></returns>
@@ -87,9 +87,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._buffers.Enqueue(buffer);
 			if (this._writting)
 			{
+				Events.Log.PendingOperations(this.ID);
 				var logger = Logger.CreateLogger<WebSocketWrapper>();
 				if (logger.IsEnabled(LogLevel.Debug))
-					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID})");
 				return;
 			}
 

@@ -135,157 +135,150 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		[Event(18, Level = EventLevel.Informational)]
-		public void UsePerMessageDeflate(Guid guid)
+		public void KeepAliveIntervalZero(Guid guid)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(18, guid);
 		}
 
 		[Event(19, Level = EventLevel.Informational)]
-		public void NoMessageCompression(Guid guid)
+		public void PingPongManagerStarted(Guid guid, int keepAliveIntervalSeconds)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(19, guid);
+				this.WriteEvent(19, guid, keepAliveIntervalSeconds);
 		}
 
 		[Event(20, Level = EventLevel.Informational)]
-		public void KeepAliveIntervalZero(Guid guid)
+		public void PingPongManagerEnded(Guid guid)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(20, guid);
 		}
 
-		[Event(21, Level = EventLevel.Informational)]
-		public void PingPongManagerStarted(Guid guid, int keepAliveIntervalSeconds)
+		[Event(21, Level = EventLevel.Warning)]
+		public void KeepAliveIntervalExpired(Guid guid, int keepAliveIntervalSeconds)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(21, guid, keepAliveIntervalSeconds);
 		}
 
-		[Event(22, Level = EventLevel.Informational)]
-		public void PingPongManagerEnded(Guid guid)
-		{
-			if (this.IsEnabled())
-				this.WriteEvent(22, guid);
-		}
-
-		[Event(23, Level = EventLevel.Warning)]
-		public void KeepAliveIntervalExpired(Guid guid, int keepAliveIntervalSeconds)
-		{
-			if (this.IsEnabled())
-				this.WriteEvent(23, guid, keepAliveIntervalSeconds);
-		}
-
-		[Event(24, Level = EventLevel.Warning)]
+		[Event(22, Level = EventLevel.Warning)]
 		public void CloseOutputAutoTimeout(Guid guid, WebSocketCloseStatus closeStatus, string statusDescription, string exception)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(24, guid, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
+				this.WriteEvent(22, guid, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
 		}
 
-		[Event(25, Level = EventLevel.Error)]
+		[Event(23, Level = EventLevel.Error)]
 		public void CloseOutputAutoTimeoutCancelled(Guid guid, int timeoutSeconds, WebSocketCloseStatus closeStatus, string statusDescription, string exception)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(25, guid, timeoutSeconds, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
+				this.WriteEvent(23, guid, timeoutSeconds, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
 		}
 
-		[Event(26, Level = EventLevel.Error)]
+		[Event(24, Level = EventLevel.Error)]
 		public void CloseOutputAutoTimeoutError(Guid guid, string closeException, WebSocketCloseStatus closeStatus, string statusDescription, string exception)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(26, guid, closeException ?? string.Empty, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
+				this.WriteEvent(24, guid, closeException ?? string.Empty, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
 		}
 
-		[Event(27, Level = EventLevel.Warning)]
+		[Event(25, Level = EventLevel.Warning)]
 		public void TryGetBufferNotSupported(Guid guid, string streamType)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(27, guid, streamType ?? string.Empty);
+				this.WriteEvent(25, guid, streamType ?? string.Empty);
 		}
 
-		[Event(28, Level = EventLevel.Verbose)]
+		[Event(26, Level = EventLevel.Verbose)]
 		public void SendingFrame(Guid guid, WebSocketOpCode webSocketOpCode, bool isFinBitSet, int numBytes, bool isPayloadCompressed)
 		{
 			if (this.IsEnabled(EventLevel.Verbose, EventKeywords.None))
-				this.WriteEvent(28, guid, webSocketOpCode, isFinBitSet, numBytes, isPayloadCompressed);
+				this.WriteEvent(26, guid, webSocketOpCode, isFinBitSet, numBytes, isPayloadCompressed);
 		}
 
-		[Event(29, Level = EventLevel.Verbose)]
+		[Event(27, Level = EventLevel.Verbose)]
 		public void ReceivedFrame(Guid guid, WebSocketOpCode webSocketOpCode, bool isFinBitSet, int numBytes)
 		{
 			if (this.IsEnabled(EventLevel.Verbose, EventKeywords.None))
-				this.WriteEvent(29, guid, webSocketOpCode, isFinBitSet, numBytes);
+				this.WriteEvent(27, guid, webSocketOpCode, isFinBitSet, numBytes);
+		}
+
+		[Event(28, Level = EventLevel.Informational)]
+		public void CloseOutputNoHandshake(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
+		{
+			if (this.IsEnabled())
+				this.WriteEvent(28, guid, $"{closeStatus}", statusDescription ?? string.Empty);
+		}
+
+		[Event(29, Level = EventLevel.Informational)]
+		public void CloseHandshakeStarted(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
+		{
+			if (this.IsEnabled())
+				this.WriteEvent(29, guid, $"{closeStatus}", statusDescription ?? string.Empty);
 		}
 
 		[Event(30, Level = EventLevel.Informational)]
-		public void CloseOutputNoHandshake(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
+		public void CloseHandshakeRespond(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(30, guid, $"{closeStatus}", statusDescription ?? string.Empty);
 		}
 
 		[Event(31, Level = EventLevel.Informational)]
-		public void CloseHandshakeStarted(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
-		{
-			if (this.IsEnabled())
-				this.WriteEvent(31, guid, $"{closeStatus}", statusDescription ?? string.Empty);
-		}
-
-		[Event(32, Level = EventLevel.Informational)]
-		public void CloseHandshakeRespond(Guid guid, WebSocketCloseStatus? closeStatus, string statusDescription)
-		{
-			if (this.IsEnabled())
-				this.WriteEvent(32, guid, $"{closeStatus}", statusDescription ?? string.Empty);
-		}
-
-		[Event(33, Level = EventLevel.Informational)]
 		public void CloseHandshakeComplete(Guid guid)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(33, guid);
+				this.WriteEvent(31, guid);
 		}
 
-		[Event(34, Level = EventLevel.Warning)]
+		[Event(32, Level = EventLevel.Warning)]
 		public void CloseFrameReceivedInUnexpectedState(Guid guid, WebSocketState webSocketState, WebSocketCloseStatus? closeStatus, string statusDescription)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(34, guid, webSocketState, $"{closeStatus}", statusDescription ?? string.Empty);
+				this.WriteEvent(32, guid, webSocketState, $"{closeStatus}", statusDescription ?? string.Empty);
 		}
 
-		[Event(35, Level = EventLevel.Informational)]
+		[Event(33, Level = EventLevel.Informational)]
 		public void WebSocketDispose(Guid guid, WebSocketState webSocketState)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(35, guid, webSocketState);
+				this.WriteEvent(33, guid, webSocketState);
+		}
+
+		[Event(34, Level = EventLevel.Warning)]
+		public void WebSocketDisposeCloseTimeout(Guid guid, WebSocketState webSocketState)
+		{
+			if (this.IsEnabled())
+				this.WriteEvent(34, guid, webSocketState);
+		}
+
+		[Event(35, Level = EventLevel.Error)]
+		public void WebSocketDisposeError(Guid guid, WebSocketState webSocketState, string exception)
+		{
+			if (this.IsEnabled())
+				this.WriteEvent(35, guid, webSocketState, exception ?? string.Empty);
 		}
 
 		[Event(36, Level = EventLevel.Warning)]
-		public void WebSocketDisposeCloseTimeout(Guid guid, WebSocketState webSocketState)
+		public void InvalidStateBeforeClose(Guid guid, WebSocketState webSocketState)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(36, guid, webSocketState);
 		}
 
-		[Event(37, Level = EventLevel.Error)]
-		public void WebSocketDisposeError(Guid guid, WebSocketState webSocketState, string exception)
-		{
-			if (this.IsEnabled())
-				this.WriteEvent(37, guid, webSocketState, exception ?? string.Empty);
-		}
-
-		[Event(38, Level = EventLevel.Warning)]
-		public void InvalidStateBeforeClose(Guid guid, WebSocketState webSocketState)
-		{
-			if (this.IsEnabled())
-				this.WriteEvent(38, guid, webSocketState);
-		}
-
-		[Event(39, Level = EventLevel.Warning)]
+		[Event(37, Level = EventLevel.Warning)]
 		public void InvalidStateBeforeCloseOutput(Guid guid, WebSocketState webSocketState)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(39, guid, webSocketState);
+				this.WriteEvent(37, guid, webSocketState);
+		}
+
+		[Event(38, Level = EventLevel.Warning)]
+		public void PendingOperations(Guid guid)
+		{
+			if (this.IsEnabled())
+				this.WriteEvent(38, guid);
 		}
 	}
 }

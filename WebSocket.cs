@@ -51,6 +51,11 @@ namespace net.vieapps.Components.WebSockets
 		public SslProtocols SslProtocol { get; set; } = SslProtocols.Tls;
 
 		/// <summary>
+		/// Gets or sets the collection of supported sub-protocol
+		/// </summary>
+		public IEnumerable<string> SupportedSubProtocols { get; set; } = new string[0];
+
+		/// <summary>
 		/// Gets or sets keep-alive interval (seconds) for sending ping messages from server
 		/// </summary>
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
@@ -124,13 +129,13 @@ namespace net.vieapps.Components.WebSockets
 				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
 				this._tcpListener.Start(1024);
 
-				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-					? "Linux"
-					: RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-						? "Windows"
+				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+					? "Windows"
+					: RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+						? "Linux"
 						: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
 							? "macOS"
-							: $"VIEApps [{RuntimeInformation.OSDescription.Trim()}]";
+							: $"uOS [{RuntimeInformation.OSDescription.Trim()}]";
 
 				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 				if (this.Certificate != null)
@@ -180,11 +185,11 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Stops listen
 		/// </summary>
-		/// <param name="requestCancellation">true to cancel the current listening process</param>
-		public void StopListen(bool requestCancellation = true)
+		/// <param name="cancelPendings">true to cancel the pending connections</param>
+		public void StopListen(bool cancelPendings = true)
 		{
 			// cancel all pending connections
-			if (requestCancellation)
+			if (cancelPendings)
 				this._listeningCTS?.Cancel();
 
 			// dispose
@@ -274,27 +279,27 @@ namespace net.vieapps.Components.WebSockets
 					stream = tcpClient.GetStream();
 				}
 
-				// get context
+				// parse request
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogInformation("The connection is opened, then read HTTP header from the stream");
-				var context = await WebSocketHelper.GetContextAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
+					this._logger.LogInformation("The connection is opened, then read the HTTP header from the stream");
+				var context = await Implementation.WebSocketContext.ParseAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
 
 				// verify request
 				if (!context.IsWebSocketRequest)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogInformation("HTTP header contains no WebSocket upgrade request, then ignore");
+						this._logger.LogInformation("The HTTP header contains no WebSocket upgrade request, then ignore");
 					tcpClient.Client?.Close();
 					tcpClient.Close();
 					stream.Close();
 					return;
 				}
 
-				// connect
+				// accept the connection
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogInformation("HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
+					this._logger.LogInformation("The HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
-				websocket = await WebSocketHelper.AcceptAsync(id, context, this._recycledStreamFactory, new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval }, this._listeningCTS.Token).ConfigureAwait(false);
+				websocket = await WebSocketHelper.AcceptAsync(id, context, this._recycledStreamFactory, new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval }, this.SupportedSubProtocols, this._listeningCTS.Token).ConfigureAwait(false);
 				websocket.RequestUri = new Uri($"ws{(this.Certificate != null ? "s" : "")}://{context.Host}{context.Path}");
 				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
 				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
@@ -324,7 +329,7 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Connect to remote endpoints as client
-		async Task ConnectAsync(Uri uri, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		async Task ConnectAsync(Uri uri, string subProtocol = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			try
 			{
@@ -332,7 +337,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogDebug($"Attempting to connect to \"{uri}\"...");
 
-				var websocket = await WebSocketHelper.ConnectAsync(Guid.NewGuid(), uri, new WebSocketOptions(), this._recycledStreamFactory, this._processingCTS.Token).ConfigureAwait(false);
+				var websocket = await WebSocketHelper.ConnectAsync(Guid.NewGuid(), uri, new WebSocketOptions(), this._recycledStreamFactory, subProtocol, this._processingCTS.Token).ConfigureAwait(false);
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 
 				if (this._logger.IsEnabled(LogLevel.Trace))
@@ -357,11 +362,24 @@ namespace net.vieapps.Components.WebSockets
 		/// Connects to a remote endpoint as a <see cref="WebSocket">WebSocket</see> client
 		/// </summary>
 		/// <param name="uri">The address of the remote endpoint to connect to</param>
+		/// <param name="subProtocol">The sub-protocol</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(Uri uri, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		public void Connect(Uri uri, string subProtocol = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
-			Task.Run(() => this.ConnectAsync(uri, onSuccess, onFailed)).ConfigureAwait(false);
+			Task.Run(() => this.ConnectAsync(uri, subProtocol, onSuccess, onFailed)).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Connects to a remote endpoint as a <see cref="WebSocket">WebSocket</see> client
+		/// </summary>
+		/// <param name="location">The address of the remote endpoint to connect to</param>
+		/// <param name="subProtocol">The sub-protocol</param>
+		/// <param name="onSuccess">Action to fire when connect successful</param>
+		/// <param name="onFailed">Action to fire when failed to connect</param>
+		public void Connect(string location, string subProtocol = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		{
+			this.Connect(new Uri(location.Trim().ToLower()), subProtocol, onSuccess, onFailed);
 		}
 
 		/// <summary>
@@ -370,9 +388,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="location">The address of the remote endpoint to connect to</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(string location, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		public void Connect(string location, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed)
 		{
-			this.Connect(new Uri(location.Trim().ToLower()), onSuccess, onFailed);
+			this.Connect(new Uri(location.Trim().ToLower()), null, onSuccess, onFailed);
 		}
 		#endregion
 
@@ -518,7 +536,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
 				? websocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken)
-				: Task.FromException(new InformationNotFoundException($"No WebSocket connection with identity \"{id}\" is found"));
+				: Task.FromException(new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found"));
 		}
 
 		/// <summary>
@@ -533,7 +551,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
 				? websocket.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.FromException(new InformationNotFoundException($"No WebSocket connection with identity \"{id}\" is found"));
+				: Task.FromException(new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found"));
 		}
 
 		/// <summary>
@@ -548,7 +566,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			return this._websockets.TryGetValue(id, out Implementation.WebSocket websocket)
 				? websocket.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.FromException(new InformationNotFoundException($"No WebSocket connection with identity \"{id}\" is found"));
+				: Task.FromException(new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found"));
 		}
 
 		/// <summary>

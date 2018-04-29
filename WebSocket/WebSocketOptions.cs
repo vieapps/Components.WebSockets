@@ -21,6 +21,16 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
 
 		/// <summary>
+		/// Gets or sets the sub-protocol (Sec-WebSocket-Protocol)
+		/// </summary>
+		public string SubProtocol { get; set; }
+
+		/// <summary>
+		/// Gets or sets the extensions (Sec-WebSocket-Extensions)
+		/// </summary>
+		public string Extensions { get; set; }
+
+		/// <summary>
 		/// Gets or sets state to send a message immediately or not
 		/// </summary>
 		/// <remarks>
@@ -32,9 +42,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public bool NoDelay { get; set; } = true;
 
 		/// <summary>
-		/// Gets or sets the additional HTTP headers
+		/// Gets or sets the additional headers
 		/// </summary>
-		public Dictionary<string, string> AdditionalHttpHeaders { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+		public Dictionary<string, string> AdditionalHeaders { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
 		/// Gets or sets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
@@ -43,12 +53,5 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// The default is false
 		/// </remarks>
 		public bool IncludeExceptionInCloseResponse { get; set; } = false;
-
-		/// <summary>
-		/// Gets or sets the WebSocket Extensions as an HTTP header value
-		/// </summary>
-		public string SecWebSocketExtensions { get; set; }
-
-		public WebSocketOptions() { }
 	}
 }

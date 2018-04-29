@@ -1,5 +1,10 @@
-﻿using System;
+﻿#region Related components
+using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+#endregion
 
 namespace net.vieapps.Components.WebSockets.Implementation
 {
@@ -48,6 +53,31 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this.Path = path;
 			this.Header = header;
 			this.Stream = stream;
+		}
+
+		/// <summary>
+		/// Reads the HTTP header from a stream and decodes the parts relating to the context of a WebSocket connection request
+		/// </summary>
+		/// <param name="stream">The network stream</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public static async Task<WebSocketContext> ParseAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			var isWebSocketUpgradeRequest = false;
+			var path = string.Empty;
+			var host = string.Empty;
+			var header = await WebSocketHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
+			var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(header);
+			if (match.Success)
+			{
+				isWebSocketUpgradeRequest = new Regex("Upgrade: websocket", RegexOptions.IgnoreCase).Match(header).Success;
+				path = match.Groups[1].Value.Trim();
+				match = new Regex("Host: (.*)").Match(header);
+				host = match.Success
+					? match.Groups[1].Value.Trim()
+					: string.Empty;
+			}
+			return new WebSocketContext(isWebSocketUpgradeRequest, host, path, header, stream);
 		}
 	}
 }

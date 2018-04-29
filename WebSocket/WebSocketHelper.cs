@@ -1,11 +1,13 @@
 ﻿#region Related components
 using System;
 using System.IO;
-using System.Text;
+using System.Linq;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Net.Security;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -91,31 +93,6 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Reads the HTTP header from a stream and decodes the parts relating to the WebSocketContext
-		/// </summary>
-		/// <param name="stream">The network stream</param>
-		/// <param name="cancellationToken">The cancellation token</param>
-		/// <returns></returns>
-		public static async Task<WebSocketContext> GetContextAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			var isWebSocketUpgradeRequest = false;
-			var path = string.Empty;
-			var host = string.Empty;
-			var header = await WebSocketHelper.ReadHttpHeaderAsync(stream, cancellationToken).ConfigureAwait(false);
-			var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(header);
-			if (match.Success)
-			{
-				isWebSocketUpgradeRequest = new Regex("Upgrade: websocket", RegexOptions.IgnoreCase).Match(header).Success;
-				path = match.Groups[1].Value.Trim();
-				match = new Regex("Host: (.*)").Match(header);
-				host = match.Success
-					? match.Groups[1].Value.Trim()
-					: string.Empty;
-			}
-			return new WebSocketContext(isWebSocketUpgradeRequest, host, path, header, stream);
-		}
-
-		/// <summary>
 		/// Computes a WebSocket accept key from a given key
 		/// </summary>
 		/// <param name="secWebSocketKey">The WebSocket key to base the accept key</param>
@@ -126,14 +103,31 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
+		/// Negotiates sub-protocol
+		/// </summary>
+		/// <param name="server"></param>
+		/// <param name="client"></param>
+		/// <returns></returns>
+		public static string NegotiateSubProtocol(IEnumerable<string> server, IEnumerable<string> client)
+		{
+			if (!server.Any() || !client.Any())
+				return null;
+			var matches = client.Intersect(server);
+			return matches.Any()
+				? matches.First()
+				: throw new SubProtocolNegotiationFailureException("Unable to negotiate a subprotocol");
+		}
+
+		/// <summary>
 		/// Accept a WebSocket request with options specified
 		/// </summary>
 		/// <param name="id">The identity of this WebSocket request</param>
 		/// <param name="context">The context used to initiate this WebSocket request</param>
 		/// <param name="options">The WebSocket options</param>
+		/// <param name="supportedSubProtocols">The collection of subpported sub-protocol</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>A connected WebSocket instance</returns>
-		public static async Task<WebSocket> AcceptAsync(Guid id, WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> AcceptAsync(Guid id, WebSocketContext context, Func<MemoryStream> recycledStreamFactory, WebSocketOptions options, IEnumerable<string> supportedSubProtocols, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// handshake
 			Events.Log.AcceptWebSocketStarted(id);
@@ -150,25 +144,36 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				else
 					throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in the HTTP header");
 
+				// sub-protocol
+				match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(context.Header);
+				options.SubProtocol = match.Success
+					? WebSocketHelper.NegotiateSubProtocol(supportedSubProtocols ?? new string[0], match.Groups[1].Value.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+					: null;
+
+				// extensions
+				match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(context.Header);
+				options.Extensions = match.Success
+					? match.Groups[1].Value.Trim()
+					: null;
+
 				// handshake
 				match = new Regex("Sec-WebSocket-Key: (.*)").Match(context.Header);
-				if (match.Success)
-				{
-					var secWebSocketKey = match.Groups[1].Value.Trim();
-					var handshake =
-						"HTTP/1.1 101 Switching Protocols\r\n" +
-						"Connection: Upgrade\r\n" +
-						"Upgrade: websocket\r\n" +
-						"Server: VIEApps NGX WebSockets\r\n" +
-						"Sec-WebSocket-Accept: " + WebSocketHelper.ComputeAcceptKey(secWebSocketKey) + "\r\n";
-					options.AdditionalHttpHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
-
-					Events.Log.SendingHandshake(id, handshake);
-					await WebSocketHelper.WriteHttpHeaderAsync(handshake, context.Stream, cancellationToken).ConfigureAwait(false);
-					Events.Log.HandshakeSent(id, handshake);
-				}
-				else
+				if (!match.Success)
 					throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from the HTTP header");
+
+				var handshake =
+					$"HTTP/1.1 101 Switching Protocols\r\n" +
+					$"Connection: Upgrade\r\n" +
+					$"Upgrade: websocket\r\n" +
+					$"Server: VIEApps NGX WebSockets\r\n" +
+					$"Sec-WebSocket-Accept: {WebSocketHelper.ComputeAcceptKey(match.Groups[1].Value.Trim())}\r\n";
+				if (!string.IsNullOrWhiteSpace(options.SubProtocol))
+					handshake += $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n";
+				options.AdditionalHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
+
+				Events.Log.SendingHandshake(id, handshake);
+				await WebSocketHelper.WriteHttpHeaderAsync(handshake, context.Stream, cancellationToken).ConfigureAwait(false);
+				Events.Log.HandshakeSent(id, handshake);
 			}
 			catch (VersionNotSupportedException ex)
 			{
@@ -186,7 +191,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			Events.Log.ServerHandshakeSuccess(id);
 
 			// return the connected WebSocket connection
-			return new WebSocketImplementation(id, false, recycledStreamFactory, context.Stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse);
+			return new WebSocketImplementation(id, false, recycledStreamFactory, context.Stream, options);
 		}
 
 		/// <summary>
@@ -196,9 +201,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <param name="uri">The WebSocket uri to connect to (e.g. ws://example.com or wss://example.com for SSL)</param>
 		/// <param name="options">The WebSocket options</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream. This can be used with the RecyclableMemoryStreamManager class</param>
+		/// <param name="subProtocol">The sub-protocol</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>A connected WebSocket instance</returns>
-		public static async Task<WebSocket> ConnectAsync(Guid id, Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<WebSocket> ConnectAsync(Guid id, Uri uri, WebSocketOptions options, Func<MemoryStream> recycledStreamFactory, string subProtocol = null, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// connect the TCP client
 			var tcpClient = new TcpClient()
@@ -246,7 +252,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			}
 
 			// send handshake
-			var secWebSocketKey = CryptoService.GenerateRandomKey(16).ToBase64();
+			var requestAcceptKey = CryptoService.GenerateRandomKey(16).ToBase64();
 			var handshake =
 				$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
 				$"Host: {uri.Host}:{uri.Port}\r\n" +
@@ -254,9 +260,13 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				$"Connection: Upgrade\r\n" +
 				$"Upgrade: websocket\r\n" +
 				$"Client: VIEApps NGX WebSockets\r\n" +
-				$"Sec-WebSocket-Key: {secWebSocketKey}\r\n" +
+				$"Sec-WebSocket-Key: {requestAcceptKey}\r\n" +
 				$"Sec-WebSocket-Version: {WEBSOCKET_VERSION}\r\n";
-			options.AdditionalHttpHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
+			if (!string.IsNullOrWhiteSpace(subProtocol))
+				handshake += $"Sec-WebSocket-Protocol: {subProtocol}\r\n";
+			if (!string.IsNullOrWhiteSpace(options.Extensions))
+				handshake += $"Sec-WebSocket-Extensions: {options.Extensions}\r\n";
+			options.AdditionalHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
 
 			Events.Log.SendingHandshake(id, handshake);
 			await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, cancellationToken).ConfigureAwait(false);
@@ -298,12 +308,12 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				}
 			}
 
-			// check the accept key
+			// check the accepted key
 			match = new Regex("Sec-WebSocket-Accept: (.*)").Match(response);
 			var actualAcceptKey = match.Success
 				? match.Groups[1].Value.Trim()
 				: null;
-			var expectedAcceptKey = WebSocketHelper.ComputeAcceptKey(secWebSocketKey);
+			var expectedAcceptKey = WebSocketHelper.ComputeAcceptKey(requestAcceptKey);
 			if (!expectedAcceptKey.IsEquals(actualAcceptKey))
 			{
 				var warning = $"Handshake failed because the accept key from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"";
@@ -313,8 +323,14 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			else
 				Events.Log.ClientHandshakeSuccess(id);
 
+			// get the accepted sub-protocol
+			match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(response);
+			options.SubProtocol = match.Success
+				? match.Groups[1].Value.Trim()
+				: null;
+
 			// return the connected WebSocket connection
-			return new WebSocketImplementation(id, true, recycledStreamFactory, stream, options.KeepAliveInterval, options.SecWebSocketExtensions, options.IncludeExceptionInCloseResponse)
+			return new WebSocketImplementation(id, true, recycledStreamFactory, stream, options)
 			{
 				RequestUri = uri,
 				LocalEndPoint = tcpClient.Client.LocalEndPoint,

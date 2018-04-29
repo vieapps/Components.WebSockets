@@ -21,11 +21,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		readonly Func<MemoryStream> _recycledStreamFactory;
 		readonly Stream _stream;
 		readonly IPingPongManager _pingpongManager;
-		readonly bool _usePerMessageDeflate = false;
 		WebSocketState _state;
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
-		string _closeStatusDescription;
+		string _closeStatusDescription, _subProtocol;
 		bool _isContinuationFrame, _tryGetBufferFailureLogged = false, _writting = false;
 		CancellationTokenSource _readingCTS;
 		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
@@ -50,7 +49,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Gets the subprotocol that was negotiated during the opening handshake
 		/// </summary>
-		public override string SubProtocol => null;
+		public override string SubProtocol => this._subProtocol;
 
 		/// <summary>
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
@@ -58,7 +57,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		internal WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, TimeSpan keepAliveInterval, string secWebSocketExtensions, bool includeExceptionInCloseResponse)
+		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options)
 		{
 			this.ID = id;
 			this.IsClient = isClient;
@@ -66,25 +65,19 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._stream = stream;
 			this._state = WebSocketState.Open;
+			this._subProtocol = options.SubProtocol;
 			this._readingCTS = new CancellationTokenSource();
 
-			this.IncludeExceptionInCloseResponse = includeExceptionInCloseResponse;
-			this.KeepAliveInterval = keepAliveInterval;
+			this.KeepAliveInterval = options.KeepAliveInterval;
 			if (this.KeepAliveInterval.Ticks < 0)
-				throw new ArgumentException("Keep-Alive interval must be Zero or positive", nameof(keepAliveInterval));
+				throw new ArgumentException("Keep-Alive interval must be Zero or positive");
 
 			if (this.KeepAliveInterval == TimeSpan.Zero)
 				Events.Log.KeepAliveIntervalZero(this.ID);
 			else
 				this._pingpongManager = new PingPongManager(this.ID, this, this.KeepAliveInterval, this._readingCTS.Token);
 
-			if (secWebSocketExtensions?.IndexOf("permessage-deflate") >= 0)
-			{
-				this._usePerMessageDeflate = true;
-				Events.Log.UsePerMessageDeflate(this.ID);
-			}
-			else
-				Events.Log.NoMessageCompression(this.ID);
+			this.IncludeExceptionInCloseResponse = options.IncludeExceptionInCloseResponse;
 		}
 
 		#region Receive messages
@@ -93,7 +86,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// </summary>
 		/// <param name="buffer">The buffer to copy data into</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		/// <returns>The web socket result details</returns>
+		/// <returns></returns>
 		public override async Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			try
@@ -107,7 +100,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 						WebSocketFrame frame = null;
 						try
 						{
-							frame = await FrameReaderWriter.ReadAsync(this._stream, buffer, cts.Token).ConfigureAwait(false);
+							frame = await WebSocketFrame.ReadAsync(this._stream, buffer, cts.Token).ConfigureAwait(false);
 							Events.Log.ReceivedFrame(this.ID, frame.OpCode, frame.IsFinBitSet, frame.Count);
 						}
 						catch (InternalBufferOverflowException ex)
@@ -183,35 +176,20 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 		#region Send messages
 		/// <summary>
-		/// Sends data over the WebSocket connection 
+		/// Sends data over the WebSocket connection asynchronously
 		/// </summary>
 		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type. Can be Text or Binary</param>
-		/// <param name="endOfMessage">True if this message is a standalone message (this is the norm)
-		/// If it is a multi-part message then false (and true for the last message)</param>
+		/// <param name="messageType">The message type, can be Text or Binary</param>
+		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">the cancellation token</param>
+		/// <returns></returns>
 		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
 		{
 			using (var stream = this._recycledStreamFactory())
 			{
 				var opCode = this.GetOpCode(messageType);
-
-				// NOTE: Compression is currently work in progress and should NOT be used.
-				// The code below is very inefficient for small messages. Ideally we would like to have some sort of moving window of data to get the best compression.
-				// And we don't want to create new buffers which is bad for GC.
-				if (this._usePerMessageDeflate)
-				{
-					var compressedBuffer = buffer.Compress();
-					FrameReaderWriter.Write(opCode, compressedBuffer, stream, endOfMessage, this.IsClient);
-					Events.Log.SendingFrame(this.ID, opCode, endOfMessage, compressedBuffer.Count, true);
-				}
-
-				else
-				{
-					FrameReaderWriter.Write(opCode, buffer, stream, endOfMessage, this.IsClient);
-					Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
-				}
-
+				WebSocketFrame.Write(opCode, buffer, stream, endOfMessage, this.IsClient);
+				Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
 				await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				this._isContinuationFrame = !endOfMessage;
 			}
@@ -222,6 +200,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Calls this automatically from server side each KeepAliveInterval period (ping payload must be 125 bytes or less)
 		/// </summary>
+		/// <param name="payload"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
 		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			if (payload.Count > MAX_PING_PONG_PAYLOAD_LENGTH)
@@ -230,7 +211,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())
 				{
-					FrameReaderWriter.Write(WebSocketOpCode.Ping, payload, stream, true, this.IsClient);
+					WebSocketFrame.Write(WebSocketOpCode.Ping, payload, stream, true, this.IsClient);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.Ping, true, payload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
@@ -257,7 +238,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				if (this._state == WebSocketState.Open)
 					using (var stream = this._recycledStreamFactory())
 					{
-						FrameReaderWriter.Write(WebSocketOpCode.Pong, payload, stream, true, this.IsClient);
+						WebSocketFrame.Write(WebSocketOpCode.Pong, payload, stream, true, this.IsClient);
 						Events.Log.SendingFrame(this.ID, WebSocketOpCode.Pong, true, payload.Count, false);
 						await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					}
@@ -290,17 +271,15 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public override async Task CloseAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
 		{
 			if (this._state == WebSocketState.Open)
-			{
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
-					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
+					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
 					Events.Log.CloseHandshakeStarted(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._state = WebSocketState.CloseSent;
 				}
-			}
 			else
 				Events.Log.InvalidStateBeforeClose(this.ID, this._state);
 		}
@@ -323,7 +302,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
-					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
+					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
 					Events.Log.CloseOutputNoHandshake(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -337,7 +316,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Aborts the WebSocket without sending a Close frame
+		/// Aborts the WebSocket without sending a close frame
 		/// </summary>
 		public override void Abort()
 		{
@@ -433,7 +412,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 
 				using (var stream = this._recycledStreamFactory())
 				{
-					FrameReaderWriter.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.IsClient);
+					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.IsClient);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
@@ -471,6 +450,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._buffers.Enqueue(buffer);
 			if (this._writting)
 			{
+				Events.Log.PendingOperations(this.ID);
 				var logger = Logger.CreateLogger<WebSocketImplementation>();
 				if (logger.IsEnabled(LogLevel.Debug))
 					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
