@@ -6,6 +6,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Net.Security;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -102,7 +104,7 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
 
-		#region Listen incomming connection request as server
+		#region Listen incomming connection requests as server
 		/// <summary>
 		/// Starts to listen for client requests as a <see cref="WebSocket">WebSocket</see> server
 		/// </summary>
@@ -229,12 +231,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				this.StopListen(false);
 				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
-				{
-					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogInformation($"Listener is stoped ({ex.GetType().GetTypeName(true)})");
-					else
-						this._logger.LogInformation($"Listener is stoped");
-				}
+					this._logger.LogInformation($"Listener is stoped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType().GetTypeName(true)})" : "")}");
 				else
 					this._logger.LogError(ex, $"Listener is stoped ({ex.Message})");
 			}
@@ -282,10 +279,19 @@ namespace net.vieapps.Components.WebSockets
 				// parse request
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation("The connection is opened, then read the HTTP header from the stream");
-				var context = await Implementation.WebSocketContext.ParseAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
+
+				var isWebSocketUpgradeRequest = false;
+				var path = string.Empty;
+				var header = await WebSocketHelper.ReadHttpHeaderAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
+				var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(header);
+				if (match.Success)
+				{
+					isWebSocketUpgradeRequest = new Regex("Upgrade: websocket", RegexOptions.IgnoreCase).Match(header).Success;
+					path = match.Groups[1].Value.Trim();
+				}
 
 				// verify request
-				if (!context.IsWebSocketRequest)
+				if (!isWebSocketUpgradeRequest)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
 						this._logger.LogInformation("The HTTP header contains no WebSocket upgrade request, then ignore");
@@ -295,20 +301,90 @@ namespace net.vieapps.Components.WebSockets
 					return;
 				}
 
-				// accept the connection
+				// accept the request
+				var options = new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval };
+				Events.Log.AcceptWebSocketStarted(id);
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation("The HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
 
-				websocket = await WebSocketHelper.AcceptAsync(id, context, this._recycledStreamFactory, new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval }, this.SupportedSubProtocols, this._listeningCTS.Token).ConfigureAwait(false);
-				websocket.RequestUri = new Uri($"ws{(this.Certificate != null ? "s" : "")}://{context.Host}{context.Path}");
-				websocket.LocalEndPoint = tcpClient.Client.LocalEndPoint;
-				websocket.RemoteEndPoint = tcpClient.Client.RemoteEndPoint;
-				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
+				try
+				{
+					// check the version (support version 13 and above)
+					match = new Regex("Sec-WebSocket-Version: (.*)").Match(header);
+					if (match.Success)
+					{
+						var secWebSocketVersion = match.Groups[1].Value.Trim().CastAs<int>();
+						if (secWebSocketVersion < WebSocketHelper.WEBSOCKET_VERSION)
+							throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} is not supported, must be {WebSocketHelper.WEBSOCKET_VERSION} or above");
+					}
+					else
+						throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in the HTTP header");
 
+					// get the request key
+					match = new Regex("Sec-WebSocket-Key: (.*)").Match(header);
+					var requestKey = match.Success
+						? match.Groups[1].Value.Trim()
+						: throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from the HTTP header");
+
+					// prepare subprotocol & extensions
+					match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(header);
+					options.SubProtocol = match.Success
+						? WebSocketHelper.NegotiateSubProtocol(this.SupportedSubProtocols ?? new string[0], match.Groups[1].Value.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+						: null;
+
+					match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(header);
+					options.Extensions = match.Success
+						? match.Groups[1].Value.Trim()
+						: null;
+
+					// handshake
+					var handshake =
+						$"HTTP/1.1 101 Switching Protocols\r\n" +
+						$"Connection: Upgrade\r\n" +
+						$"Upgrade: websocket\r\n" +
+						$"Server: VIEApps NGX WebSockets\r\n" +
+						$"Sec-WebSocket-Accept: {WebSocketHelper.ComputeAcceptKey(requestKey)}\r\n";
+					if (!string.IsNullOrWhiteSpace(options.SubProtocol))
+						handshake += $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n";
+					options.AdditionalHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
+
+					Events.Log.SendingHandshake(id, handshake);
+					await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, this._listeningCTS.Token).ConfigureAwait(false);
+					Events.Log.HandshakeSent(id, handshake);
+				}
+				catch (VersionNotSupportedException ex)
+				{
+					Events.Log.WebSocketVersionNotSupported(id, ex.ToString());
+					var response = $"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: {WebSocketHelper.WEBSOCKET_VERSION}\r\nException: {ex.Message}";
+					await WebSocketHelper.WriteHttpHeaderAsync(response, stream, this._listeningCTS.Token).ConfigureAwait(false);
+					throw;
+				}
+				catch (Exception ex)
+				{
+					Events.Log.BadRequest(id, ex.ToString());
+					await WebSocketHelper.WriteHttpHeaderAsync("HTTP/1.1 400 Bad Request", stream, this._listeningCTS.Token).ConfigureAwait(false);
+					throw;
+				}
+
+				Events.Log.ServerHandshakeSuccess(id);
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({websocket.ID} @ {websocket.RemoteEndPoint})");
 
-				// event
+				// update connection
+				match = new Regex("Host: (.*)").Match(header);
+				var host = match.Success
+					? match.Groups[1].Value.Trim()
+					: string.Empty;
+
+				websocket = new WebSocketImplementation(id, false, this._recycledStreamFactory, stream, options)
+				{
+					RequestUri = new Uri($"ws{(this.Certificate != null ? "s" : "")}://{host}{path}"),
+					RemoteEndPoint = tcpClient.Client.RemoteEndPoint,
+					LocalEndPoint = tcpClient.Client.LocalEndPoint
+				};
+				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
+
+				// callback
 				this.OnConnectionEstablished?.Invoke(websocket);
 
 				// receive messages
@@ -316,34 +392,162 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogDebug(ex, $"Error occurred while accepting an incomming connection request: {ex.Message}");
 				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
 				{
 					// normal, do nothing
 				}
 				else
+				{
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.LogDebug(ex, $"Error occurred while accepting an incomming connection request: {ex.Message}");
 					this.OnError?.Invoke(websocket, ex);
+				}
 			}
 		}
 		#endregion
 
 		#region Connect to remote endpoints as client
-		async Task ConnectAsync(Uri uri, string subProtocol = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
+			if (this._logger.IsEnabled(LogLevel.Trace))
+				this._logger.LogDebug($"Attempting to connect to \"{uri}\"...");
+
 			try
 			{
-				// connect
-				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogDebug($"Attempting to connect to \"{uri}\"...");
+				// connect the TCP client
+				var id = Guid.NewGuid();
+				var tcpClient = new TcpClient() { NoDelay = options.NoDelay };
 
-				var websocket = await WebSocketHelper.ConnectAsync(Guid.NewGuid(), uri, new WebSocketOptions(), this._recycledStreamFactory, subProtocol, this._processingCTS.Token).ConfigureAwait(false);
+				if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
+				{
+					Events.Log.ClientConnectingToIPAddress(id, ipAddress.ToString(), uri.Port);
+					await tcpClient.ConnectAsync(ipAddress, uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+				}
+				else
+				{
+					Events.Log.ClientConnectingToHost(id, uri.Host, uri.Port);
+					await tcpClient.ConnectAsync(uri.Host, uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+				}
+
+				// get the connected stream
+				Stream stream = null;
+				if (uri.Scheme.IsEquals("wss") || uri.Scheme.IsEquals("https"))
+				{
+					stream = new SslStream(
+						tcpClient.GetStream(),
+						false,
+						(sender, certificate, chain, sslPolicyErrors) =>
+						{
+							if (sslPolicyErrors == SslPolicyErrors.None)
+								return true;
+
+							Events.Log.SslCertificateError(sslPolicyErrors);
+							return false;
+						},
+						null
+					);
+					Events.Log.AttemptingToSecureConnection(id);
+
+					await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+					Events.Log.ConnectionSecured(id);
+				}
+				else
+				{
+					Events.Log.ConnectionNotSecured(id);
+					stream = tcpClient.GetStream();
+				}
+
+				// send handshake
+				var requestAcceptKey = CryptoService.GenerateRandomKey(16).ToBase64();
+				var handshake =
+					$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
+					$"Host: {uri.Host}:{uri.Port}\r\n" +
+					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}:{uri.Port}\r\n" +
+					$"Connection: Upgrade\r\n" +
+					$"Upgrade: websocket\r\n" +
+					$"Client: VIEApps NGX WebSockets\r\n" +
+					$"Sec-WebSocket-Key: {requestAcceptKey}\r\n" +
+					$"Sec-WebSocket-Version: {WebSocketHelper.WEBSOCKET_VERSION}\r\n";
+				if (!string.IsNullOrWhiteSpace(options.SubProtocol))
+					handshake += $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n";
+				if (!string.IsNullOrWhiteSpace(options.Extensions))
+					handshake += $"Sec-WebSocket-Extensions: {options.Extensions}\r\n";
+				options.AdditionalHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
+
+				Events.Log.SendingHandshake(id, handshake);
+				await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, this._processingCTS.Token).ConfigureAwait(false);
+				Events.Log.HandshakeSent(id, handshake);
+
+				// read response
+				Events.Log.ReadingHttpResponse(id);
+				var response = string.Empty;
+				try
+				{
+					response = await WebSocketHelper.ReadHttpHeaderAsync(stream, this._processingCTS.Token).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					Events.Log.ReadHttpResponseError(id, ex.ToString());
+					throw new HandshakeFailedException("Handshake unexpected failure", ex);
+				}
+
+				// throw if got invalid response code
+				var match = new Regex(@"HTTP\/1\.1 (.*)", RegexOptions.IgnoreCase).Match(response);
+				var responseCode = match.Success
+					? match.Groups[1].Value.Trim()
+					: null;
+				if (!"101 Switching Protocols".IsEquals(responseCode))
+				{
+					var lines = response.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+					for (var index = 0; index < lines.Length; index++)
+					{
+						// if there is more to the message than just the header
+						if (string.IsNullOrWhiteSpace(lines[index]))
+						{
+							var builder = new StringBuilder();
+							for (var idx = index + 1; idx < lines.Length - 1; idx++)
+								builder.AppendLine(lines[idx]);
+
+							var responseDetails = builder.ToString();
+							throw new InvalidHttpResponseCodeException(responseCode, responseDetails, response);
+						}
+					}
+				}
+
+				// check the accepted key
+				match = new Regex("Sec-WebSocket-Accept: (.*)").Match(response);
+				var actualAcceptKey = match.Success
+					? match.Groups[1].Value.Trim()
+					: null;
+				var expectedAcceptKey = WebSocketHelper.ComputeAcceptKey(requestAcceptKey);
+				if (!expectedAcceptKey.IsEquals(actualAcceptKey))
+				{
+					var warning = $"Handshake failed because the accept key from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"";
+					Events.Log.HandshakeFailure(id, warning);
+					throw new HandshakeFailedException(warning);
+				}
+				else
+					Events.Log.ClientHandshakeSuccess(id);
+
+				// get the accepted sub-protocol
+				match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(response);
+				options.SubProtocol = match.Success
+					? match.Groups[1].Value.Trim()
+					: null;
+
+				// update the connection
+				var websocket = new WebSocketImplementation(id, true, this._recycledStreamFactory, stream, options)
+				{
+					RequestUri = uri,
+					RemoteEndPoint = tcpClient.Client.RemoteEndPoint,
+					LocalEndPoint = tcpClient.Client.LocalEndPoint
+				};
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogDebug($"Endpoint is connected \"{uri}\" => {websocket.ID} @ {websocket.RemoteEndPoint}");
 
-				// event
+				// callback
 				this.OnConnectionEstablished?.Invoke(websocket);
 				onSuccess?.Invoke(websocket);
 
@@ -356,6 +560,11 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError(ex, $"Could not connect to \"{uri}\": {ex.Message}");
 				onFailed?.Invoke(ex);
 			}
+		}
+
+		Task ConnectAsync(Uri uri, string subProtocol = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		{
+			return this.ConnectAsync(uri, new WebSocketOptions { SubProtocol = subProtocol }, onSuccess, onFailed);
 		}
 
 		/// <summary>
@@ -400,30 +609,28 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
 		/// <param name="requestUri">The request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="onSuccess">Action to fire when wrap successful</param>
-		/// <param name="onFailed">Action to fire when failed to wrap</param>
-		public void Wrap(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint localEndPoint = null, EndPoint remoteEndPoint = null, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null)
 		{
 			try
 			{
-				// create new instance
-				var websocket = new WebSocketWrapper(webSocket, requestUri, localEndPoint, remoteEndPoint);
+				// create
+				var websocket = new WebSocketWrapper(webSocket, requestUri, remoteEndPoint, localEndPoint);
 				this.AddWebSocket(websocket);
 
 				// event
 				this.OnConnectionEstablished?.Invoke(websocket);
-				onSuccess?.Invoke(websocket);
 
 				// receive messages
-				this.Receive(websocket);
+				return this.ReceiveAsync(websocket);
 			}
 			catch (Exception ex)
 			{
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogError(ex, $"Cannot wrap the WebSocket connection of ASP.NET / ASP.NET Core: {ex.Message}");
-				onFailed?.Invoke(ex);
+					this._logger.LogError(ex, $"Unable to wrap a WebSocket connection of ASP.NET / ASP.NET Core: {ex.Message}");
+				return Task.FromException(new WrapWebSocketFailedException("Unable to wrap a WebSocket connection of ASP.NET / ASP.NET Core", ex));
 			}
 		}
 		#endregion

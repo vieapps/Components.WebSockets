@@ -79,7 +79,58 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				this._pingpongManager = new PingPongManager(this, this._readingCTS.Token);
 		}
 
-		#region Receive messages
+		/// <summary>
+		/// Puts data on the wire
+		/// </summary>
+		/// <param name="stream">The stream to read data from</param>
+		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
+		{
+			// avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
+			// we avoid this by attempting to access the internal memory stream buffer
+			// this works with supported streams like the recyclable memory stream and writable memory streams
+			if (!stream.TryGetBuffer(out ArraySegment<byte> buffer))
+			{
+				if (!this._tryGetBufferFailureLogged)
+				{
+					Events.Log.TryGetBufferNotSupported(this.ID, stream.GetType()?.ToString());
+					this._tryGetBufferFailureLogged = true;
+				}
+
+				// internal buffer not suppoted, fall back to ToArray()
+				buffer = stream.ToArray().ToArraySegment();
+			}
+			else
+				buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
+
+			// add into queue and check pending write operations
+			this._buffers.Enqueue(buffer);
+			if (this._writting)
+			{
+				Events.Log.PendingOperations(this.ID);
+				var logger = Logger.CreateLogger<WebSocketImplementation>();
+				if (logger.IsEnabled(LogLevel.Debug))
+					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+				return;
+			}
+
+			// put data to wire
+			this._writting = true;
+			try
+			{
+				while (this._buffers.Count > 0)
+					if (this._buffers.TryDequeue(out buffer))
+						await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+			}
+			catch (Exception)
+			{
+				throw;
+			}
+			finally
+			{
+				this._writting = false;
+			}
+		}
+
 		/// <summary>
 		/// Receives data from the WebSocket connection asynchronously
 		/// </summary>
@@ -171,49 +222,51 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				throw;
 			}
 		}
-		#endregion
 
-		#region Send messages
 		/// <summary>
-		/// Sends data over the WebSocket connection asynchronously
+		/// Called when a Close frame is received
+		/// Send a response close frame if applicable
 		/// </summary>
-		/// <param name="buffer">The buffer containing data to send</param>
-		/// <param name="messageType">The message type, can be Text or Binary</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
-		/// <param name="cancellationToken">the cancellation token</param>
-		/// <returns></returns>
-		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+		async Task<WebSocketReceiveResult> RespondToCloseFrameAsync(WebSocketFrame frame, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
-			using (var stream = this._recycledStreamFactory())
+			this._closeStatus = frame.CloseStatus;
+			this._closeStatusDescription = frame.CloseStatusDescription;
+
+			// this is a response to close handshake initiated by this instance
+			if (this._state == WebSocketState.CloseSent)
 			{
-				var opCode = this.GetOpCode(messageType);
-				WebSocketFrame.Write(opCode, buffer, stream, endOfMessage, this.IsClient);
-				Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
-				await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
-				this._isContinuationFrame = !endOfMessage;
+				this._state = WebSocketState.Closed;
+				Events.Log.CloseHandshakeComplete(this.ID);
 			}
-		}
-		#endregion
 
-		#region Send ping/pong
-		/// <summary>
-		/// Calls this automatically from server side each KeepAliveInterval period (ping payload must be 125 bytes or less)
-		/// </summary>
-		/// <param name="payload"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
-		{
-			if (payload.Count > MAX_PING_PONG_PAYLOAD_LENGTH)
-				throw new InvalidOperationException($"Cannot send Ping: Max ping message size {MAX_PING_PONG_PAYLOAD_LENGTH} exceeded: {payload.Count}");
-
-			if (this._state == WebSocketState.Open)
+			// this is in response to a close handshake initiated by the remote instance
+			else if (this._state == WebSocketState.Open)
+			{
+				var closePayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count);
+				this._state = WebSocketState.CloseReceived;
+				Events.Log.CloseHandshakeRespond(this.ID, frame.CloseStatus, frame.CloseStatusDescription);
 				using (var stream = this._recycledStreamFactory())
 				{
-					WebSocketFrame.Write(WebSocketOpCode.Ping, payload, stream, true, this.IsClient);
-					Events.Log.SendingFrame(this.ID, WebSocketOpCode.Ping, true, payload.Count, false);
+					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.IsClient);
+					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
 					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
+			}
+
+			// unexpected state
+			else
+				Events.Log.CloseFrameReceivedInUnexpectedState(this.ID, this._state, frame.CloseStatus, frame.CloseStatusDescription);
+
+			return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Close, frame.IsFinBitSet, frame.CloseStatus, frame.CloseStatusDescription);
+		}
+
+		/// <summary>
+		/// Called when a Pong frame is received
+		/// </summary>
+		/// <param name="args"></param>
+		protected virtual void OnPong(PongEventArgs args)
+		{
+			this.Pong?.Invoke(this, args);
 		}
 
 		/// <summary>
@@ -250,16 +303,84 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		/// <summary>
-		/// Called when a Pong frame is received
+		/// Calls this automatically from server side each KeepAliveInterval period (ping payload must be 125 bytes or less)
 		/// </summary>
-		/// <param name="args"></param>
-		protected virtual void OnPong(PongEventArgs args)
+		/// <param name="payload"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
-			this.Pong?.Invoke(this, args);
-		}
-		#endregion
+			if (payload.Count > MAX_PING_PONG_PAYLOAD_LENGTH)
+				throw new InvalidOperationException($"Cannot send Ping: Max ping message size {MAX_PING_PONG_PAYLOAD_LENGTH} exceeded: {payload.Count}");
 
-		#region Close connection
+			if (this._state == WebSocketState.Open)
+				using (var stream = this._recycledStreamFactory())
+				{
+					WebSocketFrame.Write(WebSocketOpCode.Ping, payload, stream, true, this.IsClient);
+					Events.Log.SendingFrame(this.ID, WebSocketOpCode.Ping, true, payload.Count, false);
+					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+				}
+		}
+
+		/// <summary>
+		/// Turns a spec websocket frame opcode into a WebSocketMessageType
+		/// </summary>
+		WebSocketOpCode GetOpCode(WebSocketMessageType messageType)
+		{
+			if (this._isContinuationFrame)
+				return WebSocketOpCode.Continuation;
+
+			switch (messageType)
+			{
+				case WebSocketMessageType.Binary:
+					return WebSocketOpCode.Binary;
+
+				case WebSocketMessageType.Text:
+					return WebSocketOpCode.Text;
+
+				case WebSocketMessageType.Close:
+					throw new NotSupportedException("Cannot use Send function to send a close frame, change to use Close function");
+
+				default:
+					throw new NotSupportedException($"MessageType \"{messageType}\" is not supported");
+			}
+		}
+
+		/// <summary>
+		/// Sends data over the WebSocket connection asynchronously
+		/// </summary>
+		/// <param name="buffer">The buffer containing data to send</param>
+		/// <param name="messageType">The message type, can be Text or Binary</param>
+		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
+		/// <param name="cancellationToken">the cancellation token</param>
+		/// <returns></returns>
+		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+		{
+			using (var stream = this._recycledStreamFactory())
+			{
+				var opCode = this.GetOpCode(messageType);
+				WebSocketFrame.Write(opCode, buffer, stream, endOfMessage, this.IsClient);
+				Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
+				await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+				this._isContinuationFrame = !endOfMessage;
+			}
+		}
+
+		/// <summary>
+		/// As per the spec, write the close status followed by the close reason
+		/// </summary>
+		/// <param name="closeStatus">The close status</param>
+		/// <param name="closeStatusDescription">Optional extra close details</param>
+		/// <returns>The payload to sent in the close frame</returns>
+		ArraySegment<byte> BuildClosePayload(WebSocketCloseStatus closeStatus, string closeStatusDescription)
+		{
+			var buffer = ((ushort)closeStatus).ToBytes();
+			Array.Reverse(buffer); // network byte order (big endian)
+			return string.IsNullOrWhiteSpace(closeStatusDescription)
+				? buffer.ToArraySegment()
+				: buffer.Concat(closeStatusDescription.ToBytes()).ToArraySegment();
+		}
+
 		/// <summary>
 		/// Polite close (use the close handshake)
 		/// </summary>
@@ -322,9 +443,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._state = WebSocketState.Aborted;
 			this._readingCTS.Cancel();
 		}
-		#endregion
 
-		#region Dispose
 		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
 		{
 			return base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
@@ -345,135 +464,5 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this.Dispose();
 			GC.SuppressFinalize(this);
 		}
-		#endregion
-
-		#region Helpers
-		/// <summary>
-		/// Turns a spec websocket frame opcode into a WebSocketMessageType
-		/// </summary>
-		WebSocketOpCode GetOpCode(WebSocketMessageType messageType)
-		{
-			if (this._isContinuationFrame)
-				return WebSocketOpCode.Continuation;
-
-			switch (messageType)
-			{
-				case WebSocketMessageType.Binary:
-					return WebSocketOpCode.Binary;
-
-				case WebSocketMessageType.Text:
-					return WebSocketOpCode.Text;
-
-				case WebSocketMessageType.Close:
-					throw new NotSupportedException("Cannot use Send function to send a close frame, change to use Close function");
-
-				default:
-					throw new NotSupportedException($"MessageType \"{messageType}\" is not supported");
-			}
-		}
-
-		/// <summary>
-		/// As per the spec, write the close status followed by the close reason
-		/// </summary>
-		/// <param name="closeStatus">The close status</param>
-		/// <param name="closeStatusDescription">Optional extra close details</param>
-		/// <returns>The payload to sent in the close frame</returns>
-		ArraySegment<byte> BuildClosePayload(WebSocketCloseStatus closeStatus, string closeStatusDescription)
-		{
-			var buffer = ((ushort)closeStatus).ToBytes();
-			Array.Reverse(buffer); // network byte order (big endian)
-			return string.IsNullOrWhiteSpace(closeStatusDescription)
-				? buffer.ToArraySegment()
-				: buffer.Concat(closeStatusDescription.ToBytes()).ToArraySegment();
-		}
-
-		/// <summary>
-		/// Called when a Close frame is received
-		/// Send a response close frame if applicable
-		/// </summary>
-		async Task<WebSocketReceiveResult> RespondToCloseFrameAsync(WebSocketFrame frame, ArraySegment<byte> buffer, CancellationToken cancellationToken)
-		{
-			this._closeStatus = frame.CloseStatus;
-			this._closeStatusDescription = frame.CloseStatusDescription;
-
-			if (this._state == WebSocketState.CloseSent)
-			{
-				// this is a response to close handshake initiated by this instance
-				this._state = WebSocketState.Closed;
-				Events.Log.CloseHandshakeComplete(this.ID);
-			}
-			else if (this._state == WebSocketState.Open)
-			{
-				// this is in response to a close handshake initiated by the remote instance
-				var closePayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count);
-				this._state = WebSocketState.CloseReceived;
-				Events.Log.CloseHandshakeRespond(this.ID, frame.CloseStatus, frame.CloseStatusDescription);
-
-				using (var stream = this._recycledStreamFactory())
-				{
-					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.IsClient);
-					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
-					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
-				}
-			}
-			else
-				Events.Log.CloseFrameReceivedInUnexpectedState(this.ID, this._state, frame.CloseStatus, frame.CloseStatusDescription);
-
-			return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Close, frame.IsFinBitSet, frame.CloseStatus, frame.CloseStatusDescription);
-		}
-
-		/// <summary>
-		/// Puts data on the wire
-		/// </summary>
-		/// <param name="stream">The stream to read data from</param>
-		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
-		{
-			// avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
-			// we avoid this by attempting to access the internal memory stream buffer
-			// this works with supported streams like the recyclable memory stream and writable memory streams
-			if (!stream.TryGetBuffer(out ArraySegment<byte> buffer))
-			{
-				if (!this._tryGetBufferFailureLogged)
-				{
-					Events.Log.TryGetBufferNotSupported(this.ID, stream.GetType()?.ToString());
-					this._tryGetBufferFailureLogged = true;
-				}
-
-				// internal buffer not suppoted, fall back to ToArray()
-				buffer = stream.ToArray().ToArraySegment();
-			}
-			else
-				buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
-
-			// add into queue and check pending write operations
-			this._buffers.Enqueue(buffer);
-			if (this._writting)
-			{
-				Events.Log.PendingOperations(this.ID);
-				var logger = Logger.CreateLogger<WebSocketImplementation>();
-				if (logger.IsEnabled(LogLevel.Debug))
-					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
-				return;
-			}
-
-			// put data to wire
-			this._writting = true;
-			try
-			{
-				while (this._buffers.Count > 0)
-					if (this._buffers.TryDequeue(out buffer))
-						await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception)
-			{
-				throw;
-			}
-			finally
-			{
-				this._writting = false;
-			}
-		}
-		#endregion
-
 	}
 }

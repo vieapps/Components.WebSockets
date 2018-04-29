@@ -20,6 +20,16 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public Guid ID { get; internal set; }
 
 		/// <summary>
+		/// Gets the state that indicates the <see cref="WebSocket">WebSocket</see> connection is client mode or not (client mode means the <see cref="WebSocket">WebSocket</see> connection is connected to a remote endpoint)
+		/// </summary>
+		public bool IsClient { get; internal set; } = false;
+
+		/// <summary>
+		/// Gets or sets the keep-alive interval (seconds) the <see cref="WebSocket">WebSocket</see> connection (for send ping message from server)
+		/// </summary>
+		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
+
+		/// <summary>
 		/// Gets the time-stamp when the <see cref="WebSocket">WebSocket</see> connection is established
 		/// </summary>
 		public DateTime Timestamp { get; internal set; } = DateTime.Now;
@@ -30,24 +40,14 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public Uri RequestUri { get; internal set; }
 
 		/// <summary>
-		/// Gets the local endpoint of the <see cref="WebSocket">WebSocket</see> connection
-		/// </summary>
-		public EndPoint LocalEndPoint { get; internal set; }
-
-		/// <summary>
 		/// Gets the remote endpoint of the <see cref="WebSocket">WebSocket</see> connection
 		/// </summary>
 		public EndPoint RemoteEndPoint { get; internal set; }
 
 		/// <summary>
-		/// Gets the state that indicates the <see cref="WebSocket">WebSocket</see> connection is client mode or not (client mode means the <see cref="WebSocket">WebSocket</see> connection is connected to a remote endpoint)
+		/// Gets the local endpoint of the <see cref="WebSocket">WebSocket</see> connection
 		/// </summary>
-		public bool IsClient { get; internal set; }
-
-		/// <summary>
-		/// Gets or sets the keep-alive interval (seconds) the <see cref="WebSocket">WebSocket</see> connection (for send ping message from server)
-		/// </summary>
-		public TimeSpan KeepAliveInterval { get; set; }
+		public EndPoint LocalEndPoint { get; internal set; }
 
 		/// <summary>
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed

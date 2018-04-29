@@ -41,25 +41,16 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
-		protected override bool IncludeExceptionInCloseResponse { get; }
+		protected override bool IncludeExceptionInCloseResponse { get; } = false;
 		#endregion
 
-		public WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint localEndPoint = null, EndPoint remoteEndPoint = null)
+		public WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null)
 		{
 			this._websocket = websocket;
 			this.ID = Guid.NewGuid();
-			this.IsClient = false;
-			this.KeepAliveInterval = TimeSpan.Zero;
-			this.IncludeExceptionInCloseResponse = false;
 			this.RequestUri = requestUri;
-			this.LocalEndPoint = localEndPoint;
 			this.RemoteEndPoint = remoteEndPoint;
-		}
-
-		~WebSocketWrapper()
-		{
-			this.Dispose();
-			GC.SuppressFinalize(this);
+			this.LocalEndPoint = localEndPoint;
 		}
 
 		/// <summary>
@@ -98,7 +89,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this._writting = true;
 			try
 			{
-				while (this._buffers.Count > 0)
+				while (this.State == WebSocketState.Open && this._buffers.Count > 0)
 					if (this._buffers.TryDequeue(out buffer))
 						await this._websocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
 			}
@@ -142,6 +133,26 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		public override void Abort()
 		{
 			this._websocket.Abort();
+		}
+
+		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
+		{
+			return base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
+			{
+				this.Close();
+				onCompleted?.Invoke();
+			});
+		}
+
+		internal override void Close()
+		{
+			this._websocket.Dispose();
+		}
+
+		~WebSocketWrapper()
+		{
+			this.Dispose();
+			GC.SuppressFinalize(this);
 		}
 	}
 }

@@ -21,7 +21,7 @@
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2017 NinjaSource, © 2018 VIEApps.net</Copyright>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Improvement: add wrapper for System.Net.WebSockets.WebSocket connection of ASP.NET/ASP.NET Core</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: add wrapper for WebSocket connections of ASP.NET/ASP.NET Core</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
