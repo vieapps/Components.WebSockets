@@ -250,14 +250,14 @@ namespace net.vieapps.Components.WebSockets
 					{
 						Events.Log.AttemptingToSecureConnection(id);
 						if (this._logger.IsEnabled(LogLevel.Trace))
-							this._logger.LogInformation("Attempting to secure the connection...");
+							this._logger.LogTrace($"Attempting to secure the connection ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 						stream = new SslStream(tcpClient.GetStream(), false);
 						await (stream as SslStream).AuthenticateAsServerAsync(this.Certificate, false, this.SslProtocol, false).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
 						if (this._logger.IsEnabled(LogLevel.Trace))
-							this._logger.LogInformation("The connection successfully secured");
+							this._logger.LogTrace($"The connection successfully secured ({id} @ {tcpClient.Client.RemoteEndPoint})");
 					}
 					catch (OperationCanceledException)
 					{
@@ -278,7 +278,7 @@ namespace net.vieapps.Components.WebSockets
 
 				// parse request
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogInformation("The connection is opened, then read the HTTP header from the stream");
+					this._logger.LogTrace($"The connection is opened, then read the HTTP header from the stream ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 				var isWebSocketUpgradeRequest = false;
 				var path = string.Empty;
@@ -294,7 +294,7 @@ namespace net.vieapps.Components.WebSockets
 				if (!isWebSocketUpgradeRequest)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogInformation("The HTTP header contains no WebSocket upgrade request, then ignore");
+						this._logger.LogTrace($"The HTTP header contains no WebSocket upgrade request, then ignore ({id} @ {tcpClient.Client.RemoteEndPoint})");
 					tcpClient.Client?.Close();
 					tcpClient.Close();
 					stream.Close();
@@ -305,7 +305,7 @@ namespace net.vieapps.Components.WebSockets
 				var options = new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval };
 				Events.Log.AcceptWebSocketStarted(id);
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogInformation("The HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake");
+					this._logger.LogTrace($"The HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 				try
 				{
@@ -326,15 +326,10 @@ namespace net.vieapps.Components.WebSockets
 						? match.Groups[1].Value.Trim()
 						: throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from the HTTP header");
 
-					// prepare subprotocol & extensions
+					// prepare subprotocol
 					match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(header);
 					options.SubProtocol = match.Success
 						? WebSocketHelper.NegotiateSubProtocol(this.SupportedSubProtocols ?? new string[0], match.Groups[1].Value.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
-						: null;
-
-					match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(header);
-					options.Extensions = match.Success
-						? match.Groups[1].Value.Trim()
 						: null;
 
 					// handshake
@@ -368,9 +363,14 @@ namespace net.vieapps.Components.WebSockets
 
 				Events.Log.ServerHandshakeSuccess(id);
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogInformation($"WebSocket handshake response has been sent, the stream is ready ({websocket.ID} @ {websocket.RemoteEndPoint})");
+					this._logger.LogTrace($"WebSocket handshake response has been sent, the stream is ready ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 				// update connection
+				match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(header);
+				options.Extensions = match.Success
+					? match.Groups[1].Value.Trim()
+					: null;
+
 				match = new Regex("Host: (.*)").Match(header);
 				var host = match.Success
 					? match.Groups[1].Value.Trim()
@@ -410,7 +410,7 @@ namespace net.vieapps.Components.WebSockets
 		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			if (this._logger.IsEnabled(LogLevel.Trace))
-				this._logger.LogDebug($"Attempting to connect to \"{uri}\"...");
+				this._logger.LogTrace($"Attempting to connect to \"{uri}\"...");
 
 			try
 			{
@@ -545,7 +545,7 @@ namespace net.vieapps.Components.WebSockets
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 
 				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogDebug($"Endpoint is connected \"{uri}\" => {websocket.ID} @ {websocket.RemoteEndPoint}");
+					this._logger.LogTrace($"Endpoint is connected \"{uri}\" => {websocket.ID} @ {websocket.RemoteEndPoint}");
 
 				// callback
 				this.OnConnectionEstablished?.Invoke(websocket);
@@ -619,6 +619,8 @@ namespace net.vieapps.Components.WebSockets
 				// create
 				var websocket = new WebSocketWrapper(webSocket, requestUri, remoteEndPoint, localEndPoint);
 				this.AddWebSocket(websocket);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogTrace($"Wrap a WebSocket connection of ASP.NET / ASP.NET Core successful ({websocket.ID} @ {websocket.RemoteEndPoint}");
 
 				// event
 				this.OnConnectionEstablished?.Invoke(websocket);
@@ -671,7 +673,7 @@ namespace net.vieapps.Components.WebSockets
 					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
 					{
 						if (this._logger.IsEnabled(LogLevel.Trace))
-							this._logger.LogTrace(ex, $"Close the connection when got an error: {ex.Message}");
+							this._logger.LogTrace($"Stop receiving process when got an error: {ex.Message} ({ex.GetType().GetTypeName(true)})");
 					}
 					else
 					{
@@ -686,7 +688,7 @@ namespace net.vieapps.Components.WebSockets
 				if (result.MessageType == WebSocketMessageType.Close)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogInformation($"The remote endpoint is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "N/A"} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+						this._logger.LogTrace($"The remote endpoint is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "N/A"} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					this.CloseWebSocket(websocket);
 					this.OnConnectionBroken?.Invoke(websocket);
 					return;
@@ -697,7 +699,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketHelper.BufferLength:#,##0} bytes";
 					if (this._logger.IsEnabled(LogLevel.Debug))
-						this._logger.LogInformation($"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+						this._logger.LogDebug($"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					await websocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
 					this.CloseWebSocket(websocket);
 					this.OnConnectionBroken?.Invoke(websocket);
