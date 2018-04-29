@@ -70,11 +70,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <summary>
 		/// Initialises a new instance of the PingPongManager to facilitate ping pong WebSocket messages.
 		/// </summary>
-		/// <param name="webSocket">The WebSocket instance used to listen to ping messages and send pong messages</param>
+		/// <param name="websocket">The WebSocket instance used to listen to ping messages and send pong messages</param>
 		/// <param name="cancellationToken">The token used to cancel a pending ping send AND the automatic sending of ping messages if KeepAliveInterval is positive</param>
-		public PingPongManager(WebSocketImplementation webSocket, CancellationToken cancellationToken)
+		public PingPongManager(WebSocketImplementation websocket, CancellationToken cancellationToken)
 		{
-			this._websocket = webSocket;
+			this._websocket = websocket;
 			this._websocket.Pong += this.DoPong;
 			this._cancellationToken = cancellationToken;
 			this._stopwatch = Stopwatch.StartNew();
