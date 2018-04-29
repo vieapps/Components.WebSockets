@@ -345,6 +345,8 @@ namespace net.vieapps.Components.WebSockets
 					Events.Log.SendingHandshake(id, handshake);
 					await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, this._listeningCTS.Token).ConfigureAwait(false);
 					Events.Log.HandshakeSent(id, handshake);
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.LogTrace($"Handshake details ({id} @ {tcpClient.Client.RemoteEndPoint}) => \r\n{handshake.Trim()}");
 				}
 				catch (VersionNotSupportedException ex)
 				{
@@ -409,7 +411,7 @@ namespace net.vieapps.Components.WebSockets
 		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			if (this._logger.IsEnabled(LogLevel.Trace))
-				this._logger.LogTrace($"Attempting to connect to \"{uri}\"...");
+				this._logger.LogTrace($"Attempting to connect to => {uri}");
 
 			try
 			{
@@ -427,6 +429,9 @@ namespace net.vieapps.Components.WebSockets
 					Events.Log.ClientConnectingToHost(id, uri.Host, uri.Port);
 					await tcpClient.ConnectAsync(uri.Host, uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 				}
+
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogTrace($"The endpoint ({uri}) is connected ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 				// get the connected stream
 				Stream stream = null;
@@ -446,9 +451,13 @@ namespace net.vieapps.Components.WebSockets
 						null
 					);
 					Events.Log.AttemptingToSecureConnection(id);
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.LogTrace($"Attempting to secure the connection ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 					await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 					Events.Log.ConnectionSecured(id);
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.LogTrace($"The connection successfully secured ({id} @ {tcpClient.Client.RemoteEndPoint})");
 				}
 				else
 				{
@@ -457,6 +466,9 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// send handshake
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogTrace($"Negotiating WebSocket handshake ({id} @ {tcpClient.Client.RemoteEndPoint})");
+
 				var requestAcceptKey = CryptoService.GenerateRandomKey(16).ToBase64();
 				var handshake =
 					$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
@@ -476,6 +488,8 @@ namespace net.vieapps.Components.WebSockets
 				Events.Log.SendingHandshake(id, handshake);
 				await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, this._processingCTS.Token).ConfigureAwait(false);
 				Events.Log.HandshakeSent(id, handshake);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogTrace($"Handshake details ({id} @ {tcpClient.Client.RemoteEndPoint}) => \r\n{handshake.Trim()}");
 
 				// read response
 				Events.Log.ReadingHttpResponse(id);
@@ -525,8 +539,10 @@ namespace net.vieapps.Components.WebSockets
 					Events.Log.HandshakeFailure(id, warning);
 					throw new HandshakeFailedException(warning);
 				}
-				else
-					Events.Log.ClientHandshakeSuccess(id);
+
+				Events.Log.ClientHandshakeSuccess(id);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogTrace($"Handshake success ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
 				// get the accepted sub-protocol
 				match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(response);
@@ -542,9 +558,6 @@ namespace net.vieapps.Components.WebSockets
 					LocalEndPoint = tcpClient.Client.LocalEndPoint
 				};
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
-
-				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogTrace($"Endpoint is connected \"{uri}\" => {websocket.ID} @ {websocket.RemoteEndPoint}");
 
 				// callback
 				this.OnConnectionEstablished?.Invoke(websocket);
