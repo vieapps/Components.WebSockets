@@ -51,10 +51,10 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		}
 
 		[Event(6, Level = EventLevel.Error)]
-		public void SslCertificateError(SslPolicyErrors sslPolicyErrors)
+		public void ClientSslCertificateError(Guid guid, SslPolicyErrors sslPolicyErrors)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(6, sslPolicyErrors);
+				this.WriteEvent(6, guid, sslPolicyErrors);
 		}
 
 		[Event(7, Level = EventLevel.Informational)]
@@ -183,11 +183,11 @@ namespace net.vieapps.Components.WebSockets.Implementation
 				this.WriteEvent(24, guid, closeException ?? string.Empty, closeStatus, statusDescription ?? string.Empty, exception ?? string.Empty);
 		}
 
-		[Event(25, Level = EventLevel.Warning)]
-		public void TryGetBufferNotSupported(Guid guid, string streamType)
+		[Event(25, Level = EventLevel.Error)]
+		public void ServerSslCertificateError(Guid guid)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(25, guid, streamType ?? string.Empty);
+				this.WriteEvent(25, guid);
 		}
 
 		[Event(26, Level = EventLevel.Verbose)]

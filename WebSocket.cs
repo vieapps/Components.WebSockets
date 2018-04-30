@@ -265,6 +265,7 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception ex)
 					{
+						Events.Log.ServerSslCertificateError(id);
 						if (ex is AuthenticationException)
 							throw ex;
 						else
@@ -366,7 +367,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogTrace($"WebSocket handshake response has been sent, the stream is ready ({id} @ {tcpClient.Client.RemoteEndPoint})");
 
-				// update connection
+				// update the connected WebSocket connection
 				match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(header);
 				options.Extensions = match.Success
 					? match.Groups[1].Value.Trim()
@@ -377,12 +378,7 @@ namespace net.vieapps.Components.WebSockets
 					? match.Groups[1].Value.Trim()
 					: string.Empty;
 
-				websocket = new WebSocketImplementation(id, false, this._recycledStreamFactory, stream, options)
-				{
-					RequestUri = new Uri($"ws{(this.Certificate != null ? "s" : "")}://{host}{path}"),
-					RemoteEndPoint = tcpClient.Client.RemoteEndPoint,
-					LocalEndPoint = tcpClient.Client.LocalEndPoint
-				};
+				websocket = new WebSocketImplementation(id, false, this._recycledStreamFactory, stream, options, new Uri($"ws{(this.Certificate != null ? "s" : "")}://{host}{path}"), tcpClient.Client.RemoteEndPoint, tcpClient.Client.LocalEndPoint);
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 
 				// callback
@@ -411,7 +407,7 @@ namespace net.vieapps.Components.WebSockets
 		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<Implementation.WebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			if (this._logger.IsEnabled(LogLevel.Trace))
-				this._logger.LogTrace($"Attempting to connect to => {uri}");
+				this._logger.LogTrace($"Attempting to connect ({uri})");
 
 			try
 			{
@@ -445,7 +441,7 @@ namespace net.vieapps.Components.WebSockets
 							if (sslPolicyErrors == SslPolicyErrors.None)
 								return true;
 
-							Events.Log.SslCertificateError(sslPolicyErrors);
+							Events.Log.ClientSslCertificateError(id, sslPolicyErrors);
 							return false;
 						},
 						null
@@ -497,6 +493,8 @@ namespace net.vieapps.Components.WebSockets
 				try
 				{
 					response = await WebSocketHelper.ReadHttpHeaderAsync(stream, this._processingCTS.Token).ConfigureAwait(false);
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.LogTrace($"Handshake response ({id} @ {tcpClient.Client.RemoteEndPoint}) => \r\n{response.Trim()}");
 				}
 				catch (Exception ex)
 				{
@@ -550,13 +548,8 @@ namespace net.vieapps.Components.WebSockets
 					? match.Groups[1].Value.Trim()
 					: null;
 
-				// update the connection
-				var websocket = new WebSocketImplementation(id, true, this._recycledStreamFactory, stream, options)
-				{
-					RequestUri = uri,
-					RemoteEndPoint = tcpClient.Client.RemoteEndPoint,
-					LocalEndPoint = tcpClient.Client.LocalEndPoint
-				};
+				// update the connected WebSocket connection
+				var websocket = new WebSocketImplementation(id, true, this._recycledStreamFactory, stream, options, uri, tcpClient.Client.RemoteEndPoint, tcpClient.Client.LocalEndPoint);
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 
 				// callback
@@ -569,7 +562,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (Exception ex)
 			{
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogError(ex, $"Could not connect to \"{uri}\": {ex.Message}");
+					this._logger.LogError(ex, $"Could not connect ({uri}): {ex.Message}");
 				onFailed?.Invoke(ex);
 			}
 		}

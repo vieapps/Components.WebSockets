@@ -1,5 +1,6 @@
 ﻿#region Related components
 using System;
+using System.Net;
 using System.IO;
 using System.IO.Compression;
 using System.Net.WebSockets;
@@ -25,7 +26,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription, _subProtocol;
-		bool _isContinuationFrame, _tryGetBufferFailureLogged = false, _writting = false;
+		bool _isContinuationFrame, _writting = false;
 		CancellationTokenSource _readingCTS;
 		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
@@ -57,7 +58,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options)
+		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint)
 		{
 			if (options.KeepAliveInterval.Ticks < 0)
 				throw new ArgumentException("KeepAliveInterval must be Zero or positive", nameof(options));
@@ -66,6 +67,9 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			this.IsClient = isClient;
 			this.IncludeExceptionInCloseResponse = options.IncludeExceptionInCloseResponse;
 			this.KeepAliveInterval = options.KeepAliveInterval;
+			this.RequestUri = requestUri;
+			this.RemoteEndPoint = remoteEndPoint;
+			this.LocalEndPoint = localEndPoint;
 
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._stream = stream;
@@ -88,19 +92,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 			// avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
 			// we avoid this by attempting to access the internal memory stream buffer
 			// this works with supported streams like the recyclable memory stream and writable memory streams
-			if (!stream.TryGetBuffer(out ArraySegment<byte> buffer))
-			{
-				if (!this._tryGetBufferFailureLogged)
-				{
-					Events.Log.TryGetBufferNotSupported(this.ID, stream.GetType()?.ToString());
-					this._tryGetBufferFailureLogged = true;
-				}
-
-				// internal buffer not suppoted, fall back to ToArray()
-				buffer = stream.ToArray().ToArraySegment();
-			}
-			else
-				buffer = new ArraySegment<byte>(buffer.Array, buffer.Offset, (int)stream.Position);
+			var buffer = stream.ToArraySegment();
 
 			// add into queue and check pending write operations
 			this._buffers.Enqueue(buffer);
