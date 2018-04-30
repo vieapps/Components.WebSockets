@@ -125,10 +125,10 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				// open the listener
-				this.Port = port > 0 && port < 65535 ? port : 46429;
+				this.Port = port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : 46429;
 				this.Certificate = certificate ?? this.Certificate;
 
-				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
+				this._tcpListener = new TcpListener(IPAddress.Any,  this.Port);
 				this._tcpListener.Start(1024);
 
 				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -141,7 +141,7 @@ namespace net.vieapps.Components.WebSockets
 
 				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 				if (this.Certificate != null)
-					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} : Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
+					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 
 				this._logger.LogInformation($"Listener is started - Listening port: {this.Port} - Platform: {platform}");
 				onSuccess?.Invoke();
@@ -224,7 +224,7 @@ namespace net.vieapps.Components.WebSockets
 				while (!this._listeningCTS.IsCancellationRequested)
 				{
 					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
-					var accept = this.AcceptAsync(tcpClient);
+					var accept =  this.AcceptAsync(tcpClient);
 				}
 			}
 			catch (Exception ex)
