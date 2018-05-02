@@ -163,11 +163,11 @@ public static async Task WrapAsync(this net.vieapps.Components.WebSockets.WebSoc
 {
 	if (context.WebSockets.IsWebSocketRequest)
 	{
-    var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
-    var requestUri = new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
-    var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
-    var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
-    await websocket.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint).ConfigureAwait(false);
+		var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+		var requestUri = new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
+		var remoteEndPoint = new IPEndPoint(context.Connection.RemoteIpAddress, context.Connection.RemotePort);
+		var localEndPoint = new IPEndPoint(context.Connection.LocalIpAddress, context.Connection.LocalPort);
+		await websocket.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint).ConfigureAwait(false);
 	}
 }
 ```
