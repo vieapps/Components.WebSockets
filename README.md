@@ -117,7 +117,7 @@ And might be you need an extension method to wrap an existing WebSocket connecti
 
 **ASP.NET**
 ```csharp
-public static Task WrapWebSocketAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, AspNetWebSocketContext context)
+public static Task WrapAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, AspNetWebSocketContext context)
 {
     var serviceProvider = (IServiceProvider)HttpContext.Current;
     var httpWorker = serviceProvider?.GetService<HttpWorkerRequest>();
@@ -137,7 +137,7 @@ public static Task WrapWebSocketAsync(this net.vieapps.Components.WebSockets.Web
 
 **ASP.NET Core**
 ```csharp
-public static async Task WrapWebSocketAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, HttpContext context)
+public static async Task WrapAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, HttpContext context)
 {
     var webSocket = await context.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
     var requestUri = new Uri($"{context.Request.Scheme}://{context.Request.Host}{context.Request.Path}{context.Request.PathBase}{context.Request.QueryString}");
@@ -152,16 +152,13 @@ While working with ASP.NET Core, we think that you need a middle-ware to handle 
 public class WebSocketMiddleware
 {
     readonly RequestDelegate _next;
-    ILoggerFactory _loggerFactory;
-    ILogger _logger;
     net.vieapps.Components.WebSockets.WebSocket _websocket;
 
     public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
     {
         this._next = next;
-        this._loggerFactory = loggerFactory;
-        this._logger = this._loggerFactory.CreateLogger<WebSocketMiddleware>();
-        this._websocket = new net.vieapps.Components.WebSockets.WebSocket(this._loggerFactory)
+        var logger = loggerFactory.CreateLogger<WebSocketMiddleware>();
+        this._websocket = new net.vieapps.Components.WebSockets.WebSocket(loggerFactory)
         {
             OnError = (websocket, exception) =>
             {
@@ -186,7 +183,7 @@ public class WebSocketMiddleware
     public async Task Invoke(HttpContext context)
     {
         if (context.WebSockets.IsWebSocketRequest)
-            await this._websocket.WrapWebSocketAsync(context).ConfigureAwait(false);
+            await this._websocket.WrapAsync(context).ConfigureAwait(false);
     }
 }
 ```
