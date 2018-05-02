@@ -47,13 +47,25 @@ async Task SendAsync(Implementation.WebSocket websocket)
 ```
 
 ### Useful properties:
+
 ```csharp
-public Guid ID { get; } // the identity of the connection
-public bool IsClient { get; } // true if the connection was made when connect to a remote endpoint (mean client role)
-public Uri RequestUri { get; } // original requesting URI of the connection
-public DateTime Timestamp { get; } // the time when the connection is established
-public EndPoint LocalEndPoint { get; } // local endpoint
-public EndPoint RemoteEndPoint { get; } // remote endpoint (usually IP address and port)
+// the identity of the connection
+public Guid ID { get; }
+
+// true if the connection was made when connect to a remote endpoint (mean client role)
+public bool IsClient { get; }
+
+// original requesting URI of the connection
+public Uri RequestUri { get; }
+
+// the time when the connection is established
+public DateTime Timestamp { get; }
+
+// the local endpoint
+public EndPoint LocalEndPoint { get; }
+
+// remote endpoint
+public EndPoint RemoteEndPoint { get; }
 ```
 
 ## Fly on the sky with Event-liked driven
