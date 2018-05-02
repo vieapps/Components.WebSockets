@@ -62,11 +62,19 @@ public EndPoint RemoteEndPoint { get; } // remote endpoint (usually IP address a
 
 This is a centralized element for working with both side of client and server role.
 This class has 04 action properties (event handlers) to take care of all working cases, you just need to assign your code to cover its.
+
 ```csharp
-Action<Implementation.WebSocket, Exception> OnError; // fire when got any error
-Action<Implementation.WebSocket> OnConnectionEstablished; // fire when a connection is established
-Action<Implementation.WebSocket> OnConnectionBroken; // fire when a connection is broken
-Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived; // fire when a message is received
+// fire when got any error
+Action<Implementation.WebSocket, Exception> OnError;
+
+// fire when a connection is established
+Action<Implementation.WebSocket> OnConnectionEstablished;
+
+// fire when a connection is broken
+Action<Implementation.WebSocket> OnConnectionBroken;
+
+// fire when a message is received
+Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived;
 ```
 
 And this class has some methods for working on both side of client and server role:
@@ -198,7 +206,7 @@ app.UseMiddleware<WebSocketMiddleware>();
 
 Messages are received automatically via parallel tasks, and you only need to assign **OnMessageReceived** event for handling its.
 
-Sending messages are the same **Implementation.WebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity - instance of *Implementation.WebSocket*) for sending messages.
+Sending messages are the same **net.vieapps.Components.WebSockets.Implementation.WebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity) for sending your messages.
 
 ```csharp
 Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
@@ -211,7 +219,7 @@ Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, b
 
 ### Connection management
 
-Take a look at some methods named GetWebSocket, GetWebSockets, CloseWebSocket, ... to work with all connections.
+Take a look at some methods *GetWebSocket...* to work with all connections.
 
 ```csharp
 Implementation.WebSocket GetWebSocket(Guid id);
@@ -234,7 +242,7 @@ Can be any provider that supports extension of Microsoft.Extensions.Logging (via
 
 Our prefers:
 - [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
-- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): for rollinng log files (by date) - high performance, and very simple to use
+- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): for rolling log files (by date) - high performance, and very simple to use
 
 ### Dependencies
 
