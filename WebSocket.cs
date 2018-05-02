@@ -667,7 +667,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var closeStatus = WebSocketCloseStatus.InternalServerError;
 					var closeStatusDescription = $"Got an unexpected error: {ex.Message}";
-					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
+					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is WebSocketException || ex is SocketException || ex is IOException)
 					{
 						closeStatus = websocket.IsClient ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable;
 						closeStatusDescription = websocket.IsClient ? "Disconnected" : "Service is unavailable";
@@ -675,7 +675,7 @@ namespace net.vieapps.Components.WebSockets
 
 					this.CloseWebSocket(websocket, closeStatus, closeStatusDescription);
 					this.OnConnectionBroken?.Invoke(websocket);
-					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
+					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is WebSocketException || ex is SocketException || ex is IOException)
 					{
 						if (this._logger.IsEnabled(LogLevel.Trace))
 							this._logger.LogTrace($"Stop receiving process when got an error: {ex.Message} ({ex.GetType().GetTypeName(true)})");
@@ -837,7 +837,7 @@ namespace net.vieapps.Components.WebSockets
 			if (!this.AddWebSocket(websocket))
 			{
 				if (websocket != null)
-					await Task.Delay(UtilityService.GetRandomNumber(123, 345)).ConfigureAwait(false);
+					await Task.Delay(UtilityService.GetRandomNumber(123, 456)).ConfigureAwait(false);
 				return this.AddWebSocket(websocket);
 			}
 			return true;
