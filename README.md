@@ -188,20 +188,20 @@ public class WebSocketMiddleware
     {
       OnError = (websocket, exception) =>
       {
-        this._logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
+        logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
       },
       OnConnectionEstablished = (websocket) =>
       {
-        this._logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
+        logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
       },
       OnConnectionBroken = (websocket) =>
       {
-        this._logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
+        logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
       },
       OnMessageReceived = (websocket, result, data) =>
       {
         var message = result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text ? data.GetString() : "(binary message)";
-        this._logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
+        logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
       }
     };
   }
