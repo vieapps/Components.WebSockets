@@ -177,39 +177,40 @@ While working with ASP.NET Core, we think that you need a middle-ware to handle 
 ```csharp
 public class WebSocketMiddleware
 {
-    readonly RequestDelegate _next;
-    net.vieapps.Components.WebSockets.WebSocket _websocket;
+  readonly RequestDelegate _next;
+  net.vieapps.Components.WebSockets.WebSocket _websocket;
 
-    public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
+  public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
+  {
+    this._next = next;
+    var logger = loggerFactory.CreateLogger<WebSocketMiddleware>();
+    this._websocket = new net.vieapps.Components.WebSockets.WebSocket(loggerFactory)
     {
-      this._next = next;
-      var logger = loggerFactory.CreateLogger<WebSocketMiddleware>();
-      this._websocket = new net.vieapps.Components.WebSockets.WebSocket(loggerFactory)
+      OnError = (websocket, exception) =>
       {
-        OnError = (websocket, exception) =>
-        {
-          this._logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
-        },
-        OnConnectionEstablished = (websocket) =>
-        {
-          this._logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
-        },
-        OnConnectionBroken = (websocket) =>
-        {
-          this._logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
-        },
-        OnMessageReceived = (websocket, result, data) =>
-        {
-          var message = result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text ? data.GetString() : "(binary message)";
-          this._logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
-        }
-      };
-    }
+        this._logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
+      },
+      OnConnectionEstablished = (websocket) =>
+      {
+        this._logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
+      },
+      OnConnectionBroken = (websocket) =>
+      {
+        this._logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
+      },
+      OnMessageReceived = (websocket, result, data) =>
+      {
+        var message = result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text ? data.GetString() : "(binary message)";
+        this._logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
+      }
+    };
+  }
 
-    public async Task Invoke(HttpContext context)
-    {
-	    await this._websocket.WrapAsync(context).ConfigureAwait(false);
-    }
+  public async Task Invoke(HttpContext context)
+  {
+	  await this._websocket.WrapAsync(context).ConfigureAwait(false);
+	  await this._next.Invoke(context).ConfigureAwait(false);
+  }
 }
 ```
 
