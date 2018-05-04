@@ -127,7 +127,7 @@ namespace net.vieapps.Components.WebSockets
 				this.Port = port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : 46429;
 				this.Certificate = certificate ?? this.Certificate;
 
-				this._tcpListener = new TcpListener(IPAddress.Any,  this.Port);
+				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
 				this._tcpListener.Start(1024);
 
 				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -136,7 +136,7 @@ namespace net.vieapps.Components.WebSockets
 						? "Linux"
 						: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
 							? "macOS"
-							: $"uOS [{RuntimeInformation.OSDescription.Trim()}]";
+							: $"OS [{RuntimeInformation.OSDescription.Trim()}]";
 
 				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 				if (this.Certificate != null)
@@ -223,14 +223,14 @@ namespace net.vieapps.Components.WebSockets
 				while (!this._listeningCTS.IsCancellationRequested)
 				{
 					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
-					var accept =  this.AcceptAsync(tcpClient);
+					var accept = this.AcceptAsync(tcpClient);
 				}
 			}
 			catch (Exception ex)
 			{
 				this.StopListen(false);
 				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
-					this._logger.LogInformation($"Listener is stoped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType().GetTypeName(true)})" : "")}");
+					this._logger.LogInformation($"Listener is stoped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
 				else
 					this._logger.LogError(ex, $"Listener is stoped ({ex.Message})");
 			}
@@ -266,7 +266,7 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception ex)
 					{
-						Events.Log.ServerSslCertificateError(id);
+						Events.Log.ServerSslCertificateError(id, ex.ToString());
 						if (ex is AuthenticationException)
 							throw ex;
 						else
@@ -282,9 +282,12 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogTrace($"The connection is opened, then read the HTTP header from the stream ({id} @ {endpoint})");
 
+				var header = await WebSocketHelper.ReadHttpHeaderAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogTrace($"Header details ({id} @ {endpoint}) => \r\n{header.Trim()}");
+
 				var isWebSocketUpgradeRequest = false;
 				var path = string.Empty;
-				var header = await WebSocketHelper.ReadHttpHeaderAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
 				var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(header);
 				if (match.Success)
 				{
@@ -339,6 +342,7 @@ namespace net.vieapps.Components.WebSockets
 						$"Connection: Upgrade\r\n" +
 						$"Upgrade: websocket\r\n" +
 						$"Server: VIEApps NGX WebSockets\r\n" +
+						$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 						$"Sec-WebSocket-Accept: {WebSocketHelper.ComputeAcceptKey(requestKey)}\r\n";
 					if (!string.IsNullOrWhiteSpace(options.SubProtocol))
 						handshake += $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n";
@@ -434,29 +438,27 @@ namespace net.vieapps.Components.WebSockets
 				// get the connected stream
 				Stream stream = null;
 				if (uri.Scheme.IsEquals("wss") || uri.Scheme.IsEquals("https"))
-				{
-					stream = new SslStream(
-						tcpClient.GetStream(),
-						false,
-						(sender, certificate, chain, sslPolicyErrors) =>
-						{
-							if (sslPolicyErrors == SslPolicyErrors.None)
-								return true;
+					try
+					{
+						Events.Log.AttemptingToSecureConnection(id);
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.LogTrace($"Attempting to secure the connection ({id} @ {endpoint})");
 
-							Events.Log.ClientSslCertificateError(id, sslPolicyErrors);
-							return false;
-						},
-						null
-					);
-					Events.Log.AttemptingToSecureConnection(id);
-					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogTrace($"Attempting to secure the connection ({id} @ {endpoint})");
+						stream = new SslStream(tcpClient.GetStream(), false, (sender, certificate, chain, sslPolicyErrors) => sslPolicyErrors == SslPolicyErrors.None ? true : false, null);
+						await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
-					await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
-					Events.Log.ConnectionSecured(id);
-					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogTrace($"The connection successfully secured ({id} @ {endpoint})");
-				}
+						Events.Log.ConnectionSecured(id);
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.LogTrace($"The connection successfully secured ({id} @ {endpoint})");
+					}
+					catch (Exception ex)
+					{
+						Events.Log.ClientSslCertificateError(id, ex.ToString());
+						if (ex is AuthenticationException)
+							throw ex;
+						else
+							throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
+					}
 				else
 				{
 					Events.Log.ConnectionNotSecured(id);
@@ -475,6 +477,7 @@ namespace net.vieapps.Components.WebSockets
 					$"Connection: Upgrade\r\n" +
 					$"Upgrade: websocket\r\n" +
 					$"Client: VIEApps NGX WebSockets\r\n" +
+					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
 					$"Sec-WebSocket-Key: {requestAcceptKey}\r\n";
 				if (!string.IsNullOrWhiteSpace(options.SubProtocol))
@@ -902,9 +905,15 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
 		{
-			return websocket != null
-				? this.CloseWebSocket(websocket.ID, closeStatus, closeStatusDescription)
-				: false;
+			if (websocket == null)
+				return false;
+			if (this._websockets.TryRemove(websocket.ID, out ManagedWebSocket webSocket))
+				websocket = webSocket;
+			if (websocket.State == WebSocketState.Open)
+				Task.Run(() => websocket.DisposeAsync(closeStatus, closeStatusDescription)).ConfigureAwait(false);
+			else
+				websocket.Close();
+			return true;
 		}
 		#endregion
 
@@ -922,7 +931,7 @@ namespace net.vieapps.Components.WebSockets
 			this.StopListen();
 
 			// close all WebSocket connections
-			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4)))
+			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
 			{
 				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token)).ToArray(), TimeSpan.FromSeconds(5));
 				this._websockets.Clear();
@@ -962,6 +971,8 @@ namespace net.vieapps.Components.WebSockets
 	/// </summary>
 	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket, IDisposable
 	{
+
+		#region Properties
 		/// <summary>
 		/// Gets the identity of the <see cref="ManagedWebSocket">WebSocket</see> connection
 		/// </summary>
@@ -1001,7 +1012,9 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
 		protected abstract bool IncludeExceptionInCloseResponse { get; }
+		#endregion
 
+		#region Methods
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
 		/// </summary>
@@ -1031,27 +1044,31 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
-		/// <param name="ex">The exception (for logging)</param>
+		/// <param name="exception">The exception (for logging)</param>
+		/// <param name="onCancel">The action to fire when got operation canceled exception</param>
+		/// <param name="onError">The action to fire when got error exception</param>
 		/// <returns></returns>
-		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception ex)
+		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception exception, Action onCancel = null, Action<Exception> onError = null)
 		{
-			var timespan = TimeSpan.FromSeconds(3);
-			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, ex.ToString());
+			var timespan = TimeSpan.FromSeconds(4);
+			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
 
 			try
 			{
 				using (var cts = new CancellationTokenSource(timespan))
 				{
-					await this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this.IncludeExceptionInCloseResponse ? "\r\n\r\n" + ex.ToString() : ""), cts.Token).ConfigureAwait(false);
+					await this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this.IncludeExceptionInCloseResponse && exception != null ? "\r\n\r\n" + exception.ToString() : ""), cts.Token).ConfigureAwait(false);
 				}
 			}
 			catch (OperationCanceledException)
 			{
-				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timespan.TotalSeconds, closeStatus, closeStatusDescription, ex.ToString());
+				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timespan.TotalSeconds, closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
+				onCancel?.Invoke();
 			}
 			catch (Exception closeException)
 			{
-				Events.Log.CloseOutputAutoTimeoutError(this.ID, closeException.ToString(), closeStatus, closeStatusDescription, ex.ToString());
+				Events.Log.CloseOutputAutoTimeoutError(this.ID, closeException.ToString(), closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
+				onError?.Invoke(closeException);
 			}
 		}
 
@@ -1060,37 +1077,23 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		public override void Dispose()
 		{
-			this.DisposeAsync().Wait(5123);
+			this.DisposeAsync().Wait(4321);
 		}
 
 		bool _disposing = false, _disposed = false;
 
 		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
 		{
-			if (this._disposing || this._disposed)
-				return;
-
-			this._disposing = true;
-			Events.Log.WebSocketDispose(this.ID, this.State);
-			if (this.State == WebSocketState.Open)
-				try
-				{
-					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token))
-					{
-						await this.CloseOutputAsync(closeStatus, closeStatusDescription, cts.Token).ConfigureAwait(false);
-					}
-				}
-				catch (OperationCanceledException)
-				{
-					Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State);
-				}
-				catch (Exception ex)
-				{
-					Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString());
-				}
-			onCompleted?.Invoke();
-			this._disposed = true;
-			this._disposing = false;
+			if (!this._disposing && !this._disposed)
+			{
+				this._disposing = true;
+				Events.Log.WebSocketDispose(this.ID, this.State);
+				if (this.State == WebSocketState.Open)
+					await this.CloseOutputTimeoutAsync(closeStatus, closeStatusDescription, null, () => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State), ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())).ConfigureAwait(false);
+				onCompleted?.Invoke();
+				this._disposed = true;
+				this._disposing = false;
+			}
 		}
 
 		internal virtual void Close() { }
@@ -1100,5 +1103,7 @@ namespace net.vieapps.Components.WebSockets
 			this.Dispose();
 			GC.SuppressFinalize(this);
 		}
+		#endregion
+
 	}
 }

@@ -51,10 +51,10 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		[Event(6, Level = EventLevel.Error)]
-		public void ClientSslCertificateError(Guid guid, SslPolicyErrors sslPolicyErrors)
+		public void ClientSslCertificateError(Guid guid, string exception)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(6, guid, sslPolicyErrors);
+				this.WriteEvent(6, guid, exception);
 		}
 
 		[Event(7, Level = EventLevel.Informational)]
@@ -184,10 +184,10 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		[Event(25, Level = EventLevel.Error)]
-		public void ServerSslCertificateError(Guid guid)
+		public void ServerSslCertificateError(Guid guid, string exception)
 		{
 			if (this.IsEnabled())
-				this.WriteEvent(25, guid);
+				this.WriteEvent(25, guid, exception);
 		}
 
 		[Event(26, Level = EventLevel.Verbose)]
