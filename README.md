@@ -249,8 +249,7 @@ bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus
 
 ### The important things
 
-- 16K is default length of the buffer for receiving messages (its large enough for most case because we are usually use WebSocket to send/receive small data). If you want to change the length to receive large messages, then set a new value for the the static property named **ReceiveBufferSize** of the *WebSocket* class.
-- If the incomming messages is continuous messages, the type always be "Binary", and the property named "EndOfMessage" is "true" in the last message - "false" in the previous messages (the second parameter of OnMessageReceived - type: WebSocketReceiveResult).
+- 16K is default size of the protocol buffer for receiving messages (its large enough for most case because we are usually use WebSocket to send/receive small data). If you want to change (to receive large messages), then set a new value for the static property named **ReceiveBufferSize** of the *WebSocket* class.
 - Some portion of codes are reference from [NinjaSource WebSocket](https://github.com/ninjasource/Ninja.WebSockets).
 
 ### Logging
