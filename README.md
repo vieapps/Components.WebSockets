@@ -2,7 +2,7 @@
 
 A concrete implementation of the *System.Net.WebSockets.WebSocket* abstract class on .NET Standard 2.0,
 that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server
-and help improved performance and scalability of your apps.
+(or wrap existing WebSocket connections of ASP.NET / ASP.NET Core).
 
 ## NuGet
 - Package ID: VIEApps.Components.WebSockets
