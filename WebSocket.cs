@@ -721,7 +721,7 @@ namespace net.vieapps.Components.WebSockets
 				if (result.Count > 0)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogTrace($"Got a message - Type: {result.MessageType} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+						this._logger.LogTrace($"Got a message - Type: {result.MessageType} - End of message: {result.EndOfMessage} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					this.OnMessageReceived?.Invoke(websocket, result, buffer.Take(result.Count).ToArray());
 				}
 
