@@ -1,10 +1,8 @@
 ﻿# VIEApps.Components.WebSockets
 
-A concrete implementation of the System.Net.WebSockets.WebSocket abstract class on .NET Standard 2.0
-
-A WebSocket library that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server.
-You can safely pass around a general purpose WebSocket instance throughout your codebase without tying yourself strongly to this library.
-This is the same WebSocket abstract class used by .NET Standard 2.0 and it allows for asynchronous WebSocket communication for improved performance and scalability.
+A concrete implementation of the *System.Net.WebSockets.WebSocket* abstract class on .NET Standard 2.0,
+that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server
+and help improved performance and scalability of your apps.
 
 ## NuGet
 - Package ID: VIEApps.Components.WebSockets
@@ -225,7 +223,7 @@ app.UseMiddleware<WebSocketMiddleware>();
 
 Messages are received automatically via parallel tasks, and you only need to assign **OnMessageReceived** event for handling its.
 
-Sending messages are the same **net.vieapps.Components.WebSockets.ManagedWebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity) for sending your messages.
+Sending messages are the same as **ManagedWebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity) for sending your messages.
 
 ```csharp
 Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
