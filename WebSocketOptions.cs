@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace net.vieapps.Components.WebSockets.Implementation
+namespace net.vieapps.Components.WebSockets
 {
 	/// <summary>
 	/// Options for initialize a WebSocket connection

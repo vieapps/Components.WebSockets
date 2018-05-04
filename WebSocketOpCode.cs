@@ -1,4 +1,4 @@
-﻿namespace net.vieapps.Components.WebSockets.Implementation
+﻿namespace net.vieapps.Components.WebSockets
 {
 	internal enum WebSocketOpCode
 	{

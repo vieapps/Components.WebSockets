@@ -10,7 +10,7 @@ using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Implementation
+namespace net.vieapps.Components.WebSockets
 {
 	internal class WebSocketFrame
 	{

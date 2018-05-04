@@ -5,7 +5,7 @@ using System.Net.WebSockets;
 using System.Diagnostics.Tracing;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Implementation
+namespace net.vieapps.Components.WebSockets
 {
 	/// <summary>
 	/// Use the Guid to locate this EventSource in PerfView using the Additional Providers box (without wildcard characters)

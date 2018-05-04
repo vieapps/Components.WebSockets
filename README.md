@@ -12,12 +12,12 @@ This is the same WebSocket abstract class used by .NET Standard 2.0 and it allow
 
 ## Walking on the ground
 
-The class **net.vieapps.Components.WebSockets.Implementation.WebSocket** is an implementation or a wrapper of the *System.Net.WebSockets.WebSocket* abstract class,
+The class **ManagedWebSocket** is an implementation or a wrapper of the *System.Net.WebSockets.WebSocket* abstract class,
 that allows you send and receive messages in the same way for both side of client and server role.
 
 ### Receiving messages:
 ```csharp
-async Task ReceiveAsync(Implementation.WebSocket websocket)
+async Task ReceiveAsync(ManagedWebSocket websocket)
 {
     var buffer = new ArraySegment<byte>(new byte[1024]);
     while (true)
@@ -39,7 +39,7 @@ async Task ReceiveAsync(Implementation.WebSocket websocket)
 
 ### Sending messages:
 ```csharp
-async Task SendAsync(Implementation.WebSocket websocket)
+async Task SendAsync(ManagedWebSocket websocket)
 {
     var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes("Hello World"));
     await websocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
@@ -77,22 +77,22 @@ This class has 04 action properties (event handlers) to take care of all working
 
 ```csharp
 // fire when got any error
-Action<Implementation.WebSocket, Exception> OnError;
+Action<ManagedWebSocket, Exception> OnError;
 
 // fire when a connection is established
-Action<Implementation.WebSocket> OnConnectionEstablished;
+Action<ManagedWebSocket> OnConnectionEstablished;
 
 // fire when a connection is broken
-Action<Implementation.WebSocket> OnConnectionBroken;
+Action<ManagedWebSocket> OnConnectionBroken;
 
 // fire when a message is received
-Action<Implementation.WebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived;
+Action<ManagedWebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived;
 ```
 
 And this class has some methods for working on both side of client and server role:
 ```csharp
-void Connect(Uri uri, string subProtocol, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
-void Connect(string location, string subProtocol, Action<Implementation.WebSocket> onSuccess, Action<Exception> onFailed);
+void Connect(Uri uri, string subProtocol, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
+void Connect(string location, string subProtocol, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
 void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
 void StopListen();
 ```
@@ -182,7 +182,6 @@ public class WebSocketMiddleware
 
   public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
   {
-    this._next = next;
     var logger = loggerFactory.CreateLogger<WebSocketMiddleware>();
     this._websocket = new net.vieapps.Components.WebSockets.WebSocket(loggerFactory)
     {
@@ -204,6 +203,7 @@ public class WebSocketMiddleware
         logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
       }
     };
+    this._next = next;
   }
 
   public async Task Invoke(HttpContext context)
@@ -225,15 +225,15 @@ app.UseMiddleware<WebSocketMiddleware>();
 
 Messages are received automatically via parallel tasks, and you only need to assign **OnMessageReceived** event for handling its.
 
-Sending messages are the same **net.vieapps.Components.WebSockets.Implementation.WebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity) for sending your messages.
+Sending messages are the same **net.vieapps.Components.WebSockets.ManagedWebSocket**, with a little different: the first argument - you need to specify a WebSocket connection (by an identity) for sending your messages.
 
 ```csharp
 Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
 Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken);
 Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken);
-Task SendAsync(Func<Implementation.WebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
-Task SendAsync(Func<Implementation.WebSocket, bool> predicate, string message, bool endOfMessage, CancellationToken cancellationToken);
-Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Func<ManagedWebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Func<ManagedWebSocket, bool> predicate, string message, bool endOfMessage, CancellationToken cancellationToken);
+Task SendAsync(Func<ManagedWebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken);
 ```
 
 ### Connection management
@@ -241,10 +241,10 @@ Task SendAsync(Func<Implementation.WebSocket, bool> predicate, byte[] message, b
 Take a look at some methods *GetWebSocket...* to work with all connections.
 
 ```csharp
-Implementation.WebSocket GetWebSocket(Guid id);
-IEnumerable<Implementation.WebSocket> GetWebSockets(Func<Implementation.WebSocket, bool> predicate);
+ManagedWebSocket GetWebSocket(Guid id);
+IEnumerable<ManagedWebSocket> GetWebSockets(Func<ManagedWebSocket, bool> predicate);
 bool CloseWebSocket(Guid id, WebSocketCloseStatus closeStatus, string closeStatusDescription);
-bool CloseWebSocket(Implementation.WebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription);
+bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription);
 ```
 
 ## Others

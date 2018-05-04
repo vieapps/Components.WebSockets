@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using net.vieapps.Components.Utility;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Implementation
+namespace net.vieapps.Components.WebSockets
 {
 	/// <summary>
 	/// Pong EventArgs

@@ -8,9 +8,9 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Implementation
+namespace net.vieapps.Components.WebSockets
 {
-	internal class WebSocketWrapper : WebSocket
+	internal class WebSocketWrapper : ManagedWebSocket
 	{
 
 		#region Properties

@@ -3,26 +3,18 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
-using System.Net;
-using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Net.Security;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
+
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
-namespace net.vieapps.Components.WebSockets.Implementation
+namespace net.vieapps.Components.WebSockets
 {
 	internal static class WebSocketHelper
 	{
-		internal const string WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-		internal const int WEBSOCKET_VERSION = 13;
 		static int _BufferLength = 16 * 1024;
 
 		/// <summary>
@@ -99,7 +91,7 @@ namespace net.vieapps.Components.WebSockets.Implementation
 		/// <returns>A WebSocket accept key</returns>
 		public static string ComputeAcceptKey(string key)
 		{
-			return (key + WebSocketHelper.WEBSOCKET_GUID).GetSHA1(true);
+			return (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetSHA1(true);
 		}
 
 		/// <summary>
