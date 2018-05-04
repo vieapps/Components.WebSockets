@@ -15,22 +15,10 @@ namespace net.vieapps.Components.WebSockets
 {
 	internal static class WebSocketHelper
 	{
-		static int _BufferLength = 16 * 1024;
-
 		/// <summary>
-		/// Gets the length of receiving buffer
+		/// Gets or sets the size (length) of the <see cref="ManagedWebSocket">WebSocket</see> protocol buffer used to receive and parse frames
 		/// </summary>
-		public static int BufferLength { get { return WebSocketHelper._BufferLength; } }
-
-		/// <summary>
-		/// Sets the length of receiving buffer
-		/// </summary>
-		/// <param name="length"></param>
-		public static void SetBufferLength(int length = 16384)
-		{
-			if (length >= 1024)
-				WebSocketHelper._BufferLength = length;
-		}
+		public static int ReceiveBufferSize { get; internal set; } = 16 * 1024;
 
 		/// <summary>
 		/// Gets a factory to get recyclable memory stream with RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
@@ -49,16 +37,16 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>The HTTP header</returns>
 		public static async Task<string> ReadHttpHeaderAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
 		{
-			var buffer = new byte[WebSocketHelper.BufferLength];
+			var buffer = new byte[WebSocketHelper.ReceiveBufferSize];
 			var offset = 0;
 			var read = 0;
 
 			do
 			{
-				if (offset >= WebSocketHelper.BufferLength)
+				if (offset >= WebSocketHelper.ReceiveBufferSize)
 					throw new EntityTooLargeException("HTTP header message too large to fit in buffer");
 
-				read = await stream.ReadAsync(buffer, offset, WebSocketHelper.BufferLength - offset, cancellationToken).ConfigureAwait(false);
+				read = await stream.ReadAsync(buffer, offset, WebSocketHelper.ReceiveBufferSize - offset, cancellationToken).ConfigureAwait(false);
 				offset += read;
 				var header = buffer.GetString(offset);
 

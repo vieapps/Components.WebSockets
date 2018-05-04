@@ -659,7 +659,7 @@ namespace net.vieapps.Components.WebSockets
 
 		async Task ReceiveAsync(ManagedWebSocket websocket)
 		{
-			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
+			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.ReceiveBufferSize]);
 			while (!this._processingCTS.IsCancellationRequested)
 			{
 				// receive message from the WebSocket connection
@@ -705,9 +705,9 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// exceed buffer size
-				if (result.Count > WebSocketHelper.BufferLength)
+				if (result.Count > WebSocketHelper.ReceiveBufferSize)
 				{
-					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketHelper.BufferLength:#,##0} bytes";
+					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketHelper.ReceiveBufferSize:#,##0} bytes";
 					if (this._logger.IsEnabled(LogLevel.Debug))
 						this._logger.LogDebug($"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					await websocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
@@ -739,8 +739,8 @@ namespace net.vieapps.Components.WebSockets
 					}
 
 				// prepare buffer for next round
-				if (!buffer.Array.Length.Equals(WebSocketHelper.BufferLength))
-					buffer = new ArraySegment<byte>(new byte[WebSocketHelper.BufferLength]);
+				if (!buffer.Array.Length.Equals(WebSocketHelper.ReceiveBufferSize))
+					buffer = new ArraySegment<byte>(new byte[WebSocketHelper.ReceiveBufferSize]);
 			}
 		}
 		#endregion
@@ -955,12 +955,19 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		/// <summary>
-		/// Sets the length of the receiving buffer of all <see cref="ManagedWebSocket">WebSocket</see> connections
+		/// Gets or sets the size (length) of the <see cref="ManagedWebSocket">WebSocket</see> protocol buffer used to receive and parse frames, the default is 16kb, the minimum is 1kb (1024 bytes)
 		/// </summary>
-		/// <param name="length">The buffer length (in bytes)</param>
-		public static void SetBufferLength(int length = 16384)
+		public static int ReceiveBufferSize
 		{
-			WebSocketHelper.SetBufferLength(length);
+			get
+			{
+				return WebSocketHelper.ReceiveBufferSize;
+			}
+			set
+			{
+				if (value >= 1024)
+					WebSocketHelper.ReceiveBufferSize = value;
+			}
 		}
 	}
 
