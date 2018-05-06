@@ -291,8 +291,7 @@ namespace net.vieapps.Components.WebSockets
 				// verify request
 				if (!isWebSocketUpgradeRequest)
 				{
-					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.LogTrace($"The HTTP header contains no WebSocket upgrade request, then ignore ({id} @ {endpoint})");
+					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The HTTP header contains no WebSocket upgrade request, then ignore ({id} @ {endpoint})");
 					stream.Close();
 					tcpClient.Close();
 					return;
@@ -360,8 +359,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				Events.Log.ServerHandshakeSuccess(id);
-				if (this._logger.IsEnabled(LogLevel.Trace))
-					this._logger.LogTrace($"WebSocket handshake response has been sent, the stream is ready ({id} @ {endpoint})");
+				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"WebSocket handshake response has been sent, the stream is ready ({id} @ {endpoint})");
 
 				// update the connected WebSocket connection
 				match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(header);
@@ -652,10 +650,9 @@ namespace net.vieapps.Components.WebSockets
 
 					this.CloseWebSocket(websocket, closeStatus, closeStatusDescription);
 					this.OnConnectionBroken?.Invoke(websocket);
+
 					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is WebSocketException || ex is SocketException || ex is IOException)
-					{
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Stop receiving process when got an error: {ex.Message} ({ex.GetType().GetTypeName(true)})");
-					}
 					else
 					{
 						this._logger.Log(LogLevel.Debug, LogLevel.Error, closeStatusDescription, ex);
@@ -679,6 +676,7 @@ namespace net.vieapps.Components.WebSockets
 					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketHelper.ReceiveBufferSize:#,##0} bytes";
 					this._logger.Log(LogLevel.Debug, LogLevel.Debug, $"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					await websocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
+
 					this.CloseWebSocket(websocket);
 					this.OnConnectionBroken?.Invoke(websocket);
 					this.OnError?.Invoke(websocket, new BufferOverflowException(message));

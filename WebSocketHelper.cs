@@ -16,7 +16,7 @@ namespace net.vieapps.Components.WebSockets
 	internal static class WebSocketHelper
 	{
 		/// <summary>
-		/// Gets or sets the size (length) of the <see cref="ManagedWebSocket">WebSocket</see> protocol buffer used to receive and parse frames
+		/// Gets or sets the size (length) of the protocol buffer used to receive and parse frames
 		/// </summary>
 		public static int ReceiveBufferSize { get; internal set; } = 16 * 1024;
 
