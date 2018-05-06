@@ -59,11 +59,11 @@ public Uri RequestUri { get; }
 // the time when the connection is established
 public DateTime Timestamp { get; }
 
+// the remote endpoint
+public EndPoint RemoteEndPoint { get; }
+
 // the local endpoint
 public EndPoint LocalEndPoint { get; }
-
-// remote endpoint
-public EndPoint RemoteEndPoint { get; }
 ```
 
 ## Fly on the sky with Event-liked driven
@@ -90,7 +90,6 @@ Action<ManagedWebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived;
 And this class has some methods for working on both side of client and server role:
 ```csharp
 void Connect(Uri uri, string subProtocol, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
-void Connect(string location, string subProtocol, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
 void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
 void StopListen();
 ```
@@ -112,9 +111,11 @@ Enabling secure connections requires two things:
 - Using the scheme **wss** instead of **ws** (or **https** instead of **http**) on all clients
 
 ```csharp
-var websocket = new WebSocket();
-websocket.Certificate = new X509Certificate2("my-certificate.pfx");
-// websocket.Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet);
+var websocket = new WebSocket
+{
+	Certificate = new X509Certificate2("my-certificate.pfx")
+	// Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet)
+};
 websocket.StartListen(46429);
 ```
 
@@ -138,19 +139,19 @@ And might be you need an extension method to wrap an existing WebSocket connecti
 ```csharp
 public static Task WrapAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, AspNetWebSocketContext context)
 {
-    var serviceProvider = (IServiceProvider)HttpContext.Current;
-    var httpWorker = serviceProvider?.GetService<HttpWorkerRequest>();
-    var remoteAddress = httpWorker == null ? context.UserHostAddress : httpWorker.GetRemoteAddress();
-    var remotePort = httpWorker == null ? 0 : httpWorker.GetRemotePort();
-    var remoteEndpoint = IPAddress.TryParse(remoteAddress, out IPAddress ipAddress)
-      ? new IPEndPoint(ipAddress, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint
-      : new DnsEndPoint(context.UserHostName, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint;
-    var localAddress = httpWorker == null ? context.RequestUri.Host : httpWorker.GetLocalAddress();
-    var localPort = httpWorker == null ? 0 : httpWorker.GetLocalPort();
-    var localEndpoint = IPAddress.TryParse(localAddress, out ipAddress)
-      ? new IPEndPoint(ipAddress, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint
-      : new DnsEndPoint(context.RequestUri.Host, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint;
-    return websocket.WrapAsync(context.WebSocket, context.RequestUri, remoteEndpoint, localEndpoint);
+  var serviceProvider = (IServiceProvider)HttpContext.Current;
+  var httpWorker = serviceProvider?.GetService<HttpWorkerRequest>();
+  var remoteAddress = httpWorker == null ? context.UserHostAddress : httpWorker.GetRemoteAddress();
+  var remotePort = httpWorker == null ? 0 : httpWorker.GetRemotePort();
+  var remoteEndpoint = IPAddress.TryParse(remoteAddress, out IPAddress ipAddress)
+    ? new IPEndPoint(ipAddress, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint
+    : new DnsEndPoint(context.UserHostName, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint;
+  var localAddress = httpWorker == null ? context.RequestUri.Host : httpWorker.GetLocalAddress();
+  var localPort = httpWorker == null ? 0 : httpWorker.GetLocalPort();
+  var localEndpoint = IPAddress.TryParse(localAddress, out ipAddress)
+    ? new IPEndPoint(ipAddress, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint
+    : new DnsEndPoint(context.RequestUri.Host, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint;
+  return websocket.WrapAsync(context.WebSocket, context.RequestUri, remoteEndpoint, localEndpoint);
 }
 ```
 
