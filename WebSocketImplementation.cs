@@ -99,9 +99,7 @@ namespace net.vieapps.Components.WebSockets
 			if (this._writting)
 			{
 				Events.Log.PendingOperations(this.ID);
-				var logger = Logger.CreateLogger<WebSocketImplementation>();
-				if (logger.IsEnabled(LogLevel.Debug))
-					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+				Logger.Log<WebSocketImplementation>(LogLevel.Debug, LogLevel.Warning, $"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 

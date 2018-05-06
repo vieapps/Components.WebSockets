@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using net.vieapps.Components.Utility;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
@@ -79,9 +80,7 @@ namespace net.vieapps.Components.WebSockets
 			if (this._writting)
 			{
 				Events.Log.PendingOperations(this.ID);
-				var logger = Logger.CreateLogger<WebSocketWrapper>();
-				if (logger.IsEnabled(LogLevel.Debug))
-					logger.LogWarning($"Pending operations => {this._buffers.Count:#,##0} ({this.ID})");
+				Logger.Log<WebSocketWrapper>(LogLevel.Debug, LogLevel.Warning, $"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
