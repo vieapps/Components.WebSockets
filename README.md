@@ -17,21 +17,21 @@ that allows you send and receive messages in the same way for both side of clien
 ```csharp
 async Task ReceiveAsync(ManagedWebSocket websocket)
 {
-    var buffer = new ArraySegment<byte>(new byte[1024]);
-    while (true)
-    {
-        WebSocketReceiveResult result = await websocket.ReceiveAsync(buffer, CancellationToken.None).ConfigureAwait(false);
-        switch (result.MessageType)
-        {
-            case WebSocketMessageType.Close:
-                return;
-            case WebSocketMessageType.Text:
-            case WebSocketMessageType.Binary:
-                var value = Encoding.UTF8.GetString(buffer, result.Count);
-                Console.WriteLine(value);
-                break;
-        }
-    }
+		var buffer = new ArraySegment<byte>(new byte[1024]);
+		while (true)
+		{
+				WebSocketReceiveResult result = await websocket.ReceiveAsync(buffer, CancellationToken.None).ConfigureAwait(false);
+				switch (result.MessageType)
+				{
+						case WebSocketMessageType.Close:
+								return;
+						case WebSocketMessageType.Text:
+						case WebSocketMessageType.Binary:
+								var value = Encoding.UTF8.GetString(buffer, result.Count);
+								Console.WriteLine(value);
+								break;
+				}
+		}
 }
 ```
 
@@ -39,8 +39,8 @@ async Task ReceiveAsync(ManagedWebSocket websocket)
 ```csharp
 async Task SendAsync(ManagedWebSocket websocket)
 {
-    var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes("Hello World"));
-    await websocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
+		var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes("Hello World"));
+		await websocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
 } 
 ```
 
@@ -139,19 +139,19 @@ And might be you need an extension method to wrap an existing WebSocket connecti
 ```csharp
 public static Task WrapAsync(this net.vieapps.Components.WebSockets.WebSocket websocket, AspNetWebSocketContext context)
 {
-  var serviceProvider = (IServiceProvider)HttpContext.Current;
-  var httpWorker = serviceProvider?.GetService<HttpWorkerRequest>();
-  var remoteAddress = httpWorker == null ? context.UserHostAddress : httpWorker.GetRemoteAddress();
-  var remotePort = httpWorker == null ? 0 : httpWorker.GetRemotePort();
-  var remoteEndpoint = IPAddress.TryParse(remoteAddress, out IPAddress ipAddress)
-    ? new IPEndPoint(ipAddress, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint
-    : new DnsEndPoint(context.UserHostName, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint;
-  var localAddress = httpWorker == null ? context.RequestUri.Host : httpWorker.GetLocalAddress();
-  var localPort = httpWorker == null ? 0 : httpWorker.GetLocalPort();
-  var localEndpoint = IPAddress.TryParse(localAddress, out ipAddress)
-    ? new IPEndPoint(ipAddress, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint
-    : new DnsEndPoint(context.RequestUri.Host, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint;
-  return websocket.WrapAsync(context.WebSocket, context.RequestUri, remoteEndpoint, localEndpoint);
+	var serviceProvider = (IServiceProvider)HttpContext.Current;
+	var httpWorker = serviceProvider?.GetService<HttpWorkerRequest>();
+	var remoteAddress = httpWorker == null ? context.UserHostAddress : httpWorker.GetRemoteAddress();
+	var remotePort = httpWorker == null ? 0 : httpWorker.GetRemotePort();
+	var remoteEndpoint = IPAddress.TryParse(remoteAddress, out IPAddress ipAddress)
+		? new IPEndPoint(ipAddress, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint
+		: new DnsEndPoint(context.UserHostName, remotePort > 0 ? remotePort : context.RequestUri.Port) as EndPoint;
+	var localAddress = httpWorker == null ? context.RequestUri.Host : httpWorker.GetLocalAddress();
+	var localPort = httpWorker == null ? 0 : httpWorker.GetLocalPort();
+	var localEndpoint = IPAddress.TryParse(localAddress, out ipAddress)
+		? new IPEndPoint(ipAddress, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint
+		: new DnsEndPoint(context.RequestUri.Host, localPort > 0 ? localPort : context.RequestUri.Port) as EndPoint;
+	return websocket.WrapAsync(context.WebSocket, context.RequestUri, remoteEndpoint, localEndpoint);
 }
 ```
 
@@ -176,40 +176,40 @@ While working with ASP.NET Core, we think that you need a middle-ware to handle 
 ```csharp
 public class WebSocketMiddleware
 {
-  readonly RequestDelegate _next;
-  net.vieapps.Components.WebSockets.WebSocket _websocket;
+	readonly RequestDelegate _next;
+	net.vieapps.Components.WebSockets.WebSocket _websocket;
 
-  public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
-  {
-    var logger = loggerFactory.CreateLogger<WebSocketMiddleware>();
-    this._websocket = new net.vieapps.Components.WebSockets.WebSocket(loggerFactory)
-    {
-      OnError = (websocket, exception) =>
-      {
-        logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
-      },
-      OnConnectionEstablished = (websocket) =>
-      {
-        logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
-      },
-      OnConnectionBroken = (websocket) =>
-      {
-        logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
-      },
-      OnMessageReceived = (websocket, result, data) =>
-      {
-        var message = result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text ? data.GetString() : "(binary message)";
-        logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
-      }
-    };
-    this._next = next;
-  }
+	public WebSocketMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
+	{
+		var logger = loggerFactory.CreateLogger<WebSocketMiddleware>();
+		this._websocket = new net.vieapps.Components.WebSockets.WebSocket(loggerFactory)
+		{
+			OnError = (websocket, exception) =>
+			{
+				logger.LogError(exception, $"Got an error: {websocket?.ID} @ {websocket?.RemoteEndPoint} => {exception.Message}");
+			},
+			OnConnectionEstablished = (websocket) =>
+			{
+				logger.LogDebug($"Connection is established: {websocket.ID} @ {websocket.RemoteEndPoint}");
+			},
+			OnConnectionBroken = (websocket) =>
+			{
+				logger.LogDebug($"Connection is broken: {websocket.ID} @ {websocket.RemoteEndPoint}");
+			},
+			OnMessageReceived = (websocket, result, data) =>
+			{
+				var message = result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text ? data.GetString() : "(binary message)";
+				logger.LogDebug($"Got a message: {websocket.ID} @ {websocket.RemoteEndPoint} => {message}");
+			}
+		};
+		this._next = next;
+	}
 
-  public async Task Invoke(HttpContext context)
-  {
-	  await this._websocket.WrapAsync(context).ConfigureAwait(false);
-	  await this._next.Invoke(context).ConfigureAwait(false);
-  }
+	public async Task Invoke(HttpContext context)
+	{
+		await this._websocket.WrapAsync(context).ConfigureAwait(false);
+		await this._next.Invoke(context).ConfigureAwait(false);
+	}
 }
 ```
 
@@ -259,12 +259,12 @@ Can be any provider that supports extension of Microsoft.Extensions.Logging (via
 
 Our prefers:
 - [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
-- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): for rolling log files (by date) - high performance, and very simple to use
+- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): rolling log files (by date) - high performance, and very simple to use
 
 ### Dependencies
 
-- Microsoft.IO.RecyclableMemoryStream
-- VIEApps.Components.Utility
+- [Microsoft.IO.RecyclableMemoryStream](https://www.nuget.org/packages/Microsoft.IO.RecyclableMemoryStream)
+- [VIEApps.Components.Utility](https://www.nuget.org/packages/VIEApps.Components.Utility)
 
 ### Namespaces
 
@@ -286,7 +286,7 @@ using net.vieapps.Components.WebSockets;
 - Server sends 01 message to all connections (20,000 messages) each 10 minutes - size of 01 message: 1024 bytes (1K)
 
 ### The results
-- Server is servived after 01 week (60 * 24 * 7 = 10,080 minutes)
+- Server is still alive after 01 week (60 * 24 * 7 = 10,080 minutes)
 - No dropped connection
 - No hang
 - Used memory: 1.3 GB - 1.7 GB
