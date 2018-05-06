@@ -17,21 +17,21 @@ that allows you send and receive messages in the same way for both side of clien
 ```csharp
 async Task ReceiveAsync(ManagedWebSocket websocket)
 {
-		var buffer = new ArraySegment<byte>(new byte[1024]);
-		while (true)
+	var buffer = new ArraySegment<byte>(new byte[1024]);
+	while (true)
+	{
+		WebSocketReceiveResult result = await websocket.ReceiveAsync(buffer, CancellationToken.None).ConfigureAwait(false);
+		switch (result.MessageType)
 		{
-				WebSocketReceiveResult result = await websocket.ReceiveAsync(buffer, CancellationToken.None).ConfigureAwait(false);
-				switch (result.MessageType)
-				{
-						case WebSocketMessageType.Close:
-								return;
-						case WebSocketMessageType.Text:
-						case WebSocketMessageType.Binary:
-								var value = Encoding.UTF8.GetString(buffer, result.Count);
-								Console.WriteLine(value);
-								break;
-				}
+			case WebSocketMessageType.Close:
+				return;
+			case WebSocketMessageType.Text:
+			case WebSocketMessageType.Binary:
+				var value = Encoding.UTF8.GetString(buffer, result.Count);
+				Console.WriteLine(value);
+				break;
 		}
+	}
 }
 ```
 
@@ -39,8 +39,8 @@ async Task ReceiveAsync(ManagedWebSocket websocket)
 ```csharp
 async Task SendAsync(ManagedWebSocket websocket)
 {
-		var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes("Hello World"));
-		await websocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
+	var buffer = new ArraySegment<byte>(Encoding.UTF8.GetBytes("Hello World"));
+	await websocket.SendAsync(buffer, WebSocketMessageType.Text, true, CancellationToken.None).ConfigureAwait(false);
 } 
 ```
 
