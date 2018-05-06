@@ -262,7 +262,6 @@ Our prefers:
 
 ### Dependencies
 
-- Microsoft.Extensions.Logging.Abstractions
 - Microsoft.IO.RecyclableMemoryStream
 - VIEApps.Components.Utility
 
