@@ -5,7 +5,7 @@ that allows you to make WebSocket connections as a client or to respond to WebSo
 (or wrap existing WebSocket connections of ASP.NET / ASP.NET Core).
 
 ## NuGet
-- Package ID: VIEApps.Components.WebSockets
+- Package ID: **VIEApps.Components.WebSockets**
 - Details: https://www.nuget.org/packages/VIEApps.Components.WebSockets
 
 ## Walking on the ground
