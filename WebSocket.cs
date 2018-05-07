@@ -29,12 +29,13 @@ namespace net.vieapps.Components.WebSockets
 	{
 
 		#region Properties
-		ConcurrentDictionary<Guid, ManagedWebSocket> _websockets = new ConcurrentDictionary<Guid, ManagedWebSocket>();
-		ILogger _logger = null;
-		Func<MemoryStream> _recycledStreamFactory = null;
+		readonly ConcurrentDictionary<Guid, ManagedWebSocket> _websockets = new ConcurrentDictionary<Guid, ManagedWebSocket>();
+		readonly ILogger _logger = null;
+		readonly Func<MemoryStream> _recycledStreamFactory = null;
+		readonly CancellationTokenSource _processingCTS = null;
 		TcpListener _tcpListener = null;
 		bool _disposing = false, _disposed = false;
-		CancellationTokenSource _processingCTS = null, _listeningCTS = null;
+		CancellationTokenSource _listeningCTS = null;
 
 		/// <summary>
 		/// Gets the listening port of the listener

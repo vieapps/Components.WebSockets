@@ -23,10 +23,11 @@ namespace net.vieapps.Components.WebSockets
 		WebSocketState _state;
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
-		string _closeStatusDescription, _subProtocol;
+		string _closeStatusDescription;
 		bool _isContinuationFrame, _writting = false;
-		CancellationTokenSource _readingCTS;
-		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
+		readonly string _subProtocol;
+		readonly CancellationTokenSource _readingCTS;
+		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
 		internal event EventHandler<PongEventArgs> Pong;
 
@@ -268,7 +269,7 @@ namespace net.vieapps.Components.WebSockets
 			// exceeded max length
 			if (payload.Count > 125)
 			{
-				var ex = new InvalidOperationException($"Max ping message size 125 bytes, exceeded: {payload.Count}");
+				var ex = new InvalidOperationException($"Max pong message size is 125 bytes, exceeded: {payload.Count}");
 				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
 				throw ex;
 			}
@@ -299,7 +300,7 @@ namespace net.vieapps.Components.WebSockets
 		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			if (payload.Count > 125)
-				throw new InvalidOperationException($"Cannot send Ping: Max ping message size 125 bytes, exceeded: {payload.Count}");
+				throw new InvalidOperationException($"Max ping message size is 125 bytes, exceeded: {payload.Count}");
 
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())
@@ -444,6 +445,7 @@ namespace net.vieapps.Components.WebSockets
 		internal override void Close()
 		{
 			this._readingCTS.Cancel();
+			this._readingCTS.Dispose();
 			this._stream.Close();
 		}
 
