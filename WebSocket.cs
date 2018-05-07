@@ -274,10 +274,10 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// parse request
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection is opened, then read the HTTP header from the stream ({id} @ {endpoint})");
+				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection is opened, then read the request from the stream ({id} @ {endpoint})");
 
 				var header = await WebSocketHelper.ReadHttpHeaderAsync(stream, this._listeningCTS.Token).ConfigureAwait(false);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Header details ({id} @ {endpoint}) => \r\n{header.Trim()}");
+				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake request ({id} @ {endpoint}) => \r\n{header.Trim()}");
 
 				var isWebSocketUpgradeRequest = false;
 				var path = string.Empty;
@@ -291,7 +291,7 @@ namespace net.vieapps.Components.WebSockets
 				// verify request
 				if (!isWebSocketUpgradeRequest)
 				{
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The HTTP header contains no WebSocket upgrade request, then ignore ({id} @ {endpoint})");
+					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The request contains no WebSocket upgrade request, then ignore ({id} @ {endpoint})");
 					stream.Close();
 					tcpClient.Close();
 					return;
@@ -300,7 +300,7 @@ namespace net.vieapps.Components.WebSockets
 				// accept the request
 				var options = new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval };
 				Events.Log.AcceptWebSocketStarted(id);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The HTTP header has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {endpoint})");
+				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The request has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {endpoint})");
 
 				try
 				{
@@ -342,7 +342,7 @@ namespace net.vieapps.Components.WebSockets
 					Events.Log.SendingHandshake(id, handshake);
 					await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, this._listeningCTS.Token).ConfigureAwait(false);
 					Events.Log.HandshakeSent(id, handshake);
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake details ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
+					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake response ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
 				}
 				catch (VersionNotSupportedException ex)
 				{
@@ -470,7 +470,7 @@ namespace net.vieapps.Components.WebSockets
 				Events.Log.SendingHandshake(id, handshake);
 				await WebSocketHelper.WriteHttpHeaderAsync(handshake, stream, this._processingCTS.Token).ConfigureAwait(false);
 				Events.Log.HandshakeSent(id, handshake);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake details ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
+				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake request ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
 
 				// read response
 				Events.Log.ReadingHttpResponse(id);
@@ -572,7 +572,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onFailed">Action to fire when failed to connect</param>
 		public void Connect(string location, string subProtocol = null, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
-			this.Connect(new Uri(location.Trim().ToLower()), subProtocol, onSuccess, onFailed);
+			this.Connect(new Uri(location), subProtocol, onSuccess, onFailed);
 		}
 
 		/// <summary>
@@ -714,7 +714,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Sends the message to a <see cref="ManagedWebSocket">WebSocket</see> connection
 		/// </summary>
-		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection to send</param>
+		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection</param>
 		/// <param name="buffer">The buffer containing message to send</param>
 		/// <param name="messageType">The message type, can be Text or Binary</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
@@ -730,7 +730,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Sends the message to a <see cref="ManagedWebSocket">WebSocket</see> connection
 		/// </summary>
-		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection to send</param>
+		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection</param>
 		/// <param name="message">The text message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
@@ -745,7 +745,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Sends the message to a <see cref="ManagedWebSocket">WebSocket</see> connection
 		/// </summary>
-		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection to send</param>
+		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection</param>
 		/// <param name="message">The binary message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
@@ -841,6 +841,13 @@ namespace net.vieapps.Components.WebSockets
 				: this._websockets.Values;
 		}
 
+		/// <summary>
+		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
+		/// </summary>
+		/// <param name="websocket">The <see cref="ManagedWebSocket">WebSocket</see> connection to close</param>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <returns></returns>
 		bool CloseWebsocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription)
 		{
 			if (websocket.State == WebSocketState.Open)

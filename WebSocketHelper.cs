@@ -50,7 +50,7 @@ namespace net.vieapps.Components.WebSockets
 				offset += read;
 				var header = buffer.GetString(offset);
 
-				// as per HTTP specification, all headers should end like this
+				// as per specs, all headers should end like this
 				if (header.Contains("\r\n\r\n"))
 					return header;
 			}
@@ -68,6 +68,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public static async Task WriteHttpHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
 		{
+			// as per specs, all headers should end like this
 			var bytes = (header.Trim() + "\r\n\r\n").ToBytes();
 			await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
 		}

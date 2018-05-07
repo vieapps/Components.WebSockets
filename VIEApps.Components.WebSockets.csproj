@@ -5,23 +5,23 @@
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.2.0.1805</AssemblyVersion>
-		<FileVersion>10.2.0.1805</FileVersion>
+		<AssemblyVersion>10.2.1.1805</AssemblyVersion>
+		<FileVersion>10.2.1.1805</FileVersion>
 		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.06</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.2.0.1805</Version>
+		<Version>10.2.1.1805</Version>
 		<SignAssembly>false</SignAssembly>
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<Title>VIEApps NGX WebSockets</Title>
-		<Description>High performance WebSocket (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket) on .NET Standard 2.0</Description>
+		<Description>High performance WebSocket on .NET Standard 2.0 (both server and client,  can be standalone or wrapper of System.Net.WebSockets.WebSocket instance)</Description>
 		<Authors>VIEApps.net</Authors>
-		<Copyright>© 2017 NinjaSource, © 2018 VIEApps.net</Copyright>
+		<Copyright>© 2018 VIEApps.net</Copyright>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Changes: remove logger - use logger of utility lib</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: upgrade to latest components to avoid potential bugs</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
@@ -40,13 +40,13 @@
 		<None Remove=".DS_Store" />
 		<None Remove=".gitattributes" />
 		<None Remove=".gitignore" />
-		<None Remove="LICENSE" />
+		<None Remove="LICENSE.md" />
 		<None Remove="README.md" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.IO.RecyclableMemoryStream" Version="1.2.2" />
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.0.1805" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1.1805" />
 	</ItemGroup>
 
 </Project>
