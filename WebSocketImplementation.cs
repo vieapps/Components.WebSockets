@@ -29,7 +29,7 @@ namespace net.vieapps.Components.WebSockets
 		readonly CancellationTokenSource _readingCTS;
 		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
-		internal event EventHandler<PongEventArgs> Pong;
+		public event EventHandler<PongEventArgs> Pong;
 
 		/// <summary>
 		/// Gets the state that indicates the reason why the remote endpoint initiated the close handshake
