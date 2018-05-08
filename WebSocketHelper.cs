@@ -80,7 +80,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>A WebSocket accept key</returns>
 		public static string ComputeAcceptKey(string key)
 		{
-			return (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetSHA1(true);
+			return (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
 		}
 
 		/// <summary>
