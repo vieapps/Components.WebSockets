@@ -23,10 +23,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Initialises a new instance of the PongEventArgs class
 		/// </summary>
 		/// <param name="payload">The pong payload must be 125 bytes or less (can be zero bytes)</param>
-		public PongEventArgs(ArraySegment<byte> payload)
-		{
-			this.Payload = payload;
-		}
+		public PongEventArgs(ArraySegment<byte> payload) => this.Payload = payload;
 	}
 
 	// --------------------------------------------------
@@ -59,7 +56,7 @@ namespace net.vieapps.Components.WebSockets
 		readonly WebSocketImplementation _websocket;
 		readonly Task _pingTask;
 		readonly CancellationToken _cancellationToken;
-		Stopwatch _stopwatch;
+		readonly Stopwatch _stopwatch;
 		long _pingSentTicks;
 
 		/// <summary>
@@ -86,10 +83,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="payload">The payload (must be 125 bytes of less)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			return this._websocket.SendPingAsync(payload, cancellationToken);
-		}
+		public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken)) => this._websocket.SendPingAsync(payload, cancellationToken);
 
 		async Task DoPingAsync()
 		{
@@ -120,10 +114,7 @@ namespace net.vieapps.Components.WebSockets
 			Events.Log.PingPongManagerEnded(this._websocket.ID);
 		}
 
-		protected virtual void OnPong(PongEventArgs args)
-		{
-			this.Pong?.Invoke(this, args);
-		}
+		protected virtual void OnPong(PongEventArgs args) => this.Pong?.Invoke(this, args);
 
 		void DoPong(object sender, PongEventArgs arg)
 		{

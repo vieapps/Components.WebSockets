@@ -65,21 +65,21 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		[Event(8, Level = EventLevel.Informational)]
-		public void ReadingHttpResponse(Guid guid)
+		public void ReadingResponse(Guid guid)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(8, guid);
 		}
 
 		[Event(9, Level = EventLevel.Error)]
-		public void ReadHttpResponseError(Guid guid, string exception)
+		public void ReadResponseError(Guid guid, string exception)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(9, guid, exception ?? string.Empty);
 		}
 
 		[Event(10, Level = EventLevel.Warning)]
-		public void InvalidHttpResponseCode(Guid guid, string response)
+		public void InvalidResponseCode(Guid guid, string response)
 		{
 			if (this.IsEnabled())
 				this.WriteEvent(10, guid, response ?? string.Empty);

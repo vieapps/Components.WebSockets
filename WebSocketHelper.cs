@@ -24,18 +24,15 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets a factory to get recyclable memory stream with RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
 		/// </summary>
 		/// <returns></returns>
-		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
-		{
-			return new Microsoft.IO.RecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024).GetStream;
-		}
+		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory() => new Microsoft.IO.RecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024).GetStream;
 
 		/// <summary>
-		/// Reads the HTTP header
+		/// Reads the header
 		/// </summary>
 		/// <param name="stream">The stream to read from</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>The HTTP header</returns>
-		public static async Task<string> ReadHttpHeaderAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<string> ReadHeaderAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			var buffer = new byte[WebSocketHelper.ReceiveBufferSize];
 			var offset = 0;
@@ -60,13 +57,13 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Writes the HTTP header
+		/// Writes the header
 		/// </summary>
 		/// <param name="header">The header (without the new line characters)</param>
 		/// <param name="stream">The stream to write to</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteHttpHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task WriteHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			// as per specs, all headers should end like this
 			var bytes = (header.Trim() + "\r\n\r\n").ToBytes();

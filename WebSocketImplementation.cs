@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
+using net.vieapps.Components.WebSockets.Exceptions;
 using net.vieapps.Components.Utility;
 #endregion
 
@@ -253,10 +254,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Called when a Pong frame is received
 		/// </summary>
 		/// <param name="args"></param>
-		protected virtual void OnPong(PongEventArgs args)
-		{
-			this.Pong?.Invoke(this, args);
-		}
+		protected virtual void OnPong(PongEventArgs args) => this.Pong?.Invoke(this, args);
 
 		/// <summary>
 		/// Calls this when got ping messages (pong payload must be 125 bytes or less, pong should contain the same payload as the ping)
@@ -269,7 +267,7 @@ namespace net.vieapps.Components.WebSockets
 			// exceeded max length
 			if (payload.Count > 125)
 			{
-				var ex = new InvalidOperationException($"Max pong message size is 125 bytes, exceeded: {payload.Count}");
+				var ex = new BufferOverflowException($"Max pong message size is 125 bytes, exceeded: {payload.Count}");
 				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
 				throw ex;
 			}
@@ -300,7 +298,7 @@ namespace net.vieapps.Components.WebSockets
 		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			if (payload.Count > 125)
-				throw new InvalidOperationException($"Max ping message size is 125 bytes, exceeded: {payload.Count}");
+				throw new BufferOverflowException($"Max ping message size is 125 bytes, exceeded: {payload.Count}");
 
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())
@@ -434,13 +432,11 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
-		{
-			return base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
+			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
 				this.Close();
 				onCompleted?.Invoke();
 			});
-		}
 
 		internal override void Close()
 		{

@@ -15,8 +15,8 @@ namespace net.vieapps.Components.WebSockets
 	{
 
 		#region Properties
-		System.Net.WebSockets.WebSocket _websocket = null;
-		ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
+		readonly System.Net.WebSockets.WebSocket _websocket = null;
+		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 		bool _writting = false;
 
 		/// <summary>
@@ -60,10 +60,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="buffer">The buffer to copy data into</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
-		{
-			return this._websocket.ReceiveAsync(buffer, cancellationToken);
-		}
+		public override Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken) => this._websocket.ReceiveAsync(buffer, cancellationToken);
 
 		/// <summary>
 		/// Sends data over the WebSocket connection asynchronously
@@ -109,10 +106,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <param name="cancellationToken">The timeout cancellation token</param>
 		/// <returns></returns>
-		public override Task CloseAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
-		{
-			return this._websocket.CloseAsync(closeStatus, closeStatusDescription, cancellationToken);
-		}
+		public override Task CloseAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken) => this._websocket.CloseAsync(closeStatus, closeStatusDescription, cancellationToken);
 
 		/// <summary>
 		/// Fire and forget close
@@ -121,27 +115,19 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <param name="cancellationToken">The timeout cancellation token</param>
 		/// <returns></returns>
-		public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken)
-		{
-			return this._websocket.CloseOutputAsync(closeStatus, closeStatusDescription, cancellationToken);
-		}
+		public override Task CloseOutputAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, CancellationToken cancellationToken) => this._websocket.CloseOutputAsync(closeStatus, closeStatusDescription, cancellationToken);
 
 		/// <summary>
 		/// Aborts the WebSocket without sending a Close frame
 		/// </summary>
-		public override void Abort()
-		{
-			this._websocket.Abort();
-		}
+		public override void Abort() => this._websocket.Abort();
 
 		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
-		{
-			return base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
+			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
 				this.Close();
 				onCompleted?.Invoke();
 			});
-		}
 
 		internal override void Close()
 		{
