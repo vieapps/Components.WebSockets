@@ -440,9 +440,12 @@ namespace net.vieapps.Components.WebSockets
 
 		internal override void Close()
 		{
-			this._readingCTS.Cancel();
-			this._readingCTS.Dispose();
-			this._stream.Close();
+			if (!this._disposing && !this._disposed)
+			{
+				this._readingCTS.Cancel();
+				this._readingCTS.Dispose();
+				this._stream.Close();
+			}
 		}
 
 		~WebSocketImplementation()

@@ -33,9 +33,9 @@ namespace net.vieapps.Components.WebSockets
 		readonly ILogger _logger = null;
 		readonly Func<MemoryStream> _recycledStreamFactory = null;
 		readonly CancellationTokenSource _processingCTS = null;
+		CancellationTokenSource _listeningCTS = null;
 		TcpListener _tcpListener = null;
 		bool _disposing = false, _disposed = false;
-		CancellationTokenSource _listeningCTS = null;
 
 		/// <summary>
 		/// Gets the listening port of the listener
@@ -143,7 +143,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this.Certificate != null)
 					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 
-				this._logger.Log(LogLevel.Information, $"Listener is started - Listening port: {this.Port} - Platform: {platform}");
+				this._logger.LogInformation($"Listener is started - Listening port: {this.Port} - Platform: {platform}");
 				onSuccess?.Invoke();
 
 				// listen incomming connection requests
@@ -222,9 +222,9 @@ namespace net.vieapps.Components.WebSockets
 			{
 				this.StopListen(false);
 				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
-					this._logger.Log(LogLevel.Information, $"Listener is stoped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
+					this._logger.LogInformation($"Listener is stoped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
 				else
-					this._logger.Log(LogLevel.Error, $"Listener is stoped ({ex.Message})", ex);
+					this._logger.LogError($"Listener is stoped ({ex.Message})", ex);
 			}
 		}
 
@@ -456,7 +456,7 @@ namespace net.vieapps.Components.WebSockets
 					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}:{uri.Port}\r\n" +
 					$"Connection: Upgrade\r\n" +
 					$"Upgrade: websocket\r\n" +
-					$"Client: VIEApps NGX WebSockets\r\n" +
+					$"User-Agent: Mozilla/5.0 (VIEApps NGX WebSockets/{RuntimeInformation.FrameworkDescription.Trim()}/{RuntimeInformation.OSDescription.Trim()})\r\n" +
 					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
 					$"Sec-WebSocket-Key: {requestAcceptKey}\r\n";
@@ -561,7 +561,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="subProtocol">The sub-protocol</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(Uri uri, string subProtocol = null, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null) => Task.Run(() => this.ConnectAsync(uri, new WebSocketOptions { SubProtocol = subProtocol }, onSuccess, onFailed)).ConfigureAwait(false);
+		public void Connect(Uri uri, string subProtocol = null, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null)
+			=> Task.Run(() => this.ConnectAsync(uri, new WebSocketOptions { SubProtocol = subProtocol }, onSuccess, onFailed)).ConfigureAwait(false);
 
 		/// <summary>
 		/// Connects to a remote endpoint as a <see cref="WebSocket">WebSocket</see> client
@@ -570,7 +571,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="subProtocol">The sub-protocol</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(string location, string subProtocol = null, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null) => this.Connect(new Uri(location), subProtocol, onSuccess, onFailed);
+		public void Connect(string location, string subProtocol = null, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null)
+			=> this.Connect(new Uri(location), subProtocol, onSuccess, onFailed);
 
 		/// <summary>
 		/// Connects to a remote endpoint as a <see cref="WebSocket">WebSocket</see> client
@@ -578,7 +580,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="location">The address of the remote endpoint to connect to</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailed">Action to fire when failed to connect</param>
-		public void Connect(string location, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed) => this.Connect(location, null, onSuccess, onFailed);
+		public void Connect(string location, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed)
+			=> this.Connect(location, null, onSuccess, onFailed);
 		#endregion
 
 		#region Wrap a WebSocket connection of ASP.NET / ASP.NET Core
@@ -616,10 +619,7 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Receive messages
-		void Receive(ManagedWebSocket websocket)
-		{
-			Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
-		}
+		void Receive(ManagedWebSocket websocket) => Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
 
 		async Task ReceiveAsync(ManagedWebSocket websocket)
 		{
@@ -1005,7 +1005,10 @@ namespace net.vieapps.Components.WebSockets
 			{
 				using (var cts = new CancellationTokenSource(timespan))
 				{
-					await this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this.IncludeExceptionInCloseResponse && exception != null ? "\r\n\r\n" + exception.ToString() : ""), cts.Token).ConfigureAwait(false);
+					await Task.WhenAll(
+						this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this.IncludeExceptionInCloseResponse && exception != null ? "\r\n\r\n" + exception.ToString() : ""), CancellationToken.None),
+						Task.Delay((int)timespan.TotalSeconds - 1, cts.Token)
+					).ConfigureAwait(false);
 				}
 			}
 			catch (OperationCanceledException)
@@ -1016,7 +1019,7 @@ namespace net.vieapps.Components.WebSockets
 			catch (Exception closeException)
 			{
 				Events.Log.CloseOutputAutoTimeoutError(this.ID, closeException.ToString(), closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
-				Logger.Log<ManagedWebSocket>(LogLevel.Debug, LogLevel.Warning, $"Error occurred while closing a WebSocket connection: {closeException.Message} ({this.ID} @ {this.RemoteEndPoint})", closeException);
+				Logger.Log<ManagedWebSocket>(LogLevel.Debug, LogLevel.Warning, $"Error occurred while closing a WebSocket connection by time-out: {closeException.Message} ({this.ID} @ {this.RemoteEndPoint})", closeException);
 				onError?.Invoke(closeException);
 			}
 		}
@@ -1026,7 +1029,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		public override void Dispose() => this.DisposeAsync().Wait(4321);
 
-		bool _disposing = false, _disposed = false;
+		protected bool _disposing = false, _disposed = false;
 
 		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
 		{
