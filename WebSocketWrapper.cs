@@ -16,7 +16,7 @@ namespace net.vieapps.Components.WebSockets
 
 		#region Properties
 		readonly System.Net.WebSockets.WebSocket _websocket = null;
-		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
+		readonly ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>> _buffers = new ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>>();
 		bool _writting = false;
 
 		/// <summary>
@@ -74,7 +74,7 @@ namespace net.vieapps.Components.WebSockets
 		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
 		{
 			// add into queue and check pending write operations
-			this._buffers.Enqueue(buffer);
+			this._buffers.Enqueue(new Tuple<ArraySegment<byte>, WebSocketMessageType, bool>(buffer, messageType, endOfMessage));
 			if (this._writting)
 			{
 				Events.Log.PendingOperations(this.ID);
@@ -87,8 +87,8 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				while (this.State == WebSocketState.Open && this._buffers.Count > 0)
-					if (this._buffers.TryDequeue(out buffer))
-						await this._websocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
+					if (this._buffers.TryDequeue(out Tuple<ArraySegment<byte>, WebSocketMessageType, bool> data))
+						await this._websocket.SendAsync(data.Item1, data.Item2, data.Item3, cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception)
 			{

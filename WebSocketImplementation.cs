@@ -89,13 +89,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream">The stream to read data from</param>
 		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
-			// avoid calling ToArray on the MemoryStream because it allocates a new byte array on the heap
-			// we avoid this by attempting to access the internal memory stream buffer
-			// this works with supported streams like the recyclable memory stream and writable memory streams
-			var buffer = stream.ToArraySegment();
+			// add into queue
+			this._buffers.Enqueue(stream.ToArraySegment());
 
-			// add into queue and check pending write operations
-			this._buffers.Enqueue(buffer);
+			// check pending write operations
 			if (this._writting)
 			{
 				Events.Log.PendingOperations(this.ID);
@@ -108,8 +105,8 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				while (this._buffers.Count > 0)
-					if (this._buffers.TryDequeue(out buffer))
-						await this._stream.WriteAsync(buffer.Array, buffer.Offset, buffer.Count, cancellationToken).ConfigureAwait(false);
+					if (this._buffers.TryDequeue(out ArraySegment<byte> buffer))
+						await this._stream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception)
 			{

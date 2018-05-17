@@ -24,7 +24,8 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets a factory to get recyclable memory stream with RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
 		/// </summary>
 		/// <returns></returns>
-		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory() => new Microsoft.IO.RecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024).GetStream;
+		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
+			=> UtilityService.GetRecyclableMemoryStreamFactory(16 * 1024, 4, 128 * 1024);
 
 		/// <summary>
 		/// Reads the header
@@ -41,7 +42,7 @@ namespace net.vieapps.Components.WebSockets
 			do
 			{
 				if (offset >= WebSocketHelper.ReceiveBufferSize)
-					throw new EntityTooLargeException("HTTP header message too large to fit in buffer");
+					throw new EntityTooLargeException("Header is too large to fit in buffer");
 
 				read = await stream.ReadAsync(buffer, offset, WebSocketHelper.ReceiveBufferSize - offset, cancellationToken).ConfigureAwait(false);
 				offset += read;
@@ -63,12 +64,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream">The stream to write to</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-		{
-			// as per specs, all headers should end like this
-			var bytes = (header.Trim() + "\r\n\r\n").ToBytes();
-			await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
-		}
+		public static Task WriteHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+			=> stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Computes a WebSocket accept key from a given key

@@ -83,7 +83,8 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="payload">The payload (must be 125 bytes of less)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken)) => this._websocket.SendPingAsync(payload, cancellationToken);
+		public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken))
+			=> this._websocket.SendPingAsync(payload, cancellationToken);
 
 		async Task DoPingAsync()
 		{
