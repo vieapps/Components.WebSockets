@@ -317,7 +317,8 @@ Example:
 
 #### Maximum Concurrent Requests Per CPU
 
-By default ASP.NET 4.0 sets the maximum concurrent connections to 5000 per CPU. If you need more concurrent connections then you need to increase the maxConcurrentRequestsPerCPU setting.
+By default ASP.NET 4.0 sets the maximum concurrent connections to 5000 per CPU.
+If you need more concurrent connections then you need to increase the **maxConcurrentRequestsPerCPU** setting.
 
 Open **%windir%\Microsoft.NET\Framework\v4.0.30319\aspnet.config** (**Framework64** for 64 bit processes)
 
