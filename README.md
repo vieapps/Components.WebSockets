@@ -294,8 +294,8 @@ using net.vieapps.Components.WebSockets;
 
 ## Performance Tuning
 
-While working directly with this component, performance is not your problem, but when you wrap WebSockets connections of ASP.NET
-or ASP.NET Corre (with IIS Integration), may be you reach max 5,000 concurrent connections (because IIS allow 5,000 CCU by default).
+While working directly with this component, performance is not your problem, but when you wrap WebSocket connections of ASP.NET
+or ASP.NET Corre (with IIS Integration), may be you reach max 5,000 concurrent connections (because IIS allows 5,000 CCU by default).
 
 ASP.NET and IIS scale very well, but you'll need to change a few settings to set up your server for lots of concurrent connections,
 as opposed to lots of requests per second.
@@ -306,7 +306,7 @@ as opposed to lots of requests per second.
 
 Increase the number of concurrent requests IIS will serve at once:
 
-Open an administrator command prompt at ***%windir%\System32\inetsrv\ ***
+Open an administrator command prompt at %windir%\System32\inetsrv
 Run the command below to update the **appConcurrentRequestLimit** attribute to a suitable number (5000 is the default in IIS7+)
 
 Example:
@@ -319,7 +319,7 @@ Example:
 
 By default ASP.NET 4.0 sets the maximum concurrent connections to 5000 per CPU. If you need more concurrent connections then you need to increase the maxConcurrentRequestsPerCPU setting.
 
-Open ***%windir%\Microsoft.NET\Framework\v4.0.30319\aspnet.config*** (**Framework64** for 64 bit processes)
+Open **%windir%\Microsoft.NET\Framework\v4.0.30319\aspnet.config** (**Framework64** for 64 bit processes)
 
 Copy from the sample below (ensure case is correct!)
 
@@ -347,9 +347,9 @@ Example:
 When the total amount of connections exceed the **maxConcurrentRequestsPerCPU** setting (i.e. maxConcurrentRequestsPerCPU * number of logical processors),
 ASP.NET will start throttling requests using a queue. To control the size of the queue, you can tweak the **requestQueueLimit**.
 
-- Open ***%windir%\Microsoft.NET\Framework\v4.0.30319\Config\machine.config*** (**Framework64** for 64 bit processes)
+- Open **%windir%\Microsoft.NET\Framework\v4.0.30319\Config\machine.config** (**Framework64** for 64 bit processes)
 - Locate the processModel element
-- Set the **autoConfig** attribute to false and the **requestQueueLimit** attribute to a suitable number
+- Set the **autoConfig** attribute to ***false*** and the **requestQueueLimit** attribute to a suitable number
 
 Example:
 
