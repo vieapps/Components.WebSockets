@@ -306,8 +306,8 @@ as opposed to lots of requests per second.
 
 Increase the number of concurrent requests IIS will serve at once:
 
-Open an administrator command prompt at %windir%\System32\inetsrv
-Run the command below to update the **appConcurrentRequestLimit** attribute to a suitable number (5000 is the default in IIS7+)
+- Open an administrator command prompt at **%windir%\System32\inetsrv**
+- Run the command below to update the **appConcurrentRequestLimit** attribute to a suitable number (5000 is the default in IIS7+)
 
 Example:
 
