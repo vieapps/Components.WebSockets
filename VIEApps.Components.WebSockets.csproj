@@ -7,7 +7,7 @@
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
 		<AssemblyVersion>10.2.2.1806</AssemblyVersion>
 		<FileVersion>10.2.2.1806</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.17</InformationalVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.23</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>

@@ -291,3 +291,95 @@ using net.vieapps.Components.WebSockets;
 - No hang
 - Used memory: 1.3 GB - 1.7 GB
 - CPU usages: 3% - 15% while receiving messages, 18% - 35% while sending messages
+
+## Performance Tuning
+
+While working directly with this component, performance is not your problem, but when you wrap WebSockets connections of ASP.NET
+or ASP.NET Corre (with IIS Integration), may be you reach max 5,000 concurrent connections (because IIS allow 5,000 CCU by default).
+
+ASP.NET and IIS scale very well, but you'll need to change a few settings to set up your server for lots of concurrent connections,
+as opposed to lots of requests per second.
+
+### IIS Configuration
+
+#### Max concurrent requests per application
+
+Increase the number of concurrent requests IIS will serve at once:
+
+Open an administrator command prompt at ***%windir%\System32\inetsrv\ ***
+Run the command below to update the **appConcurrentRequestLimit** attribute to a suitable number (5000 is the default in IIS7+)
+
+Example:
+
+**appcmd.exe set config /section:system.webserver/serverRuntime /appConcurrentRequestLimit:100000**
+
+### ASP.NET Configuration
+
+#### Maximum Concurrent Requests Per CPU
+
+By default ASP.NET 4.0 sets the maximum concurrent connections to 5000 per CPU. If you need more concurrent connections then you need to increase the maxConcurrentRequestsPerCPU setting.
+
+Open ***%windir%\Microsoft.NET\Framework\v4.0.30319\aspnet.config*** (**Framework64** for 64 bit processes)
+
+Copy from the sample below (ensure case is correct!)
+
+Example:
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration>
+    <runtime>
+        <legacyUnhandledExceptionPolicy enabled="false" />
+        <legacyImpersonationPolicy enabled="true"/>
+        <alwaysFlowImpersonationPolicy enabled="false"/>
+        <SymbolReadingPolicy enabled="1" />
+        <shadowCopyVerifyByTimestamp enabled="true"/>
+    </runtime>
+    <startup useLegacyV2RuntimeActivationPolicy="true" />
+    <system.web>
+        <applicationPool maxConcurrentRequestsPerCPU="20000" />
+    </system.web>
+</configuration>
+```
+
+#### Request Queue Limit
+
+When the total amount of connections exceed the **maxConcurrentRequestsPerCPU** setting (i.e. maxConcurrentRequestsPerCPU * number of logical processors),
+ASP.NET will start throttling requests using a queue. To control the size of the queue, you can tweak the **requestQueueLimit**.
+
+- Open ***%windir%\Microsoft.NET\Framework\v4.0.30319\Config\machine.config*** (**Framework64** for 64 bit processes)
+- Locate the processModel element
+- Set the **autoConfig** attribute to false and the **requestQueueLimit** attribute to a suitable number
+
+Example:
+
+```xml
+<processModel autoConfig="false" requestQueueLimit="250000" />
+```
+
+#### Performance Counters
+
+The following performance counters may be useful to watch while conducting concurrency testing and adjusting the settings detailed above:
+
+Memory
+- .NET CLR Memory# bytes in all Heaps (for w3wp)
+
+ASP.NET
+- ASP.NET\Requests Current
+- ASP.NET\Queued
+- ASP.NET\Rejected
+
+CPU
+- Processor Information\Processor Time
+
+TCP/IP
+- TCPv6\Connections Established
+- TCPv4\Connections Established
+
+Web Service
+- Web Service\Current Connections
+- Web Service\Maximum Connections
+
+Threading
+- .NET CLR LocksAndThreads\ # of current logical Threads
+- .NET CLR LocksAndThreads\ # of current physical Threads

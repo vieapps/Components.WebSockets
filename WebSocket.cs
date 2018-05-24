@@ -104,6 +104,13 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
 
+		/// <summary>
+		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
+		/// </summary>
+		/// <param name="loggerFactory">The logger factory</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		public WebSocket(ILoggerFactory loggerFactory, CancellationToken cancellationToken) : this(loggerFactory, null, cancellationToken) { }
+
 		#region Listen incomming connection requests as server
 		/// <summary>
 		/// Starts to listen for client requests as a <see cref="WebSocket">WebSocket</see> server
