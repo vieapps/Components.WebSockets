@@ -64,6 +64,9 @@ public EndPoint RemoteEndPoint { get; }
 
 // the local endpoint
 public EndPoint LocalEndPoint { get; }
+
+// Extra information
+public Dictionary<string, object> Extra { get; }
 ```
 
 ## Fly on the sky with Event-liked driven
@@ -88,6 +91,7 @@ Action<ManagedWebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived;
 ```
 
 And this class has some methods for working on both side of client and server role:
+
 ```csharp
 void Connect(Uri uri, string subProtocol, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
 void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
@@ -123,13 +127,41 @@ Want to have a free SSL certificate? Take a look at [Let's Encrypt](https://lets
 
 Special: A simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Let's Encrypt very well.
 
+### SubProtocol Negotiation
+
+To enable negotiation of subprotocols, specify the supported protocols on **SupportedSubProtocols** property.
+The negotiated subprotocol will be available on the socket's **SubProtocol**.
+
+If no supported subprotocols are found on the client request (Sec-WebSocket-Protocol), the listener will raises the **SubProtocolNegotiationFailedException** exception.
+
+```csharp
+var websocket = new WebSocket
+{
+	SupportedSubProtocols = new[] { "superchat", "chat" }
+};
+websocket.StartListen(46429);
+```
+
+### Nagle's Algorithm
+
+The Nagle's Algorithm is disabled by default (to send a message immediately).
+If you want to enable the Nagle's Algorithm, set **NoDelay** to **false**
+
+```csharp
+var websocket = new WebSocket
+{
+	NoDelay = false
+};
+websocket.StartListen(46429);
+```
+
 ### Wrap an existing WebSocket connection of ASP.NET / ASP.NET Core
 
 When integrate this component with your app that hosted by ASP.NET / ASP.NET Core, you might want to use the WebSocket connections of ASP.NET / ASP.NET Core directly,
 then the method **WrapAsync** is here to help. This method will return a task that run a process for receiving messages from this WebSocket connection.
 
 ```csharp
-Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint);
+Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferrer, Action<ManagedWebSocket> onSuccess);
 ```
 
 And might be you need an extension method to wrap an existing WebSocket connection, then take a look at some lines of code below:
