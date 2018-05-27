@@ -129,10 +129,10 @@ Special: A simple tool named [lets-encrypt-win-simple](https://github.com/PKISha
 
 ### SubProtocol Negotiation
 
-To enable negotiation of subprotocols, specify the supported protocols on **SupportedSubProtocols** property.
-The negotiated subprotocol will be available on the socket's **SubProtocol**.
+To enable negotiation of subprotocols, specify the supported protocols on *SupportedSubProtocols* property.
+The negotiated subprotocol will be available on the socket's *SubProtocol*.
 
-If no supported subprotocols are found on the client request (Sec-WebSocket-Protocol), the listener will raises the **SubProtocolNegotiationFailedException** exception.
+If no supported subprotocols are found on the client request (Sec-WebSocket-Protocol), the listener will raises the *SubProtocolNegotiationFailedException* exception.
 
 ```csharp
 var websocket = new WebSocket
@@ -145,7 +145,7 @@ websocket.StartListen(46429);
 ### Nagle's Algorithm
 
 The Nagle's Algorithm is disabled by default (to send a message immediately).
-If you want to enable the Nagle's Algorithm, set **NoDelay** to **false**
+If you want to enable the Nagle's Algorithm, set *NoDelay* to *false*
 
 ```csharp
 var websocket = new WebSocket
@@ -338,21 +338,21 @@ as opposed to lots of requests per second.
 
 Increase the number of concurrent requests IIS will serve at once:
 
-- Open an administrator command prompt at **%windir%\System32\inetsrv**
+- Open an administrator command prompt at *%windir%\System32\inetsrv*
 - Run the command below to update the **appConcurrentRequestLimit** attribute to a suitable number (5000 is the default in IIS7+)
 
 Example:
 
-**appcmd.exe set config /section:system.webserver/serverRuntime /appConcurrentRequestLimit:100000**
+*appcmd.exe set config /section:system.webserver/serverRuntime /appConcurrentRequestLimit:100000*
 
 ### ASP.NET Configuration
 
 #### Maximum Concurrent Requests Per CPU
 
 By default ASP.NET 4.0 sets the maximum concurrent connections to 5000 per CPU.
-If you need more concurrent connections then you need to increase the **maxConcurrentRequestsPerCPU** setting.
+If you need more concurrent connections then you need to increase the *maxConcurrentRequestsPerCPU* setting.
 
-Open **%windir%\Microsoft.NET\Framework\v4.0.30319\aspnet.config** (**Framework64** for 64 bit processes)
+Open *%windir%\Microsoft.NET\Framework\v4.0.30319\aspnet.config* (*Framework64* for 64 bit processes)
 
 Copy from the sample below (ensure case is correct!)
 
@@ -377,12 +377,12 @@ Example:
 
 #### Request Queue Limit
 
-When the total amount of connections exceed the **maxConcurrentRequestsPerCPU** setting (i.e. maxConcurrentRequestsPerCPU * number of logical processors),
-ASP.NET will start throttling requests using a queue. To control the size of the queue, you can tweak the **requestQueueLimit**.
+When the total amount of connections exceed the *maxConcurrentRequestsPerCPU* setting (i.e. maxConcurrentRequestsPerCPU * number of logical processors),
+ASP.NET will start throttling requests using a queue. To control the size of the queue, you can tweak the *requestQueueLimit*.
 
-- Open **%windir%\Microsoft.NET\Framework\v4.0.30319\Config\machine.config** (**Framework64** for 64 bit processes)
+- Open *%windir%\Microsoft.NET\Framework\v4.0.30319\Config\machine.config* (*Framework64* for 64 bit processes)
 - Locate the processModel element
-- Set the **autoConfig** attribute to ***false*** and the **requestQueueLimit** attribute to a suitable number
+- Set the *autoConfig* attribute to *false* and the *requestQueueLimit* attribute to a suitable number
 
 Example:
 
