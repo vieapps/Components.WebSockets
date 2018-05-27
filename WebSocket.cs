@@ -65,6 +65,12 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Gets or sets a value that specifies whether the listener is disable the Nagle algorithm or not (default is true - means disable for better performance)
 		/// </summary>
+		/// <remarks>
+		/// Set to true to send a message immediately with the least amount of latency (typical usage for chat)
+		/// This will disable Nagle's algorithm which can cause high tcp latency for small packets sent infrequently
+		/// However, if you are streaming large packets or sending large numbers of small packets frequently it is advisable to set NoDelay to false
+		/// This way data will be bundled into larger packets for better throughput
+		/// </remarks>
 		public bool NoDelay { get; set; } = true;
 
 		/// <summary>
@@ -1043,6 +1049,16 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public Task SendAsync(byte[] data, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
 			=> this.SendAsync((data ?? new byte[0]).ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
+
+		/// <summary>
+		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
+		/// </summary>
+		/// <param name="data">The binary data to send</param>
+		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public Task SendAsync(ArraySegment<byte> data, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+			=> this.SendAsync(data, WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 
 		/// <summary>
 		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection automatically in response to some invalid data from the remote host
