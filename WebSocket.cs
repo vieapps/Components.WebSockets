@@ -63,6 +63,11 @@ namespace net.vieapps.Components.WebSockets
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
 
 		/// <summary>
+		/// Gets or sets a value that specifies whether the listener is disable the Nagle algorithm or not (default is true - means disable for better performance)
+		/// </summary>
+		public bool NoDelay { get; set; } = true;
+
+		/// <summary>
 		/// Gets or sets await interval (miliseconds) while receiving messages
 		/// </summary>
 		public int AwaitInterval { get; set; } = 0;
@@ -136,6 +141,7 @@ namespace net.vieapps.Components.WebSockets
 				this.Certificate = certificate ?? this.Certificate;
 
 				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
+				this._tcpListener.Server.NoDelay = this.NoDelay;
 				this._tcpListener.Start(1024);
 
 				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -333,7 +339,7 @@ namespace net.vieapps.Components.WebSockets
 					var handshake =
 						$"HTTP/1.1 101 Switching Protocols\r\n" +
 						$"Connection: Upgrade\r\n" +
-						$"Upgrade: websocket\r\n" +
+						$"Upgrade: WebSocket\r\n" +
 						$"Server: VIEApps NGX WebSockets\r\n" +
 						$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 						$"Sec-WebSocket-Accept: {WebSocketHelper.ComputeAcceptKey(requestKey)}\r\n";
@@ -447,7 +453,12 @@ namespace net.vieapps.Components.WebSockets
 						Events.Log.AttemptingToSecureConnection(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
-						stream = new SslStream(tcpClient.GetStream(), false, (sender, certificate, chain, sslPolicyErrors) => sslPolicyErrors == SslPolicyErrors.None ? true : false, null);
+						stream = new SslStream(
+							tcpClient.GetStream(), 
+							false, 
+							(sender, certificate, chain, sslPolicyErrors) => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ?  sslPolicyErrors == SslPolicyErrors.None ? true : false : true, // only available on Windows
+							null
+						);
 						await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
@@ -479,7 +490,7 @@ namespace net.vieapps.Components.WebSockets
 					$"Host: {uri.Host}:{uri.Port}\r\n" +
 					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}:{uri.Port}\r\n" +
 					$"Connection: Upgrade\r\n" +
-					$"Upgrade: websocket\r\n" +
+					$"Upgrade: WebSocket\r\n" +
 					$"User-Agent: Mozilla/5.0 (VIEApps NGX WebSockets/{RuntimeInformation.FrameworkDescription.Trim()}/{RuntimeInformation.OSDescription.Trim()})\r\n" +
 					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
