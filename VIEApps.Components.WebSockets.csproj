@@ -5,14 +5,14 @@
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.2.2.1806</AssemblyVersion>
-		<FileVersion>10.2.2.1806</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.23</InformationalVersion>
+		<AssemblyVersion>10.2.3.1806</AssemblyVersion>
+		<FileVersion>10.2.3.1806</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2018.05.28</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.2.2.1806</Version>
+		<Version>10.2.3.1806</Version>
 		<SignAssembly>false</SignAssembly>
 		<DelaySign>false</DelaySign>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
@@ -21,8 +21,9 @@
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2018 VIEApps.net</Copyright>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Update: re-implement SendAsync method of WebSocketWrapper to avoid potential bugs</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: add NoDelay option to disable Nagle's algorithm</PackageReleaseNotes>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
+		<PackageIconUrl>https://github.com/vieapps/Components.Utility/raw/master/logo.png</PackageIconUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
 
@@ -45,7 +46,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="VIEApps.Components.Utility" Version="10.2.2.1806" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.3.1806" />
 	</ItemGroup>
 
 </Project>
