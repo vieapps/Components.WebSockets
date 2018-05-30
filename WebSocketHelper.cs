@@ -2,10 +2,12 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
@@ -88,7 +90,22 @@ namespace net.vieapps.Components.WebSockets
 			var matches = client.Intersect(server);
 			return matches.Any()
 				? matches.First()
-				: throw new SubProtocolNegotiationFailedException("Unable to negotiate a subprotocol");
+				: throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
+		}
+
+		/// <summary>
+		/// Set keep-alive interval to something more reasonable (because the TCP keep-alive default values of Windows are huge ~7200s)
+		/// </summary>
+		/// <param name="socket"></param>
+		/// <param name="keepaliveInterval"></param>
+		/// <param name="retryInterval"></param>
+		public static void SetKeepAliveInterval(this Socket socket, uint keepaliveInterval = 60000, uint retryInterval = 10000)
+		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				var option = ((uint)1).ToBytes().Concat(keepaliveInterval.ToBytes(), retryInterval.ToBytes());
+				socket.IOControl(IOControlCode.KeepAliveValues, option, null);
+			}
 		}
 	}
 }

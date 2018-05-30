@@ -148,6 +148,7 @@ namespace net.vieapps.Components.WebSockets
 
 				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
 				this._tcpListener.Server.NoDelay = this.NoDelay;
+				this._tcpListener.Server.SetKeepAliveInterval();
 				this._tcpListener.Start(1024);
 
 				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -234,6 +235,7 @@ namespace net.vieapps.Components.WebSockets
 				while (!this._listeningCTS.IsCancellationRequested)
 				{
 					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
+					tcpClient.Client.SetKeepAliveInterval();
 					var accept = this.AcceptAsync(tcpClient);
 				}
 			}
@@ -436,7 +438,11 @@ namespace net.vieapps.Components.WebSockets
 			{
 				// connect the TCP client
 				var id = Guid.NewGuid();
-				var tcpClient = new TcpClient() { NoDelay = options.NoDelay };
+				var tcpClient = new TcpClient()
+				{
+					NoDelay = options.NoDelay
+				};
+				tcpClient.Client.SetKeepAliveInterval();
 
 				if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
 				{
@@ -460,7 +466,7 @@ namespace net.vieapps.Components.WebSockets
 						Events.Log.AttemptingToSecureConnection(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
-						stream = new SslStream(tcpClient.GetStream(),  false, (sender, certificate, chain, sslPolicyErrors) => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? true : sslPolicyErrors == SslPolicyErrors.None ? true : false);
+						stream = new SslStream(tcpClient.GetStream(), false, (sender, certificate, chain, sslPolicyErrors) => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? true : sslPolicyErrors == SslPolicyErrors.None ? true : false);
 						await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);

@@ -139,7 +139,7 @@ var websocket = new WebSocket
 {
 	SupportedSubProtocols = new[] { "superchat", "chat" }
 };
-websocket.StartListen(46429);
+websocket.StartListen();
 ```
 
 ### Nagle's Algorithm
@@ -152,7 +152,7 @@ var websocket = new WebSocket
 {
 	NoDelay = false
 };
-websocket.StartListen(46429);
+websocket.StartListen();
 ```
 
 ### Wrap an existing WebSocket connection of ASP.NET / ASP.NET Core
@@ -161,7 +161,7 @@ When integrate this component with your app that hosted by ASP.NET / ASP.NET Cor
 then the method **WrapAsync** is here to help. This method will return a task that run a process for receiving messages from this WebSocket connection.
 
 ```csharp
-Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferrer, Action<ManagedWebSocket> onSuccess);
+Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferrer, string headers, string cookies, Action<ManagedWebSocket> onSuccess);
 ```
 
 And might be you need an extension method to wrap an existing WebSocket connection, then take a look at some lines of code below:
@@ -292,11 +292,6 @@ Can be any provider that supports extension of Microsoft.Extensions.Logging (via
 Our prefers:
 - [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
 - [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): rolling log files (by date) - high performance, and very simple to use
-
-### Dependencies
-
-- [Microsoft.IO.RecyclableMemoryStream](https://www.nuget.org/packages/Microsoft.IO.RecyclableMemoryStream)
-- [VIEApps.Components.Utility](https://www.nuget.org/packages/VIEApps.Components.Utility)
 
 ### Namespaces
 
