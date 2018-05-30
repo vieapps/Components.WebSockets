@@ -284,6 +284,7 @@ namespace net.vieapps.Components.WebSockets
 				else
 				{
 					Events.Log.ConnectionNotSecured(id);
+					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Use insecured connection ({id} @ {endpoint})");
 					stream = tcpClient.GetStream();
 				}
 
@@ -298,7 +299,7 @@ namespace net.vieapps.Components.WebSockets
 				var match = new Regex(@"^GET(.*)HTTP\/1\.1", RegexOptions.IgnoreCase).Match(header);
 				if (match.Success)
 				{
-					isWebSocketRequest = new Regex("Upgrade: websocket", RegexOptions.IgnoreCase).Match(header).Success;
+					isWebSocketRequest = new Regex("Upgrade: WebSocket", RegexOptions.IgnoreCase).Match(header).Success;
 					path = match.Groups[1].Value.Trim();
 				}
 
@@ -327,13 +328,13 @@ namespace net.vieapps.Components.WebSockets
 							throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} is not supported, must be 13 or above");
 					}
 					else
-						throw new VersionNotSupportedException("Cannot find \"Sec-WebSocket-Version\" in the header");
+						throw new VersionNotSupportedException("Unable to find \"Sec-WebSocket-Version\" in the upgrade request");
 
 					// get the request key
 					match = new Regex("Sec-WebSocket-Key: (.*)").Match(header);
 					var requestKey = match.Success
 						? match.Groups[1].Value.Trim()
-						: throw new KeyMissingException("Unable to read \"Sec-WebSocket-Key\" from the header");
+						: throw new KeyMissingException("Unable to find \"Sec-WebSocket-Key\" in the upgrade request");
 
 					// negotiate subprotocol
 					match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(header);
@@ -459,12 +460,7 @@ namespace net.vieapps.Components.WebSockets
 						Events.Log.AttemptingToSecureConnection(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
-						stream = new SslStream(
-							tcpClient.GetStream(), 
-							false, 
-							(sender, certificate, chain, sslPolicyErrors) => RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ?  sslPolicyErrors == SslPolicyErrors.None ? true : false : true, // only available on Windows
-							null
-						);
+						stream = new SslStream(tcpClient.GetStream(),  false, (sender, certificate, chain, sslPolicyErrors) => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? true : sslPolicyErrors == SslPolicyErrors.None ? true : false);
 						await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
@@ -485,6 +481,7 @@ namespace net.vieapps.Components.WebSockets
 				else
 				{
 					Events.Log.ConnectionNotSecured(id);
+					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Use insecured connection ({id} @ {endpoint})");
 					stream = tcpClient.GetStream();
 				}
 
@@ -494,10 +491,10 @@ namespace net.vieapps.Components.WebSockets
 				var handshake =
 					$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
 					$"Host: {uri.Host}:{uri.Port}\r\n" +
-					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}:{uri.Port}\r\n" +
+					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}\r\n" +
 					$"Connection: Upgrade\r\n" +
 					$"Upgrade: WebSocket\r\n" +
-					$"User-Agent: Mozilla/5.0 (VIEApps NGX WebSockets/{RuntimeInformation.FrameworkDescription.Trim()}/{RuntimeInformation.OSDescription.Trim()})\r\n" +
+					$"User-Agent: Mozilla/5.0 (VIEApps NGX WebSockets/{RuntimeInformation.FrameworkDescription.Trim()}/{(RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Macintosh; Intel Mac OS X; " : "")}{RuntimeInformation.OSDescription.Trim()})\r\n" +
 					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
 					$"Sec-WebSocket-Key: {requestAcceptKey}\r\n";
@@ -535,7 +532,7 @@ namespace net.vieapps.Components.WebSockets
 				// throw if got invalid response code
 				if (!"101 Switching Protocols".IsEquals(responseCode))
 				{
-					var lines = response.Split(new string[] { "\r\n" }, StringSplitOptions.None);
+					var lines = response.Split(new[] { "\r\n" }, StringSplitOptions.None);
 					for (var index = 0; index < lines.Length; index++)
 					{
 						// if there is more to the message than just the header
@@ -635,9 +632,11 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="urlReferrer">The string that presents the url referrer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="headers">The string that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="cookies">The string that presents the cookies of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, string userAgent = null, string urlReferrer = null, Action<ManagedWebSocket> onSuccess = null)
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, string userAgent = null, string urlReferrer = null, string headers = null, string cookies = null, Action<ManagedWebSocket> onSuccess = null)
 		{
 			try
 			{
@@ -649,6 +648,12 @@ namespace net.vieapps.Components.WebSockets
 
 				if (!string.IsNullOrWhiteSpace(urlReferrer))
 					websocket.Extra["Referrer"] = urlReferrer;
+
+				if (!string.IsNullOrWhiteSpace(headers))
+					websocket.Extra["Headers"] = headers;
+
+				if (!string.IsNullOrWhiteSpace(cookies))
+					websocket.Extra["Cookies"] = cookies;
 
 				this.AddWebSocket(websocket);
 				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Wrap a WebSocket connection [{webSocket.GetType()}] successful ({websocket.ID} @ {websocket.RemoteEndPoint}");
@@ -673,10 +678,23 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
 		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="urlReferrer">The string that presents the url referrer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, Action<ManagedWebSocket> onSuccess)
-			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, null, null, null, onSuccess);
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferrer, Action<ManagedWebSocket> onSuccess)
+			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, userAgent, urlReferrer, null, null, onSuccess);
+
+		/// <summary>
+		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
+		/// </summary>
+		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
+		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint)
+			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, null, null, null, null, null, null);
 		#endregion
 
 		#region Receive messages
