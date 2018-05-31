@@ -20,6 +20,8 @@ using net.vieapps.Components.WebSockets.Exceptions;
 using net.vieapps.Components.Utility;
 #endregion
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("VIEApps.Components.XUnitTests")]
+
 namespace net.vieapps.Components.WebSockets
 {
 	/// <summary>
@@ -222,13 +224,13 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		Task Listen()
+		internal Task Listen()
 		{
 			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
 			return this.ListenAsync();
 		}
 
-		async Task ListenAsync()
+		internal async Task ListenAsync()
 		{
 			try
 			{
@@ -249,7 +251,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		async Task AcceptAsync(TcpClient tcpClient)
+		internal async Task AcceptAsync(TcpClient tcpClient)
 		{
 			ManagedWebSocket websocket = null;
 			try
@@ -431,7 +433,7 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Connect to remote endpoints as client
-		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null)
+		internal async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailed = null)
 		{
 			this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to connect ({uri})");
 			try
@@ -704,9 +706,9 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Receive messages
-		void Receive(ManagedWebSocket websocket) => Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
+		internal void Receive(ManagedWebSocket websocket) => Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
 
-		async Task ReceiveAsync(ManagedWebSocket websocket)
+		internal async Task ReceiveAsync(ManagedWebSocket websocket)
 		{
 			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.ReceiveBufferSize]);
 			while (!this._processingCTS.IsCancellationRequested)
