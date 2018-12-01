@@ -193,7 +193,7 @@ namespace net.vieapps.Components.WebSockets
 								return new WebSocketReceiveResult(frame.Count, this._continuationFrameMessageType, frame.IsFinBitSet);
 
 							default:
-								var ex = new NotSupportedException($"Unknown WebSocket opcode {frame.OpCode}");
+								var ex = new NotSupportedException($"Unknown WebSocket op-code: {frame.OpCode}");
 								await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
 								throw ex;
 						}

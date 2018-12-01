@@ -44,7 +44,7 @@ namespace net.vieapps.Components.WebSockets
 			do
 			{
 				if (offset >= WebSocketHelper.ReceiveBufferSize)
-					throw new EntityTooLargeException("Header is too large to fit in buffer");
+					throw new EntityTooLargeException("Header is too large to fit into the buffer");
 
 				read = await stream.ReadAsync(buffer, offset, WebSocketHelper.ReceiveBufferSize - offset, cancellationToken).ConfigureAwait(false);
 				offset += read;
@@ -102,10 +102,7 @@ namespace net.vieapps.Components.WebSockets
 		public static void SetKeepAliveInterval(this Socket socket, uint keepaliveInterval = 60000, uint retryInterval = 10000)
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			{
-				var option = ((uint)1).ToBytes().Concat(keepaliveInterval.ToBytes(), retryInterval.ToBytes());
-				socket.IOControl(IOControlCode.KeepAliveValues, option, null);
-			}
+				socket.IOControl(IOControlCode.KeepAliveValues, ((uint)1).ToBytes().Concat(keepaliveInterval.ToBytes(), retryInterval.ToBytes()), null);
 		}
 	}
 }
