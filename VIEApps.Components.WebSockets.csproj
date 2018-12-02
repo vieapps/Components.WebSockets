@@ -5,14 +5,14 @@
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.2.1811.2</AssemblyVersion>
-		<FileVersion>10.2.1811.2</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2018.11.24</InformationalVersion>
+		<AssemblyVersion>10.2.1812.1</AssemblyVersion>
+		<FileVersion>10.2.1812.1</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2018.12.03-lstcmp</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.2.1811.2</Version>
+		<Version>10.2.1812.1</Version>
 		<SignAssembly>false</SignAssembly>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<Title>VIEApps NGX WebSockets</Title>
@@ -45,7 +45,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1811.2" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1812.1" />
 	</ItemGroup>
 
 </Project>

@@ -107,6 +107,13 @@ namespace net.vieapps.Components.WebSockets
 		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
 		/// </summary>
 		/// <param name="loggerFactory">The logger factory</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		public WebSocket(ILoggerFactory loggerFactory, CancellationToken cancellationToken) : this(loggerFactory, null, cancellationToken) { }
+
+		/// <summary>
+		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
+		/// </summary>
+		/// <param name="loggerFactory">The logger factory</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream (this can be used with the Microsoft.IO.RecyclableMemoryStreamManager class)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		public WebSocket(ILoggerFactory loggerFactory = null, Func<MemoryStream> recycledStreamFactory = null, CancellationToken cancellationToken = default(CancellationToken))
@@ -116,13 +123,6 @@ namespace net.vieapps.Components.WebSockets
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._processingCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
-
-		/// <summary>
-		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
-		/// </summary>
-		/// <param name="loggerFactory">The logger factory</param>
-		/// <param name="cancellationToken">The cancellation token</param>
-		public WebSocket(ILoggerFactory loggerFactory, CancellationToken cancellationToken) : this(loggerFactory, null, cancellationToken) { }
 
 		#region Listen incomming connection requests as server
 		/// <summary>
@@ -159,7 +159,7 @@ namespace net.vieapps.Components.WebSockets
 						? "Linux"
 						: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
 							? "macOS"
-							: $"OS [{RuntimeInformation.OSDescription.Trim()}]";
+							: $"Generic OS [{RuntimeInformation.OSDescription.Trim()}]";
 
 				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 				if (this.Certificate != null)
