@@ -5,24 +5,24 @@
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.2.1812.1</AssemblyVersion>
-		<FileVersion>10.2.1812.1</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2018.12.03-lstcmp</InformationalVersion>
+		<SignAssembly>false</SignAssembly>
+		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
+		<AssemblyVersion>10.2.1812.2</AssemblyVersion>
+		<FileVersion>10.2.1812.2</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2018.12.04-lstcmp</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.2.1812.1</Version>
-		<SignAssembly>false</SignAssembly>
-		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
+		<Version>10.2.1812.2</Version>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET Standard 2.0 (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
 		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2018 VIEApps.net</Copyright>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Upgrade to latest components for better performance</PackageReleaseNotes>
-		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
+		<PackageReleaseNotes>Upgrade to latest components</PackageReleaseNotes>
 		<PackageIconUrl>https://github.com/vieapps/Components.Utility/raw/master/logo.png</PackageIconUrl>
+		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
 
@@ -45,7 +45,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1812.1" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1812.2" />
 	</ItemGroup>
 
 </Project>

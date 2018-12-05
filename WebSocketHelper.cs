@@ -26,8 +26,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets a factory to get recyclable memory stream with RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
 		/// </summary>
 		/// <returns></returns>
-		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
-			=> UtilityService.GetRecyclableMemoryStreamFactory(16 * 1024, 4, 128 * 1024);
+		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory() => UtilityService.GetRecyclableMemoryStreamFactory(16 * 1024, 4, 128 * 1024);
 
 		/// <summary>
 		/// Reads the header
@@ -66,16 +65,14 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream">The stream to write to</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken))
-			=> stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken);
+		public static Task WriteHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken)) => stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Computes a WebSocket accept key from a given key
 		/// </summary>
 		/// <param name="key">The WebSocket request key</param>
 		/// <returns>A WebSocket accept key</returns>
-		public static string ComputeAcceptKey(string key)
-			=> (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
+		public static string ComputeAcceptKey(string key) => (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
 
 		/// <summary>
 		/// Negotiates sub-protocol
