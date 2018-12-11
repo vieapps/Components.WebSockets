@@ -1,6 +1,6 @@
 ﻿# VIEApps.Components.WebSockets
 
-A concrete implementation of the *System.Net.WebSockets.WebSocket* abstract class on .NET Standard 2.0,
+A concrete implementation of the **System.Net.WebSockets.WebSocket** abstract class on .NET Standard 2.0,
 that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server
 (or wrap existing WebSocket connections of ASP.NET / ASP.NET Core).
 
@@ -104,7 +104,7 @@ Use the **Connect** method to connect to a remote endpoint
 
 ### WebSocket server
 
-Use the **StartListen** method to start the listener to listen incomming connection requests.
+Use the **StartListen** method to start the listener to listen incoming connection requests.
 
 Use the **StopListen** method to stop the listener.
 
@@ -120,7 +120,7 @@ var websocket = new WebSocket
 	Certificate = new X509Certificate2("my-certificate.pfx")
 	// Certificate = new X509Certificate2("my-certificate.pfx", "cert-password", X509KeyStorageFlags.UserKeySet)
 };
-websocket.StartListen(46429);
+websocket.StartListen();
 ```
 
 Want to have a free SSL certificate? Take a look at [Let's Encrypt](https://letsencrypt.org/).
@@ -137,7 +137,23 @@ If no supported subprotocols are found on the client request (Sec-WebSocket-Prot
 ```csharp
 var websocket = new WebSocket
 {
-	SupportedSubProtocols = new[] { "superchat", "chat" }
+	SupportedSubProtocols = new[] { "messenger", "chat" },
+	OnError = (webSocket, exception) =>
+	{
+		// your code to handle error
+	},
+	OnConnectionEstablished = (webSocket) =>
+	{
+		// your code to handle established connection
+	},
+	OnConnectionBroken = (webSocket) =>
+	{
+		// your code to handle broken connection
+	},
+	OnMessageReceived = (webSocket, result, data) =>
+	{
+		// your code to handle received message
+	}
 };
 websocket.StartListen();
 ```
@@ -287,7 +303,8 @@ bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus
 
 ### Logging
 
-Can be any provider that supports extension of Microsoft.Extensions.Logging (via dependency injection).
+- Can be any provider that supports extension of Microsoft.Extensions.Logging (via dependency injection).
+- Set the log's level to *Trace* to see all processing logs
 
 Our prefers:
 - [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
@@ -356,17 +373,17 @@ Example:
 ```xml
 <?xml version="1.0" encoding="UTF-8" ?>
 <configuration>
-    <runtime>
-        <legacyUnhandledExceptionPolicy enabled="false" />
-        <legacyImpersonationPolicy enabled="true"/>
-        <alwaysFlowImpersonationPolicy enabled="false"/>
-        <SymbolReadingPolicy enabled="1" />
-        <shadowCopyVerifyByTimestamp enabled="true"/>
-    </runtime>
-    <startup useLegacyV2RuntimeActivationPolicy="true" />
-    <system.web>
-        <applicationPool maxConcurrentRequestsPerCPU="20000" />
-    </system.web>
+	<runtime>
+		<legacyUnhandledExceptionPolicy enabled="false" />
+		<legacyImpersonationPolicy enabled="true"/>
+		<alwaysFlowImpersonationPolicy enabled="false"/>
+		<SymbolReadingPolicy enabled="1" />
+		<shadowCopyVerifyByTimestamp enabled="true"/>
+	</runtime>
+	<startup useLegacyV2RuntimeActivationPolicy="true" />
+	<system.web>
+		<applicationPool maxConcurrentRequestsPerCPU="20000" />
+	</system.web>
 </configuration>
 ```
 
