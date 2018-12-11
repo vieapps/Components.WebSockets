@@ -90,10 +90,34 @@ Action<ManagedWebSocket> OnConnectionBroken;
 Action<ManagedWebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived;
 ```
 
+Example:
+
+```csharp
+var websocket = new WebSocket
+{
+	OnError = (webSocket, exception) =>
+	{
+		// your code to handle error
+	},
+	OnConnectionEstablished = (webSocket) =>
+	{
+		// your code to handle established connection
+	},
+	OnConnectionBroken = (webSocket) =>
+	{
+		// your code to handle broken connection
+	},
+	OnMessageReceived = (webSocket, result, data) =>
+	{
+		// your code to handle received message
+	}
+};
+```
+
 And this class has some methods for working on both side of client and server role:
 
 ```csharp
-void Connect(Uri uri, string subProtocol, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
+void Connect(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
 void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
 void StopListen();
 ```
@@ -137,23 +161,7 @@ If no supported subprotocols are found on the client request (Sec-WebSocket-Prot
 ```csharp
 var websocket = new WebSocket
 {
-	SupportedSubProtocols = new[] { "messenger", "chat" },
-	OnError = (webSocket, exception) =>
-	{
-		// your code to handle error
-	},
-	OnConnectionEstablished = (webSocket) =>
-	{
-		// your code to handle established connection
-	},
-	OnConnectionBroken = (webSocket) =>
-	{
-		// your code to handle broken connection
-	},
-	OnMessageReceived = (webSocket, result, data) =>
-	{
-		// your code to handle received message
-	}
+	SupportedSubProtocols = new[] { "messenger", "chat" }
 };
 websocket.StartListen();
 ```
