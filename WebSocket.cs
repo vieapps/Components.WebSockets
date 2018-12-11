@@ -160,6 +160,19 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		}
 
+		/// <summary>
+		/// Gets or sets the size (length) of the protocol buffer used to receive and parse frames, the default is 16kb, the minimum is 1kb (1024 bytes)
+		/// </summary>
+		public static int ReceiveBufferSize
+		{
+			get => WebSocketHelper.ReceiveBufferSize;
+			set
+			{
+				if (value >= 1024)
+					WebSocketHelper.ReceiveBufferSize = value;
+			}
+		}
+
 		#region Listen incomming connection requests as server
 		/// <summary>
 		/// Starts to listen for client requests as a WebSocket server
@@ -397,7 +410,7 @@ namespace net.vieapps.Components.WebSockets
 					// negotiate subprotocol
 					match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(header);
 					options.SubProtocol = match.Success
-						? (this.SupportedSubProtocols ?? new string[0]).NegotiateSubProtocol(match.Groups[1].Value.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+						? match.Groups[1].Value.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).NegotiateSubProtocol(this.SupportedSubProtocols)
 						: null;
 
 					// handshake
@@ -1097,18 +1110,6 @@ namespace net.vieapps.Components.WebSockets
 		}
 		#endregion
 
-		/// <summary>
-		/// Gets or sets the size (length) of the protocol buffer used to receive and parse frames, the default is 16kb, the minimum is 1kb (1024 bytes)
-		/// </summary>
-		public static int ReceiveBufferSize
-		{
-			get => WebSocketHelper.ReceiveBufferSize;
-			set
-			{
-				if (value >= 1024)
-					WebSocketHelper.ReceiveBufferSize = value;
-			}
-		}
 	}
 
 	// ------------------------------------------------------------------------

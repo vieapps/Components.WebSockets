@@ -82,12 +82,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="supportedSubProtocols"></param>
 		/// <param name="requestedSubProtocols"></param>
 		/// <returns></returns>
-		public static string NegotiateSubProtocol(this IEnumerable<string> supportedSubProtocols, IEnumerable<string> requestedSubProtocols)
-			=> !supportedSubProtocols.Any() || !requestedSubProtocols.Any()
+		public static string NegotiateSubProtocol(this IEnumerable<string> requestedSubProtocols, IEnumerable<string> supportedSubProtocols)
+			=> requestedSubProtocols == null || supportedSubProtocols == null || !requestedSubProtocols.Any() || !supportedSubProtocols.Any()
 				? null
-				: requestedSubProtocols.Intersect(supportedSubProtocols).Any()
-					? requestedSubProtocols.Intersect(supportedSubProtocols).First()
-					: throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
+				: requestedSubProtocols.Intersect(supportedSubProtocols).FirstOrDefault() ?? throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
 
 		/// <summary>
 		/// Set keep-alive interval to something more reasonable (because the TCP keep-alive default values of Windows are huge ~7200s)
