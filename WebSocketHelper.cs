@@ -15,7 +15,7 @@ using net.vieapps.Components.WebSockets.Exceptions;
 
 namespace net.vieapps.Components.WebSockets
 {
-	internal static class WebSocketHelper
+	public static class WebSocketHelper
 	{
 		/// <summary>
 		/// Gets or sets the size (length) of the protocol buffer used to receive and parse frames
@@ -26,7 +26,8 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets a factory to get recyclable memory stream with RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
 		/// </summary>
 		/// <returns></returns>
-		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory() => UtilityService.GetRecyclableMemoryStreamFactory(16 * 1024, 4, 128 * 1024);
+		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
+			=> UtilityService.GetRecyclableMemoryStreamFactory(16 * 1024, 4, 128 * 1024);
 
 		/// <summary>
 		/// Reads the header
@@ -34,7 +35,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream">The stream to read from</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>The HTTP header</returns>
-		public static async Task<string> ReadHeaderAsync(Stream stream, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<string> ReadHeaderAsync(this Stream stream, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			var buffer = new byte[WebSocketHelper.ReceiveBufferSize];
 			var offset = 0;
@@ -61,34 +62,32 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Writes the header
 		/// </summary>
-		/// <param name="header">The header (without the new line characters)</param>
 		/// <param name="stream">The stream to write to</param>
+		/// <param name="header">The header (without the new line characters)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static Task WriteHeaderAsync(string header, Stream stream, CancellationToken cancellationToken = default(CancellationToken)) => stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken);
+		public static Task WriteHeaderAsync(this Stream stream, string header, CancellationToken cancellationToken = default(CancellationToken))
+			=> stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Computes a WebSocket accept key from a given key
 		/// </summary>
 		/// <param name="key">The WebSocket request key</param>
 		/// <returns>A WebSocket accept key</returns>
-		public static string ComputeAcceptKey(string key) => (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
+		public static string ComputeAcceptKey(this string key) => (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
 
 		/// <summary>
 		/// Negotiates sub-protocol
 		/// </summary>
-		/// <param name="server"></param>
-		/// <param name="client"></param>
+		/// <param name="supportedSubProtocols"></param>
+		/// <param name="requestedSubProtocols"></param>
 		/// <returns></returns>
-		public static string NegotiateSubProtocol(IEnumerable<string> server, IEnumerable<string> client)
-		{
-			if (!server.Any() || !client.Any())
-				return null;
-			var matches = client.Intersect(server);
-			return matches.Any()
-				? matches.First()
-				: throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
-		}
+		public static string NegotiateSubProtocol(this IEnumerable<string> supportedSubProtocols, IEnumerable<string> requestedSubProtocols)
+			=> !supportedSubProtocols.Any() || !requestedSubProtocols.Any()
+				? null
+				: requestedSubProtocols.Intersect(supportedSubProtocols).Any()
+					? requestedSubProtocols.Intersect(supportedSubProtocols).First()
+					: throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
 
 		/// <summary>
 		/// Set keep-alive interval to something more reasonable (because the TCP keep-alive default values of Windows are huge ~7200s)

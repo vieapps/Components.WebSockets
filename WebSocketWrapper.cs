@@ -17,7 +17,7 @@ namespace net.vieapps.Components.WebSockets
 		#region Properties
 		readonly System.Net.WebSockets.WebSocket _websocket = null;
 		readonly ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>> _buffers = new ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>>();
-		bool _writting = false;
+		bool _sending = false;
 
 		/// <summary>
 		/// Gets the state that indicates the reason why the remote endpoint initiated the close handshake
@@ -75,7 +75,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			// add into queue and check pending write operations
 			this._buffers.Enqueue(new Tuple<ArraySegment<byte>, WebSocketMessageType, bool>(buffer, messageType, endOfMessage));
-			if (this._writting)
+			if (this._sending)
 			{
 				Events.Log.PendingOperations(this.ID);
 				Logger.Log<WebSocketWrapper>(LogLevel.Debug, LogLevel.Warning, $"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
@@ -83,7 +83,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 
 			// put data to wire
-			this._writting = true;
+			this._sending = true;
 			try
 			{
 				while (this.State == WebSocketState.Open && this._buffers.Count > 0)
@@ -96,7 +96,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			finally
 			{
-				this._writting = false;
+				this._sending = false;
 			}
 		}
 

@@ -27,7 +27,7 @@ namespace net.vieapps.Components.WebSockets
 		string _closeStatusDescription;
 		bool _isContinuationFrame, _writting = false;
 		readonly string _subProtocol;
-		readonly CancellationTokenSource _readingCTS;
+		readonly CancellationTokenSource _processingCTS;
 		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
 		public event EventHandler<PongEventArgs> Pong;
@@ -75,22 +75,24 @@ namespace net.vieapps.Components.WebSockets
 			this._stream = stream;
 			this._state = WebSocketState.Open;
 			this._subProtocol = options.SubProtocol;
-			this._readingCTS = new CancellationTokenSource();
+			this._processingCTS = new CancellationTokenSource();
 
 			if (this.KeepAliveInterval == TimeSpan.Zero)
 				Events.Log.KeepAliveIntervalZero(this.ID);
 			else
-				this._pingpongManager = new PingPongManager(this, this._readingCTS.Token);
+				this._pingpongManager = new PingPongManager(this, this._processingCTS.Token);
 		}
 
 		/// <summary>
 		/// Puts data on the wire
 		/// </summary>
-		/// <param name="stream">The stream to read data from</param>
-		async Task WriteStreamToNetworkAsync(MemoryStream stream, CancellationToken cancellationToken)
+		/// <param name="data"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		async Task PutOnTheWireAsync(MemoryStream data, CancellationToken cancellationToken)
 		{
 			// add into queue
-			this._buffers.Enqueue(stream.ToArraySegment());
+			this._buffers.Enqueue(data.ToArraySegment());
 
 			// check pending write operations
 			if (this._writting)
@@ -132,12 +134,12 @@ namespace net.vieapps.Components.WebSockets
 				while (true)
 				{
 					// allow this operation to be cancelled from iniside OR outside this instance
-					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(this._readingCTS.Token, cancellationToken))
+					using (var cts = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token, cancellationToken))
 					{
 						WebSocketFrame frame = null;
 						try
 						{
-							frame = await WebSocketFrame.ReadAsync(this._stream, buffer, cts.Token).ConfigureAwait(false);
+							frame = await this._stream.ReadAsync(buffer, cts.Token).ConfigureAwait(false);
 							Events.Log.ReceivedFrame(this.ID, frame.OpCode, frame.IsFinBitSet, frame.Count);
 						}
 						catch (InternalBufferOverflowException ex)
@@ -166,6 +168,7 @@ namespace net.vieapps.Components.WebSockets
 							throw;
 						}
 
+						// process op-code
 						switch (frame.OpCode)
 						{
 							case WebSocketOpCode.ConnectionClose:
@@ -180,13 +183,15 @@ namespace net.vieapps.Components.WebSockets
 								break;
 
 							case WebSocketOpCode.Text:
+								// continuation frames will follow, record the message type as text
 								if (!frame.IsFinBitSet)
-									this._continuationFrameMessageType = WebSocketMessageType.Text; // continuation frames will follow, record the message type Text
+									this._continuationFrameMessageType = WebSocketMessageType.Text;
 								return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Text, frame.IsFinBitSet);
 
 							case WebSocketOpCode.Binary:
+								// continuation frames will follow, record the message type as binary
 								if (!frame.IsFinBitSet)
-									this._continuationFrameMessageType = WebSocketMessageType.Binary; // continuation frames will follow, record the message type Binary
+									this._continuationFrameMessageType = WebSocketMessageType.Binary;
 								return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Binary, frame.IsFinBitSet);
 
 							case WebSocketOpCode.Continuation:
@@ -206,7 +211,7 @@ namespace net.vieapps.Components.WebSockets
 				// however, if an unhandled exception is encountered and a close message not sent then send one here
 				if (this._state == WebSocketState.Open)
 					await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", ex).ConfigureAwait(false);
-				throw;
+				throw ex;
 			}
 		}
 
@@ -229,14 +234,14 @@ namespace net.vieapps.Components.WebSockets
 			// this is in response to a close handshake initiated by the remote instance
 			else if (this._state == WebSocketState.Open)
 			{
-				var closePayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count);
 				this._state = WebSocketState.CloseReceived;
 				Events.Log.CloseHandshakeRespond(this.ID, frame.CloseStatus, frame.CloseStatusDescription);
 				using (var stream = this._recycledStreamFactory())
 				{
-					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, closePayload, stream, true, this.IsClient);
+					var closePayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count);
+					stream.Write(WebSocketOpCode.ConnectionClose, closePayload, true, this.IsClient);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
-					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
 			}
 
@@ -274,9 +279,9 @@ namespace net.vieapps.Components.WebSockets
 				if (this._state == WebSocketState.Open)
 					using (var stream = this._recycledStreamFactory())
 					{
-						WebSocketFrame.Write(WebSocketOpCode.Pong, payload, stream, true, this.IsClient);
+						stream.Write(WebSocketOpCode.Pong, payload, true, this.IsClient);
 						Events.Log.SendingFrame(this.ID, WebSocketOpCode.Pong, true, payload.Count, false);
-						await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+						await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 					}
 			}
 			catch (Exception ex)
@@ -300,34 +305,10 @@ namespace net.vieapps.Components.WebSockets
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())
 				{
-					WebSocketFrame.Write(WebSocketOpCode.Ping, payload, stream, true, this.IsClient);
+					stream.Write(WebSocketOpCode.Ping, payload, true, this.IsClient);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.Ping, true, payload.Count, false);
-					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
-		}
-
-		/// <summary>
-		/// Turns a spec websocket frame opcode into a WebSocketMessageType
-		/// </summary>
-		WebSocketOpCode GetOpCode(WebSocketMessageType messageType)
-		{
-			if (this._isContinuationFrame)
-				return WebSocketOpCode.Continuation;
-
-			switch (messageType)
-			{
-				case WebSocketMessageType.Binary:
-					return WebSocketOpCode.Binary;
-
-				case WebSocketMessageType.Text:
-					return WebSocketOpCode.Text;
-
-				case WebSocketMessageType.Close:
-					throw new NotSupportedException("Cannot use Send function to send a close frame, change to use Close function");
-
-				default:
-					throw new NotSupportedException($"MessageType \"{messageType}\" is not supported");
-			}
 		}
 
 		/// <summary>
@@ -340,12 +321,31 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
 		{
+			// prepare op-code
+			WebSocketOpCode opCode;
+			if (this._isContinuationFrame)
+				opCode = WebSocketOpCode.Continuation;
+			else
+				switch (messageType)
+				{
+					case WebSocketMessageType.Binary:
+						opCode = WebSocketOpCode.Binary;
+						break;
+					case WebSocketMessageType.Text:
+						opCode = WebSocketOpCode.Text;
+						break;
+					case WebSocketMessageType.Close:
+						throw new NotSupportedException("Cannot use Send function to send a close frame, change to use Close function");
+					default:
+						throw new NotSupportedException($"MessageType \"{messageType}\" is not supported");
+				}
+
+			// send
 			using (var stream = this._recycledStreamFactory())
 			{
-				var opCode = this.GetOpCode(messageType);
-				WebSocketFrame.Write(opCode, buffer, stream, endOfMessage, this.IsClient);
+				stream.Write(opCode, buffer, endOfMessage, this.IsClient);
 				Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
-				await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+				await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 				this._isContinuationFrame = !endOfMessage;
 			}
 		}
@@ -378,10 +378,10 @@ namespace net.vieapps.Components.WebSockets
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
-					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
+					stream.Write(WebSocketOpCode.ConnectionClose, buffer, true, this.IsClient);
 					Events.Log.CloseHandshakeStarted(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
-					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._state = WebSocketState.CloseSent;
 				}
 			else
@@ -406,17 +406,17 @@ namespace net.vieapps.Components.WebSockets
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
-					WebSocketFrame.Write(WebSocketOpCode.ConnectionClose, buffer, stream, true, this.IsClient);
+					stream.Write(WebSocketOpCode.ConnectionClose, buffer, true, this.IsClient);
 					Events.Log.CloseOutputNoHandshake(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
-					await this.WriteStreamToNetworkAsync(stream, cancellationToken).ConfigureAwait(false);
+					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
 			}
 			else
 				Events.Log.InvalidStateBeforeCloseOutput(this.ID, this._state);
 
 			// cancel pending reads
-			this._readingCTS.Cancel();
+			this._processingCTS.Cancel();
 		}
 
 		/// <summary>
@@ -425,7 +425,7 @@ namespace net.vieapps.Components.WebSockets
 		public override void Abort()
 		{
 			this._state = WebSocketState.Aborted;
-			this._readingCTS.Cancel();
+			this._processingCTS.Cancel();
 		}
 
 		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
@@ -439,8 +439,8 @@ namespace net.vieapps.Components.WebSockets
 		{
 			if (!this._disposing && !this._disposed)
 			{
-				this._readingCTS.Cancel();
-				this._readingCTS.Dispose();
+				this._processingCTS.Cancel();
+				this._processingCTS.Dispose();
 				this._stream.Close();
 			}
 		}

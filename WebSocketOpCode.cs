@@ -1,6 +1,6 @@
 ﻿namespace net.vieapps.Components.WebSockets
 {
-	internal enum WebSocketOpCode
+	public enum WebSocketOpCode
 	{
 		Continuation = 0,
 		Text = 1,

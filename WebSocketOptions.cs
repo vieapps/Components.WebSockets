@@ -6,7 +6,7 @@ namespace net.vieapps.Components.WebSockets
 	/// <summary>
 	/// Options for initialize a WebSocket connection
 	/// </summary>
-	internal class WebSocketOptions
+	public class WebSocketOptions
 	{
 		/// <summary>
 		/// Gets or sets how often to send ping requests to the remote endpoint
