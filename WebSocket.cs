@@ -166,14 +166,10 @@ namespace net.vieapps.Components.WebSockets
 		public static int ReceiveBufferSize
 		{
 			get => WebSocketHelper.ReceiveBufferSize;
-			set
-			{
-				if (value >= 1024)
-					WebSocketHelper.ReceiveBufferSize = value;
-			}
+			set => WebSocketHelper.ReceiveBufferSize = value >= 1024 ? value : WebSocketHelper.ReceiveBufferSize;
 		}
 
-		#region Listen incomming connection requests as server
+		#region Listen for client requests as server
 		/// <summary>
 		/// Starts to listen for client requests as a WebSocket server
 		/// </summary>
@@ -186,7 +182,14 @@ namespace net.vieapps.Components.WebSockets
 			// check
 			if (this._tcpListener != null)
 			{
-				onSuccess?.Invoke();
+				try
+				{
+					onSuccess?.Invoke();
+				}
+				catch (Exception ex)
+				{
+					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+				}
 				return;
 			}
 
@@ -211,7 +214,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this.Certificate != null)
 					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 
-				this._logger.LogInformation($"The listener is started on port {this.Port}\r\nPlatform: {platform}\r\nPowered by VIEApps NGX WebSocket {this.GetType().Assembly.GetVersion()}");
+				this._logger.LogInformation($"The listener is started (listening port: {this.Port})\r\nPlatform: {platform}\r\nPowered by VIEApps NGX WebSocket {this.GetType().Assembly.GetVersion()}");
 				try
 				{
 					onSuccess?.Invoke();
@@ -221,7 +224,7 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 				}
 
-				// listen for incomming connection requests
+				// listen for incoming connection requests
 				this.Listen();
 			}
 			catch (SocketException ex)
@@ -257,13 +260,15 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="port">The port for listening</param>
 		/// <param name="onSuccess">Action to fire when start successful</param>
 		/// <param name="onFailure">Action to fire when failed to start</param>
-		public void StartListen(int port, Action onSuccess, Action<Exception> onFailure) => this.StartListen(port, null, onSuccess, onFailure);
+		public void StartListen(int port, Action onSuccess, Action<Exception> onFailure)
+			=> this.StartListen(port, null, onSuccess, onFailure);
 
 		/// <summary>
 		/// Starts to listen for client requests as a WebSocket server
 		/// </summary>
 		/// <param name="port">The port for listening</param>
-		public void StartListen(int port) => this.StartListen(port, null, null);
+		public void StartListen(int port)
+			=> this.StartListen(port, null, null);
 
 		/// <summary>
 		/// Stops listen
@@ -291,13 +296,13 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		internal Task Listen()
+		Task Listen()
 		{
 			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
 			return this.ListenAsync();
 		}
 
-		internal async Task ListenAsync()
+		async Task ListenAsync()
 		{
 			try
 			{
@@ -305,20 +310,23 @@ namespace net.vieapps.Components.WebSockets
 				{
 					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 					tcpClient.Client.SetKeepAliveInterval();
-					var accept = this.AcceptAsync(tcpClient);
+					this.AcceptClient(tcpClient);
 				}
 			}
 			catch (Exception ex)
 			{
 				this.StopListen(false);
 				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
-					this._logger.LogInformation($"Listener is stoped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
+					this._logger.LogInformation($"The listener is stopped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
 				else
-					this._logger.LogError($"Listener is stoped ({ex.Message})", ex);
+					this._logger.LogError($"The listener is stopped ({ex.Message})", ex);
 			}
 		}
 
-		internal async Task AcceptAsync(TcpClient tcpClient)
+		void AcceptClient(TcpClient tcpClient)
+			=> Task.Run(() => this.AcceptClientAsync(tcpClient)).ConfigureAwait(false);
+
+		async Task AcceptClientAsync(TcpClient tcpClient)
 		{
 			ManagedWebSocket websocket = null;
 			try
@@ -371,7 +379,8 @@ namespace net.vieapps.Components.WebSockets
 				if (match.Success)
 				{
 					isWebSocketRequest = new Regex("Upgrade: WebSocket", RegexOptions.IgnoreCase).Match(header).Success;
-					path = match.Groups[1].Value.Trim();
+					if (isWebSocketRequest)
+						path = match.Groups[1].Value.Trim();
 				}
 
 				// verify request
@@ -384,7 +393,10 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// accept the request
-				var options = new WebSocketOptions() { KeepAliveInterval = this.KeepAliveInterval };
+				var options = new WebSocketOptions
+				{
+					KeepAliveInterval = this.KeepAliveInterval
+				};
 				Events.Log.AcceptWebSocketStarted(id);
 				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The request has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {endpoint})");
 
@@ -434,13 +446,13 @@ namespace net.vieapps.Components.WebSockets
 				{
 					Events.Log.WebSocketVersionNotSupported(id, ex.ToString());
 					await stream.WriteHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\nException: {ex.Message}", this._listeningCTS.Token).ConfigureAwait(false);
-					throw;
+					throw ex;
 				}
 				catch (Exception ex)
 				{
 					Events.Log.BadRequest(id, ex.ToString());
 					await stream.WriteHeaderAsync($"HTTP/1.1 400 Bad Request\r\nException: {ex.Message}", this._listeningCTS.Token).ConfigureAwait(false);
-					throw;
+					throw ex;
 				}
 
 				Events.Log.ServerHandshakeSuccess(id);
@@ -491,7 +503,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 				else
 				{
-					this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Error occurred while accepting an incomming connection request: {ex.Message}", ex);
+					this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Error occurred while accepting an incoming connection request: {ex.Message}", ex);
 					this.ErrorHandler?.Invoke(websocket, ex);
 				}
 			}
@@ -499,7 +511,7 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Connect to remote endpoints as client
-		internal async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
+		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
 		{
 			this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to connect ({uri})");
 			try
@@ -679,11 +691,21 @@ namespace net.vieapps.Components.WebSockets
 		/// Connects to a remote endpoint as a WebSocket client
 		/// </summary>
 		/// <param name="uri">The address of the remote endpoint to connect to</param>
+		/// <param name="options">The options</param>
+		/// <param name="onSuccess">Action to fire when connect successful</param>
+		/// <param name="onFailure">Action to fire when failed to connect</param>
+		public void Connect(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
+			=> Task.Run(() => this.ConnectAsync(uri, options ?? new WebSocketOptions(), onSuccess, onFailure)).ConfigureAwait(false);
+
+		/// <summary>
+		/// Connects to a remote endpoint as a WebSocket client
+		/// </summary>
+		/// <param name="uri">The address of the remote endpoint to connect to</param>
 		/// <param name="subProtocol">The sub-protocol</param>
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailure">Action to fire when failed to connect</param>
 		public void Connect(Uri uri, string subProtocol = null, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
-			=> Task.Run(() => this.ConnectAsync(uri, new WebSocketOptions { SubProtocol = subProtocol }, onSuccess, onFailure)).ConfigureAwait(false);
+			=> this.Connect(uri, new WebSocketOptions { SubProtocol = subProtocol }, onSuccess, onFailure);
 
 		/// <summary>
 		/// Connects to a remote endpoint as a WebSocket client
@@ -788,9 +810,10 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Receive messages
-		internal void Receive(ManagedWebSocket websocket) => Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
+		void Receive(ManagedWebSocket websocket)
+			=> Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
 
-		internal async Task ReceiveAsync(ManagedWebSocket websocket)
+		async Task ReceiveAsync(ManagedWebSocket websocket)
 		{
 			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.ReceiveBufferSize]);
 			while (!this._processingCTS.IsCancellationRequested)
