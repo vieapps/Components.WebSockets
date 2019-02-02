@@ -23,6 +23,11 @@ namespace net.vieapps.Components.WebSockets
 		public static int ReceiveBufferSize { get; internal set; } = 16 * 1024;
 
 		/// <summary>
+		/// Gets or sets the agent name of the protocol for working with related headers
+		/// </summary>
+		public static string AgentName { get; internal set; } = "VIEApps NGX WebSockets";
+
+		/// <summary>
 		/// Gets a factory to get recyclable memory stream with RecyclableMemoryStreamManager class to limit LOH fragmentation and improve performance
 		/// </summary>
 		/// <returns></returns>
@@ -74,7 +79,8 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="key">The WebSocket request key</param>
 		/// <returns>A WebSocket accept key</returns>
-		public static string ComputeAcceptKey(this string key) => (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
+		public static string ComputeAcceptKey(this string key)
+			=> (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
 
 		/// <summary>
 		/// Negotiates sub-protocol

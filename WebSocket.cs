@@ -169,6 +169,15 @@ namespace net.vieapps.Components.WebSockets
 			set => WebSocketHelper.ReceiveBufferSize = value >= 1024 ? value : WebSocketHelper.ReceiveBufferSize;
 		}
 
+		/// <summary>
+		/// Gets or sets the agent name of the protocol for working with related headers
+		/// </summary>
+		public static string AgentName
+		{
+			get => WebSocketHelper.AgentName;
+			set => WebSocketHelper.AgentName = !string.IsNullOrWhiteSpace(value) ? value : WebSocketHelper.AgentName;
+		}
+
 		#region Listen for client requests as server
 		/// <summary>
 		/// Starts to listen for client requests as a WebSocket server
@@ -430,7 +439,7 @@ namespace net.vieapps.Components.WebSockets
 						$"HTTP/1.1 101 Switching Protocols\r\n" +
 						$"Connection: Upgrade\r\n" +
 						$"Upgrade: WebSocket\r\n" +
-						$"Server: VIEApps NGX WebSockets\r\n" +
+						$"Server: {WebSocketHelper.AgentName}\r\n" +
 						$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 						$"Sec-WebSocket-Accept: {requestKey.ComputeAcceptKey()}\r\n";
 					if (!string.IsNullOrWhiteSpace(options.SubProtocol))
@@ -580,7 +589,7 @@ namespace net.vieapps.Components.WebSockets
 					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}\r\n" +
 					$"Connection: Upgrade\r\n" +
 					$"Upgrade: WebSocket\r\n" +
-					$"User-Agent: Mozilla/5.0 (VIEApps NGX WebSockets/{RuntimeInformation.FrameworkDescription.Trim()}/{(RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Macintosh; Intel Mac OS X; " : "")}{RuntimeInformation.OSDescription.Trim()})\r\n" +
+					$"User-Agent: Mozilla/5.0 ({WebSocketHelper.AgentName}/{RuntimeInformation.FrameworkDescription.Trim()}/{(RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Macintosh; Intel Mac OS X; " : "")}{RuntimeInformation.OSDescription.Trim()})\r\n" +
 					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
 					$"Sec-WebSocket-Key: {requestAcceptKey}\r\n";

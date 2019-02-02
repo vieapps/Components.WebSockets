@@ -123,7 +123,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Aborts the WebSocket without sending a Close frame
 		/// </summary>
-		public override void Abort() => this._websocket.Abort();
+		public override void Abort()
+			=> this._websocket.Abort();
 
 		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
 			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
