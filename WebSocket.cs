@@ -555,7 +555,11 @@ namespace net.vieapps.Components.WebSockets
 						Events.Log.AttemptingToSecureConnection(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
-						stream = new SslStream(tcpClient.GetStream(), false, (sender, certificate, chain, sslPolicyErrors) => RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? true : sslPolicyErrors == SslPolicyErrors.None ? true : false);
+						stream = new SslStream(tcpClient.GetStream(),
+							false,
+							(sender, certificate, chain, sslPolicyErrors) => options.IgnoreCertificateErrors || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || sslPolicyErrors == SslPolicyErrors.None,
+							(sender, host, certificates, certificate, issuers) => Certificate
+						);
 						await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
