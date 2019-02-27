@@ -53,5 +53,13 @@ namespace net.vieapps.Components.WebSockets
 		/// The default is false
 		/// </remarks>
 		public bool IncludeExceptionInCloseResponse { get; set; } = false;
+
+		/// <summary>
+		/// Gets or sets whether remote certificate errors should be ignored 
+		/// </summary>
+		/// <remarks>
+		/// The default is false
+		/// </remarks>
+		public bool IgnoreCertificateErrors { get; set; }
 	}
 }
