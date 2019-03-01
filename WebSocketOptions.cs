@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace net.vieapps.Components.WebSockets
 {
 	/// <summary>
-	/// Options for initialize a WebSocket connection
+	/// Options for initializing a WebSocket connection
 	/// </summary>
 	public class WebSocketOptions
 	{
@@ -60,6 +60,6 @@ namespace net.vieapps.Components.WebSockets
 		/// <remarks>
 		/// The default is false
 		/// </remarks>
-		public bool IgnoreCertificateErrors { get; set; }
+		public bool IgnoreCertificateErrors { get; set; } = false;
 	}
 }

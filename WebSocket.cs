@@ -223,7 +223,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this.Certificate != null)
 					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 
-				this._logger.LogInformation($"The listener is started (listening port: {this.Port})\r\nPlatform: {platform}\r\nPowered by VIEApps NGX WebSocket {this.GetType().Assembly.GetVersion()}");
+				this._logger.LogInformation($"The listener is started (listening port: {this.Port})\r\nPlatform: {platform}\r\nPowered by {WebSocketHelper.AgentName} {this.GetType().Assembly.GetVersion()}");
 				try
 				{
 					onSuccess?.Invoke();
@@ -352,7 +352,12 @@ namespace net.vieapps.Components.WebSockets
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
 						stream = new SslStream(tcpClient.GetStream(), false);
-						await (stream as SslStream).AuthenticateAsServerAsync(this.Certificate, false, this.SslProtocol, false).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
+						await (stream as SslStream).AuthenticateAsServerAsync(
+							serverCertificate: this.Certificate,
+							clientCertificateRequired: false,
+							enabledSslProtocols: this.SslProtocol,
+							checkCertificateRevocation: false
+						).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection successfully secured ({id} @ {endpoint})");
@@ -485,21 +490,29 @@ namespace net.vieapps.Components.WebSockets
 					? match.Groups[1].Value.Trim()
 					: string.Empty;
 
-				match = new Regex("Referrer: (.*)").Match(header);
+				match = new Regex("Referer: (.*)").Match(header);
 				if (match.Success)
-					websocket.Extra["Referrer"] = match.Groups[1].Value.Trim();
+					websocket.Extra["Referer"] = match.Groups[1].Value.Trim();
 				else
 				{
 					match = new Regex("Origin: (.*)").Match(header);
-					websocket.Extra["Referrer"] = match.Success
+					websocket.Extra["Referer"] = match.Success
 						? match.Groups[1].Value.Trim()
 						: string.Empty;
 				}
 
+				// add into the collection
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
 
 				// callback
-				this.ConnectionEstablishedHandler?.Invoke(websocket);
+				try
+				{
+					this.ConnectionEstablishedHandler?.Invoke(websocket);
+				}
+				catch (Exception e)
+				{
+					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+				}
 
 				// receive messages
 				this.Receive(websocket);
@@ -513,7 +526,14 @@ namespace net.vieapps.Components.WebSockets
 				else
 				{
 					this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Error occurred while accepting an incoming connection request: {ex.Message}", ex);
-					this.ErrorHandler?.Invoke(websocket, ex);
+					try
+					{
+						this.ErrorHandler?.Invoke(websocket, ex);
+					}
+					catch (Exception e)
+					{
+						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					}
 				}
 			}
 		}
@@ -527,7 +547,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				// connect the TCP client
 				var id = Guid.NewGuid();
-				var tcpClient = new TcpClient()
+				var tcpClient = new TcpClient
 				{
 					NoDelay = options.NoDelay
 				};
@@ -536,12 +556,12 @@ namespace net.vieapps.Components.WebSockets
 				if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
 				{
 					Events.Log.ClientConnectingToIPAddress(id, ipAddress.ToString(), uri.Port);
-					await tcpClient.ConnectAsync(ipAddress, uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+					await tcpClient.ConnectAsync(address: ipAddress, port: uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 				}
 				else
 				{
 					Events.Log.ClientConnectingToHost(id, uri.Host, uri.Port);
-					await tcpClient.ConnectAsync(uri.Host, uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+					await tcpClient.ConnectAsync(host: uri.Host, port: uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 				}
 
 				var endpoint = tcpClient.Client.RemoteEndPoint;
@@ -555,12 +575,13 @@ namespace net.vieapps.Components.WebSockets
 						Events.Log.AttemptingToSecureConnection(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
-						stream = new SslStream(tcpClient.GetStream(),
-							false,
-							(sender, certificate, chain, sslPolicyErrors) => options.IgnoreCertificateErrors || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || sslPolicyErrors == SslPolicyErrors.None,
-							(sender, host, certificates, certificate, issuers) => Certificate
+						stream = new SslStream(
+							innerStream: tcpClient.GetStream(),
+							leaveInnerStreamOpen: false,
+							userCertificateValidationCallback: (sender, certificate, chain, sslPolicyErrors) => options.IgnoreCertificateErrors || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || sslPolicyErrors == SslPolicyErrors.None,
+							userCertificateSelectionCallback: (sender, host, certificates, certificate, issuers) => this.Certificate
 						);
-						await (stream as SslStream).AuthenticateAsClientAsync(uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+						await (stream as SslStream).AuthenticateAsClientAsync(targetHost: uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
 						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection successfully secured ({id} @ {endpoint})");
@@ -749,12 +770,12 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="urlReferrer">The string that presents the url referrer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="headers">The string that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="cookies">The string that presents the cookies of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, string userAgent = null, string urlReferrer = null, string headers = null, string cookies = null, Action<ManagedWebSocket> onSuccess = null)
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, string userAgent = null, string urlReferer = null, string headers = null, string cookies = null, Action<ManagedWebSocket> onSuccess = null)
 		{
 			try
 			{
@@ -764,8 +785,8 @@ namespace net.vieapps.Components.WebSockets
 				if (!string.IsNullOrWhiteSpace(userAgent))
 					websocket.Extra["User-Agent"] = userAgent;
 
-				if (!string.IsNullOrWhiteSpace(urlReferrer))
-					websocket.Extra["Referrer"] = urlReferrer;
+				if (!string.IsNullOrWhiteSpace(urlReferer))
+					websocket.Extra["Referer"] = urlReferer;
 
 				if (!string.IsNullOrWhiteSpace(headers))
 					websocket.Extra["Headers"] = headers;
@@ -805,11 +826,11 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="urlReferrer">The string that presents the url referrer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferrer, Action<ManagedWebSocket> onSuccess)
-			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, userAgent, urlReferrer, null, null, onSuccess);
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferer, Action<ManagedWebSocket> onSuccess)
+			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, userAgent, urlReferer, null, null, onSuccess);
 
 		/// <summary>
 		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
@@ -1100,13 +1121,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
-		{
-			if (websocket == null)
-				return false;
-			if (this._websockets.TryRemove(websocket.ID, out ManagedWebSocket webSocket))
-				websocket = webSocket;
-			return this.CloseWebsocket(websocket, closeStatus, closeStatusDescription);
-		}
+			=> websocket == null
+				? false
+				: this.CloseWebsocket(this._websockets.TryRemove(websocket.ID, out ManagedWebSocket webSocket) ? webSocket : websocket, closeStatus, closeStatusDescription);
 		#endregion
 
 		#region Dispose
@@ -1153,7 +1170,7 @@ namespace net.vieapps.Components.WebSockets
 	/// <summary>
 	/// An implementation or a wrapper of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> abstract class with more useful information
 	/// </summary>
-	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket, IDisposable
+	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket
 	{
 
 		#region Properties

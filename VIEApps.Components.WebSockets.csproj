@@ -9,14 +9,14 @@
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
 		<SignAssembly>false</SignAssembly>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
-		<AssemblyVersion>10.2.1902.1</AssemblyVersion>
-		<FileVersion>10.2.1902.1</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.01.31-latest.components</InformationalVersion>
+		<AssemblyVersion>10.2.1903.1</AssemblyVersion>
+		<FileVersion>10.2.1903.1</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.03.01-latest.components-ignore.cert.errors</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.2.1902.1</Version>
+		<Version>10.2.1903.1</Version>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET Standard 2.0 (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
 		<Authors>VIEApps.net</Authors>
@@ -24,7 +24,7 @@
 		<PackageLicense>LICENSE.md</PackageLicense>
 		<PackageOutputPath>..\</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Upgrade to latest components and add agent-name</PackageReleaseNotes>
+		<PackageReleaseNotes>Upgrade to latest components, add options to ignore remote certificate errors (support for client certificates)</PackageReleaseNotes>
 		<PackageIconUrl>https://github.com/vieapps/Components.Utility/raw/master/logo.png</PackageIconUrl>
 		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
@@ -39,7 +39,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1902.1" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1903.1" />
 	</ItemGroup>
 
 </Project>
