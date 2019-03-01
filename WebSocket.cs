@@ -599,6 +599,9 @@ namespace net.vieapps.Components.WebSockets
 				var endpoint = tcpClient.Client.RemoteEndPoint;
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.Log(LogLevel.Debug, $"The endpoint ({uri}) is connected ({id} @ {endpoint})");
+				
+				// Check if the caller set Host in headers - support SNI (server name indication)
+				var sniHost = options.AdditionalHeaders?.ContainsKey("Host") == true ? options.AdditionalHeaders["Host"] : null;
 
 				// get the connected stream
 				Stream stream = null;
@@ -615,7 +618,7 @@ namespace net.vieapps.Components.WebSockets
 							userCertificateValidationCallback: (sender, certificate, chain, sslPolicyErrors) => sslPolicyErrors == SslPolicyErrors.None || options.IgnoreCertificateErrors || RuntimeInformation.IsOSPlatform(OSPlatform.Linux),
 							userCertificateSelectionCallback: (sender, host, certificates, certificate, issuers) => this.Certificate
 						);
-						await (stream as SslStream).AuthenticateAsClientAsync(targetHost: uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
+						await (stream as SslStream).AuthenticateAsClientAsync(targetHost: sniHost ?? uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
 						if (this._logger.IsEnabled(LogLevel.Trace))
@@ -648,7 +651,7 @@ namespace net.vieapps.Components.WebSockets
 				var requestAcceptKey = CryptoService.GenerateRandomKey(16).ToBase64();
 				var handshake =
 					$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
-					$"Host: {uri.Host}:{uri.Port}\r\n" +
+					$"Host: {sniHost ?? $"{uri.Host}:{uri.Port}"}\r\n" +
 					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}\r\n" +
 					$"Connection: Upgrade\r\n" +
 					$"Upgrade: WebSocket\r\n" +
