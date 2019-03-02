@@ -126,20 +126,21 @@ namespace net.vieapps.Components.WebSockets
 		public override void Abort()
 			=> this._websocket.Abort();
 
-		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
+		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
 			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
 				this.Close();
-				onCompleted?.Invoke();
+				try
+				{
+					onDisposed?.Invoke();
+				}
+				catch { }
 			});
 
 		internal override void Close()
 		{
-			if (!this._disposing && !this._disposed)
-			{
-				if ("System.Net.WebSockets.ManagedWebSocket".Equals($"{this._websocket.GetType()}"))
-					this._websocket.Dispose();
-			}
+			if (!this._disposing && !this._disposed && "System.Net.WebSockets.ManagedWebSocket".Equals($"{this._websocket.GetType()}"))
+				this._websocket.Dispose();
 		}
 
 		~WebSocketWrapper()

@@ -982,10 +982,28 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-			=> this._websockets.TryGetValue(id, out ManagedWebSocket websocket)
-				? websocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken)
-				: Task.FromException(new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found"));
+		public async Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			ManagedWebSocket websocket = null;
+			try
+			{
+				if (this._websockets.TryGetValue(id, out websocket))
+					await websocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
+				else
+					throw new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found");
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					this.ErrorHandler?.Invoke(websocket, ex);
+				}
+				catch (Exception e)
+				{
+					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+				}
+			}
+		}
 
 		/// <summary>
 		/// Sends the message to a <see cref="ManagedWebSocket">WebSocket</see> connection
@@ -995,10 +1013,28 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-			=> this._websockets.TryGetValue(id, out ManagedWebSocket websocket)
-				? websocket.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.FromException(new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found"));
+		public async Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			ManagedWebSocket websocket = null;
+			try
+			{
+				if (this._websockets.TryGetValue(id, out websocket))
+					await websocket.SendAsync(message, endOfMessage, cancellationToken).ConfigureAwait(false);
+				else
+					throw new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found");
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					this.ErrorHandler?.Invoke(websocket, ex);
+				}
+				catch (Exception e)
+				{
+					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+				}
+			}
+		}
 
 		/// <summary>
 		/// Sends the message to a <see cref="ManagedWebSocket">WebSocket</see> connection
@@ -1008,10 +1044,28 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
-			=> this._websockets.TryGetValue(id, out ManagedWebSocket websocket)
-				? websocket.SendAsync(message, endOfMessage, cancellationToken)
-				: Task.FromException(new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found"));
+		public async Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			ManagedWebSocket websocket = null;
+			try
+			{
+				if (this._websockets.TryGetValue(id, out websocket))
+					await websocket.SendAsync(message, endOfMessage, cancellationToken).ConfigureAwait(false);
+				else
+					throw new InformationNotFoundException($"WebSocket connection with identity \"{id}\" is not found");
+			}
+			catch (Exception ex)
+			{
+				try
+				{
+					this.ErrorHandler?.Invoke(websocket, ex);
+				}
+				catch (Exception e)
+				{
+					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+				}
+			}
+		}
 
 		/// <summary>
 		/// Sends the message to the <see cref="ManagedWebSocket">WebSocket</see> connections that matched with the predicate
@@ -1022,8 +1076,25 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken)) => this.GetWebSockets(predicate).ToList().ForEachAsync((connection, token)
-			=> connection.SendAsync(buffer.Clone(), messageType, endOfMessage, token), cancellationToken);
+		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+			=> this.GetWebSockets(predicate).ForEachAsync(async (websocket, token) =>
+			{
+				try
+				{
+					await websocket.SendAsync(buffer.Clone(), messageType, endOfMessage, token).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					try
+					{
+						this.ErrorHandler?.Invoke(websocket, ex);
+					}
+					catch (Exception e)
+					{
+						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					}
+				}
+			}, cancellationToken);
 
 		/// <summary>
 		/// Sends the message to the <see cref="ManagedWebSocket">WebSocket</see> connections that matched with the predicate
@@ -1295,7 +1366,7 @@ namespace net.vieapps.Components.WebSockets
 
 		protected bool _disposing = false, _disposed = false;
 
-		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
+		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
 		{
 			if (!this._disposing && !this._disposed)
 			{
@@ -1303,7 +1374,11 @@ namespace net.vieapps.Components.WebSockets
 				Events.Log.WebSocketDispose(this.ID, this.State);
 				if (this.State == WebSocketState.Open)
 					await this.CloseOutputTimeoutAsync(closeStatus, closeStatusDescription, null, () => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State), ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())).ConfigureAwait(false);
-				onCompleted?.Invoke();
+				try
+				{
+					onDisposed?.Invoke();
+				}
+				catch { }
 				this._disposed = true;
 				this._disposing = false;
 			}

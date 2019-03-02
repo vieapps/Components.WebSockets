@@ -86,13 +86,13 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Puts data on the wire
 		/// </summary>
-		/// <param name="data"></param>
+		/// <param name="stream"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		async Task PutOnTheWireAsync(MemoryStream data, CancellationToken cancellationToken)
+		async Task PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
 			// add into queue
-			this._buffers.Enqueue(data.ToArraySegment());
+			this._buffers.Enqueue(stream.ToArraySegment());
 
 			// check pending write operations
 			if (this._writting)
@@ -341,13 +341,14 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 			// send
-			using (var stream = this._recycledStreamFactory())
-			{
-				stream.Write(opCode, buffer, endOfMessage, this.IsClient);
-				Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
-				await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
-				this._isContinuationFrame = !endOfMessage;
-			}
+			if (this._state == WebSocketState.Open)
+				using (var stream = this._recycledStreamFactory())
+				{
+					stream.Write(opCode, buffer, endOfMessage, this.IsClient);
+					Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
+					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
+					this._isContinuationFrame = !endOfMessage;
+				}
 		}
 
 		/// <summary>
@@ -428,11 +429,15 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS.Cancel();
 		}
 
-		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onCompleted = null)
+		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
 			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
 				this.Close();
-				onCompleted?.Invoke();
+				try
+				{
+					onDisposed?.Invoke();
+				}
+				catch { }
 			});
 
 		internal override void Close()
