@@ -17,7 +17,8 @@ namespace net.vieapps.Components.WebSockets
 		#region Properties
 		readonly System.Net.WebSockets.WebSocket _websocket = null;
 		readonly ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>> _buffers = new ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>>();
-		bool _sending = false;
+		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+		bool _pending = false;
 
 		/// <summary>
 		/// Gets the state that indicates the reason why the remote endpoint initiated the close handshake
@@ -73,17 +74,22 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
 		{
-			// add into queue and check pending write operations
+			// add into queue and check pending operations
 			this._buffers.Enqueue(new Tuple<ArraySegment<byte>, WebSocketMessageType, bool>(buffer, messageType, endOfMessage));
-			if (this._sending)
+			if (this._pending)
 			{
 				Events.Log.PendingOperations(this.ID);
-				Logger.Log<WebSocketWrapper>(LogLevel.Debug, LogLevel.Warning, $"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+				Logger.Log<WebSocketWrapper>(LogLevel.Debug, LogLevel.Warning, $"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
+			// check disposed
+			if (this._disposing || this._disposed)
+				throw new ObjectDisposedException("WebSocketImplementation");
+
 			// put data to wire
-			this._sending = true;
+			this._pending = true;
+			await this._lock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
 				while (this.State == WebSocketState.Open && this._buffers.Count > 0)
@@ -96,7 +102,8 @@ namespace net.vieapps.Components.WebSockets
 			}
 			finally
 			{
-				this._sending = false;
+				this._pending = false;
+				this._lock.Release();
 			}
 		}
 
@@ -133,6 +140,11 @@ namespace net.vieapps.Components.WebSockets
 				try
 				{
 					onDisposed?.Invoke();
+				}
+				catch { }
+				try
+				{
+					this._lock.Dispose();
 				}
 				catch { }
 			});

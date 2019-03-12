@@ -135,7 +135,7 @@ Use the **StopListen** method to stop the listener.
 ### WebSocket server with Secure WebSockets (wss://)
 
 Enabling secure connections requires two things:
-- Pointing certificate to an x509 certificate that containing a public and private key.
+- Pointing certificate to an X.509 certificate that containing a public and private key.
 - Using the scheme **wss** instead of **ws** (or **https** instead of **http**) on all clients
 
 ```csharp
@@ -149,7 +149,7 @@ websocket.StartListen();
 
 Want to have a free SSL certificate? Take a look at [Let's Encrypt](https://letsencrypt.org/).
 
-Special: A simple tool named [lets-encrypt-win-simple](https://github.com/PKISharp/win-acme) will help your IIS works with Let's Encrypt very well.
+Special: A simple tool named [win-acme](https://github.com/PKISharp/win-acme) will help your IIS works with Let's Encrypt very well.
 
 ### SubProtocol Negotiation
 
