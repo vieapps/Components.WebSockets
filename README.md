@@ -138,7 +138,7 @@ Use the **StopListen** method to stop the listener.
 ### WebSocket server with Secure WebSockets (wss://)
 
 Enabling secure connections requires two things:
-- Pointing certificate to an x509 certificate that containing a public and private key.
+- Pointing certificate to an X.509 certificate that containing a public and private key.
 - Using the scheme **wss** instead of **ws** (or **https** instead of **http**) on all clients
 
 ```csharp
