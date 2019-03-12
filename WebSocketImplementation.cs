@@ -25,7 +25,9 @@ namespace net.vieapps.Components.WebSockets
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription;
-		bool _isContinuationFrame, _writting = false;
+		bool _isContinuationFrame = false;
+		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+		bool _pending = false;
 		readonly string _subProtocol;
 		readonly CancellationTokenSource _processingCTS;
 		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
@@ -91,19 +93,22 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		async Task PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
-			// add into queue
+			// add into queue and check pending operations
 			this._buffers.Enqueue(stream.ToArraySegment());
-
-			// check pending write operations
-			if (this._writting)
+			if (this._pending)
 			{
 				Events.Log.PendingOperations(this.ID);
-				Logger.Log<WebSocketImplementation>(LogLevel.Debug, LogLevel.Warning, $"Pending operations => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+				Logger.Log<WebSocketImplementation>(LogLevel.Debug, LogLevel.Warning, $"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
+			// check disposed
+			if (this._disposing || this._disposed)
+				throw new ObjectDisposedException("WebSocketImplementation");
+
 			// put data to wire
-			this._writting = true;
+			this._pending = true;
+			await this._lock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
 				while (this._buffers.Count > 0)
@@ -116,7 +121,8 @@ namespace net.vieapps.Components.WebSockets
 			}
 			finally
 			{
-				this._writting = false;
+				this._pending = false;
+				this._lock.Release();
 			}
 		}
 
@@ -436,6 +442,11 @@ namespace net.vieapps.Components.WebSockets
 				try
 				{
 					onDisposed?.Invoke();
+				}
+				catch { }
+				try
+				{
+					this._lock.Dispose();
 				}
 				catch { }
 			});

@@ -17,7 +17,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// The data extracted from a Pong WebSocket frame
 		/// </summary>
-		public ArraySegment<byte> Payload { get; private set; }
+		public ArraySegment<byte> Payload { get; }
 
 		/// <summary>
 		/// Initialises a new instance of the PongEventArgs class
@@ -41,7 +41,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Sends a ping frame
 		/// </summary>
-		/// <param name="payload">The payload (must be 125 bytes of less)</param>
+		/// <param name="payload">The payload (must be 125 bytes or less)</param>
 		/// <param name="cancellation">The cancellation token</param>
 		Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellation = default(CancellationToken));
 	}

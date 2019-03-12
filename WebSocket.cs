@@ -1243,6 +1243,7 @@ namespace net.vieapps.Components.WebSockets
 	/// </summary>
 	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket
 	{
+		protected bool _disposing = false, _disposed = false;
 
 		#region Properties
 		/// <summary>
@@ -1362,9 +1363,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
 		/// </summary>
-		public override void Dispose() => this.DisposeAsync().Wait(4321);
-
-		protected bool _disposing = false, _disposed = false;
+		public override void Dispose()
+			=> this.DisposeAsync().Wait(4321);
 
 		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
 		{
