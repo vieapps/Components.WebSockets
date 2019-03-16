@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using net.vieapps.Components.Utility;
 #endregion
@@ -46,13 +47,14 @@ namespace net.vieapps.Components.WebSockets
 		protected override bool IncludeExceptionInCloseResponse { get; } = false;
 		#endregion
 
-		public WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null)
+		public WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
 		{
 			this._websocket = websocket;
 			this.ID = Guid.NewGuid();
 			this.RequestUri = requestUri;
 			this.RemoteEndPoint = remoteEndPoint;
 			this.LocalEndPoint = localEndPoint;
+			this.Extra["Headers"] = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 		}
 
 		/// <summary>
@@ -74,6 +76,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
 		{
+			// check disposed
+			if (this._disposed)
+				throw new ObjectDisposedException("WebSocketWrapper");
+
 			// add into queue and check pending operations
 			this._buffers.Enqueue(new Tuple<ArraySegment<byte>, WebSocketMessageType, bool>(buffer, messageType, endOfMessage));
 			if (this._pending)
@@ -82,10 +88,6 @@ namespace net.vieapps.Components.WebSockets
 				Logger.Log<WebSocketWrapper>(LogLevel.Debug, LogLevel.Warning, $"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
-
-			// check disposed
-			if (this._disposing || this._disposed)
-				throw new ObjectDisposedException("WebSocketImplementation");
 
 			// put data to wire
 			this._pending = true;
