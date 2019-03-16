@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using net.vieapps.Components.WebSockets.Exceptions;
@@ -60,7 +61,7 @@ namespace net.vieapps.Components.WebSockets
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint)
+		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
 		{
 			if (options.KeepAliveInterval.Ticks < 0)
 				throw new ArgumentException("KeepAliveInterval must be Zero or positive", nameof(options));
@@ -72,6 +73,7 @@ namespace net.vieapps.Components.WebSockets
 			this.RequestUri = requestUri;
 			this.RemoteEndPoint = remoteEndPoint;
 			this.LocalEndPoint = localEndPoint;
+			this.Extra["Headers"] = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._stream = stream;
@@ -93,6 +95,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		async Task PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
+			// check disposed
+			if (this._disposed)
+				throw new ObjectDisposedException("WebSocketImplementation");
+
 			// add into queue and check pending operations
 			this._buffers.Enqueue(stream.ToArraySegment());
 			if (this._pending)
@@ -101,10 +107,6 @@ namespace net.vieapps.Components.WebSockets
 				Logger.Log<WebSocketImplementation>(LogLevel.Debug, LogLevel.Warning, $"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
-
-			// check disposed
-			if (this._disposing || this._disposed)
-				throw new ObjectDisposedException("WebSocketImplementation");
 
 			// put data to wire
 			this._pending = true;

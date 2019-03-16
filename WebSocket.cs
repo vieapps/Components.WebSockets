@@ -197,7 +197,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception ex)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 				}
 				return;
 			}
@@ -214,23 +215,27 @@ namespace net.vieapps.Components.WebSockets
 				this._tcpListener.Server.SetKeepAliveInterval();
 				this._tcpListener.Start(1024);
 
-				var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-					? "Windows"
-					: RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-						? "Linux"
-						: "macOS";
-				platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
-				if (this.Certificate != null)
-					platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
+				if (this._logger.IsEnabled(LogLevel.Debug))
+				{
+					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+						? "Windows"
+						: RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+							? "Linux"
+							: "macOS";
+					platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
+					if (this.Certificate != null)
+						platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
+					this._logger.LogInformation($"The listener is started (listening port: {this.Port})\r\nPlatform: {platform}\r\nPowered by {WebSocketHelper.AgentName} v{this.GetType().Assembly.GetVersion()}");
+				}
 
-				this._logger.LogInformation($"The listener is started (listening port: {this.Port})\r\nPlatform: {platform}\r\nPowered by {WebSocketHelper.AgentName} {this.GetType().Assembly.GetVersion()}");
 				try
 				{
 					onSuccess?.Invoke();
 				}
 				catch (Exception ex)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 				}
 
 				// listen for incoming connection requests
@@ -239,26 +244,30 @@ namespace net.vieapps.Components.WebSockets
 			catch (SocketException ex)
 			{
 				var message = $"Error occurred while listening on port \"{this.Port}\". Make sure another application is not running and consuming this port.";
-				this._logger.Log(LogLevel.Debug, LogLevel.Error, message, ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.Log(LogLevel.Error, message, ex);
 				try
 				{
 					onFailure?.Invoke(new ListenerSocketException(message, ex));
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 			}
 			catch (Exception ex)
 			{
-				this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Got an unexpected error while listening: {ex.Message}", ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.Log(LogLevel.Error, $"Got an unexpected error while listening: {ex.Message}", ex);
 				try
 				{
 					onFailure?.Invoke(ex);
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 			}
 		}
@@ -326,7 +335,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				this.StopListen(false);
 				if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is SocketException || ex is IOException)
-					this._logger.LogInformation($"The listener is stopped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
+					this._logger.LogDebug($"The listener is stopped {(this._logger.IsEnabled(LogLevel.Debug) ? $"({ex.GetType()})" : "")}");
 				else
 					this._logger.LogError($"The listener is stopped ({ex.Message})", ex);
 			}
@@ -349,7 +358,8 @@ namespace net.vieapps.Components.WebSockets
 					try
 					{
 						Events.Log.AttemptingToSecureConnection(id);
-						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.Log(LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
 						stream = new SslStream(tcpClient.GetStream(), false);
 						await (stream as SslStream).AuthenticateAsServerAsync(
@@ -360,7 +370,8 @@ namespace net.vieapps.Components.WebSockets
 						).WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
-						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection successfully secured ({id} @ {endpoint})");
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.Log(LogLevel.Debug, $"The connection successfully secured ({id} @ {endpoint})");
 					}
 					catch (OperationCanceledException)
 					{
@@ -377,15 +388,18 @@ namespace net.vieapps.Components.WebSockets
 				else
 				{
 					Events.Log.ConnectionNotSecured(id);
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Use insecured connection ({id} @ {endpoint})");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"Use insecured connection ({id} @ {endpoint})");
 					stream = tcpClient.GetStream();
 				}
 
 				// parse request
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection is opened, then parse the request ({id} @ {endpoint})");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"The connection is opened, then parse the request ({id} @ {endpoint})");
 
 				var header = await stream.ReadHeaderAsync(this._listeningCTS.Token).ConfigureAwait(false);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake request ({id} @ {endpoint}) => \r\n{header.Trim()}");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"Handshake request ({id} @ {endpoint}) => \r\n{header.Trim()}");
 
 				var isWebSocketRequest = false;
 				var path = string.Empty;
@@ -400,7 +414,8 @@ namespace net.vieapps.Components.WebSockets
 				// verify request
 				if (!isWebSocketRequest)
 				{
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The request contains no WebSocket upgrade request, then ignore ({id} @ {endpoint})");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"The request contains no WebSocket upgrade request, then ignore ({id} @ {endpoint})");
 					stream.Close();
 					tcpClient.Close();
 					return;
@@ -412,20 +427,17 @@ namespace net.vieapps.Components.WebSockets
 					KeepAliveInterval = this.KeepAliveInterval
 				};
 				Events.Log.AcceptWebSocketStarted(id);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The request has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {endpoint})");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"The request has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {endpoint})");
 
 				try
 				{
 					// check the version (support version 13 and above)
 					match = new Regex("Sec-WebSocket-Version: (.*)").Match(header);
-					if (match.Success)
-					{
-						var secWebSocketVersion = match.Groups[1].Value.Trim().CastAs<int>();
-						if (secWebSocketVersion < 13)
-							throw new VersionNotSupportedException($"WebSocket Version {secWebSocketVersion} is not supported, must be 13 or above");
-					}
-					else
+					if (!match.Success || !Int32.TryParse(match.Groups[1].Value, out int version))
 						throw new VersionNotSupportedException("Unable to find \"Sec-WebSocket-Version\" in the upgrade request");
+					else if (version < 13)
+						throw new VersionNotSupportedException($"WebSocket Version {version} is not supported, must be 13 or above");
 
 					// get the request key
 					match = new Regex("Sec-WebSocket-Key: (.*)").Match(header);
@@ -454,7 +466,8 @@ namespace net.vieapps.Components.WebSockets
 					Events.Log.SendingHandshake(id, handshake);
 					await stream.WriteHeaderAsync(handshake, this._listeningCTS.Token).ConfigureAwait(false);
 					Events.Log.HandshakeSent(id, handshake);
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake response ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"Handshake response ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
 				}
 				catch (VersionNotSupportedException ex)
 				{
@@ -470,7 +483,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				Events.Log.ServerHandshakeSuccess(id);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"WebSocket handshake response has been sent, the stream is ready ({id} @ {endpoint})");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"WebSocket handshake response has been sent, the stream is ready ({id} @ {endpoint})");
 
 				// update the connected WebSocket connection
 				match = new Regex("Sec-WebSocket-Extensions: (.*)").Match(header);
@@ -483,26 +497,11 @@ namespace net.vieapps.Components.WebSockets
 					? match.Groups[1].Value.Trim()
 					: string.Empty;
 
-				websocket = new WebSocketImplementation(id, false, this._recycledStreamFactory, stream, options, new Uri($"ws{(this.Certificate != null ? "s" : "")}://{host}{path}"), endpoint, tcpClient.Client.LocalEndPoint);
-
-				match = new Regex("User-Agent: (.*)").Match(header);
-				websocket.Extra["User-Agent"] = match.Success
-					? match.Groups[1].Value.Trim()
-					: string.Empty;
-
-				match = new Regex("Referer: (.*)").Match(header);
-				if (match.Success)
-					websocket.Extra["Referer"] = match.Groups[1].Value.Trim();
-				else
-				{
-					match = new Regex("Origin: (.*)").Match(header);
-					websocket.Extra["Referer"] = match.Success
-						? match.Groups[1].Value.Trim()
-						: string.Empty;
-				}
-
 				// add into the collection
+				websocket = new WebSocketImplementation(id, false, this._recycledStreamFactory, stream, options, new Uri($"ws{(this.Certificate != null ? "s" : "")}://{host}{path}"), endpoint, tcpClient.Client.LocalEndPoint, header.ToDictionary());
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"The server WebSocket connection was successfully established ({websocket.ID} @ {websocket.RemoteEndPoint})\r\n- URI: {websocket.RequestUri}\r\n- Headers:\r\n\t{websocket.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}");
 
 				// callback
 				try
@@ -511,7 +510,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 
 				// receive messages
@@ -525,14 +525,16 @@ namespace net.vieapps.Components.WebSockets
 				}
 				else
 				{
-					this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Error occurred while accepting an incoming connection request: {ex.Message}", ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while accepting an incoming connection request: {ex.Message}", ex);
 					try
 					{
 						this.ErrorHandler?.Invoke(websocket, ex);
 					}
 					catch (Exception e)
 					{
-						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 					}
 				}
 			}
@@ -542,7 +544,9 @@ namespace net.vieapps.Components.WebSockets
 		#region Connect to remote endpoints as client
 		async Task ConnectAsync(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
 		{
-			this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to connect ({uri})");
+			if (this._logger.IsEnabled(LogLevel.Trace))
+				this._logger.Log(LogLevel.Debug, $"Attempting to connect ({uri})");
+
 			try
 			{
 				// connect the TCP client
@@ -565,7 +569,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				var endpoint = tcpClient.Client.RemoteEndPoint;
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The endpoint ({uri}) is connected ({id} @ {endpoint})");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"The endpoint ({uri}) is connected ({id} @ {endpoint})");
 
 				// get the connected stream
 				Stream stream = null;
@@ -573,18 +578,20 @@ namespace net.vieapps.Components.WebSockets
 					try
 					{
 						Events.Log.AttemptingToSecureConnection(id);
-						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.Log(LogLevel.Debug, $"Attempting to secure the connection ({id} @ {endpoint})");
 
 						stream = new SslStream(
 							innerStream: tcpClient.GetStream(),
 							leaveInnerStreamOpen: false,
-							userCertificateValidationCallback: (sender, certificate, chain, sslPolicyErrors) => options.IgnoreCertificateErrors || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || sslPolicyErrors == SslPolicyErrors.None,
+							userCertificateValidationCallback: (sender, certificate, chain, sslPolicyErrors) => sslPolicyErrors == SslPolicyErrors.None || options.IgnoreCertificateErrors || RuntimeInformation.IsOSPlatform(OSPlatform.Linux),
 							userCertificateSelectionCallback: (sender, host, certificates, certificate, issuers) => this.Certificate
 						);
 						await (stream as SslStream).AuthenticateAsClientAsync(targetHost: uri.Host).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
 
 						Events.Log.ConnectionSecured(id);
-						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The connection successfully secured ({id} @ {endpoint})");
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.Log(LogLevel.Debug, $"The connection successfully secured ({id} @ {endpoint})");
 					}
 					catch (OperationCanceledException)
 					{
@@ -601,12 +608,15 @@ namespace net.vieapps.Components.WebSockets
 				else
 				{
 					Events.Log.ConnectionNotSecured(id);
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Use insecured connection ({id} @ {endpoint})");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"Use insecured connection ({id} @ {endpoint})");
 					stream = tcpClient.GetStream();
 				}
 
 				// send handshake
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Negotiating WebSocket handshake ({id} @ {endpoint})");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"Negotiating WebSocket handshake ({id} @ {endpoint})");
+
 				var requestAcceptKey = CryptoService.GenerateRandomKey(16).ToBase64();
 				var handshake =
 					$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
@@ -627,7 +637,8 @@ namespace net.vieapps.Components.WebSockets
 				Events.Log.SendingHandshake(id, handshake);
 				await stream.WriteHeaderAsync(handshake, this._processingCTS.Token).ConfigureAwait(false);
 				Events.Log.HandshakeSent(id, handshake);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake request ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"Handshake request ({id} @ {endpoint}) => \r\n{handshake.Trim()}");
 
 				// read response
 				Events.Log.ReadingResponse(id);
@@ -635,7 +646,8 @@ namespace net.vieapps.Components.WebSockets
 				try
 				{
 					response = await stream.ReadHeaderAsync(this._processingCTS.Token).ConfigureAwait(false);
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake response ({id} @ {endpoint}) => \r\n{response.Trim()}");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"Handshake response ({id} @ {endpoint}) => \r\n{response.Trim()}");
 				}
 				catch (Exception ex)
 				{
@@ -671,13 +683,14 @@ namespace net.vieapps.Components.WebSockets
 				var expectedAcceptKey = requestAcceptKey.ComputeAcceptKey();
 				if (!expectedAcceptKey.IsEquals(actualAcceptKey))
 				{
-					var warning = $"Handshake failed because the accept key from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"";
+					var warning = $"Handshake failed because the accept key {(actualAcceptKey == null ? "was not found" : $"from the server \"{actualAcceptKey}\" was not the expected \"{expectedAcceptKey}\"")}";
 					Events.Log.HandshakeFailure(id, warning);
 					throw new HandshakeFailedException(warning);
 				}
 
 				Events.Log.ClientHandshakeSuccess(id);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Handshake success ({id} @ {endpoint})");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"Handshake success ({id} @ {endpoint})");
 
 				// get the accepted sub-protocol
 				match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(response);
@@ -686,8 +699,10 @@ namespace net.vieapps.Components.WebSockets
 					: null;
 
 				// update the connected WebSocket connection
-				var websocket = new WebSocketImplementation(id, true, this._recycledStreamFactory, stream, options, uri, endpoint, tcpClient.Client.LocalEndPoint);
+				var websocket = new WebSocketImplementation(id, true, this._recycledStreamFactory, stream, options, uri, endpoint, tcpClient.Client.LocalEndPoint, handshake.ToDictionary());
 				await this.AddWebSocketAsync(websocket).ConfigureAwait(false);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"The client WebSocket connection was successfully established ({websocket.ID} @ {websocket.RemoteEndPoint})\r\n- URI: {websocket.RequestUri}\r\n- Headers:\r\n\t{websocket.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}");
 
 				// callback
 				try
@@ -697,7 +712,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception ex)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 				}
 
 				// receive messages
@@ -709,14 +725,16 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Could not connect ({uri}): {ex.Message}", ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.Log(LogLevel.Error, $"Could not connect ({uri}): {ex.Message}", ex);
 				try
 				{
 					onFailure?.Invoke(ex);
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 			}
 		}
@@ -769,33 +787,18 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="headers">The string that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="cookies">The string that presents the cookies of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="headers">The collection that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, string userAgent = null, string urlReferer = null, string headers = null, string cookies = null, Action<ManagedWebSocket> onSuccess = null)
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, Dictionary<string, string> headers = null, Action<ManagedWebSocket> onSuccess = null)
 		{
 			try
 			{
 				// create
-				var websocket = new WebSocketWrapper(webSocket, requestUri, remoteEndPoint, localEndPoint);
-
-				if (!string.IsNullOrWhiteSpace(userAgent))
-					websocket.Extra["User-Agent"] = userAgent;
-
-				if (!string.IsNullOrWhiteSpace(urlReferer))
-					websocket.Extra["Referer"] = urlReferer;
-
-				if (!string.IsNullOrWhiteSpace(headers))
-					websocket.Extra["Headers"] = headers;
-
-				if (!string.IsNullOrWhiteSpace(cookies))
-					websocket.Extra["Cookies"] = cookies;
-
+				var websocket = new WebSocketWrapper(webSocket, requestUri, remoteEndPoint, localEndPoint, headers);
 				this.AddWebSocket(websocket);
-				this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Wrap a WebSocket connection [{webSocket.GetType()}] successful ({websocket.ID} @ {websocket.RemoteEndPoint}");
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.Log(LogLevel.Debug, $"Wrap a WebSocket connection [{webSocket.GetType()}] successful ({websocket.ID} @ {websocket.RemoteEndPoint})\r\n- URI: {websocket.RequestUri}\r\n- Headers:\r\n\t{websocket.Headers.ToString("\r\n\t", kvp => $"{kvp.Key}: {kvp.Value}")}");
 
 				// callback
 				try
@@ -805,7 +808,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception ex)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 				}
 
 				// receive messages
@@ -813,10 +817,38 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				this._logger.Log(LogLevel.Debug, LogLevel.Error, $"Unable to wrap a WebSocket connection [{webSocket.GetType()}]: {ex.Message}", ex);
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.Log(LogLevel.Error, $"Unable to wrap a WebSocket connection [{webSocket.GetType()}]: {ex.Message}", ex);
 				return Task.FromException(new WrapWebSocketFailedException($"Unable to wrap a WebSocket connection [{webSocket.GetType()}]", ex));
 			}
 		}
+
+		/// <summary>
+		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
+		/// </summary>
+		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
+		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint)
+			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, null, new Dictionary<string, string>(), null);
+
+		/// <summary>
+		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
+		/// </summary>
+		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
+		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="headers">The string that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="cookies">The string that presents the cookies of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
+		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
+		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
+		[Obsolete]
+		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferer, string headers, string cookies, Action<ManagedWebSocket> onSuccess = null)
+			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, (headers ?? "").ToDictionary(), onSuccess);
 
 		/// <summary>
 		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
@@ -829,18 +861,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
+		[Obsolete]
 		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferer, Action<ManagedWebSocket> onSuccess)
-			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, userAgent, urlReferer, null, null, onSuccess);
-
-		/// <summary>
-		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
-		/// </summary>
-		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
-		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint)
-			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, null, null, null, null, null, null);
+			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, new Dictionary<string, string>(), onSuccess);
 		#endregion
 
 		#region Receive messages
@@ -875,21 +898,27 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception e)
 					{
-						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 					}
 
 					if (ex is OperationCanceledException || ex is TaskCanceledException || ex is ObjectDisposedException || ex is WebSocketException || ex is SocketException || ex is IOException)
-						this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"Stop receiving process when got an error: {ex.Message} ({ex.GetType().GetTypeName(true)})");
+					{
+						if (this._logger.IsEnabled(LogLevel.Trace))
+							this._logger.Log(LogLevel.Debug, $"Stop receiving process when got an error: {ex.Message} ({ex.GetType().GetTypeName(true)})");
+					}
 					else
 					{
-						this._logger.Log(LogLevel.Debug, LogLevel.Error, closeStatusDescription, ex);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, closeStatusDescription, ex);
 						try
 						{
 							this.ErrorHandler?.Invoke(websocket, ex);
 						}
 						catch (Exception e)
 						{
-							this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+							if (this._logger.IsEnabled(LogLevel.Debug))
+								this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 						}
 					}
 					return;
@@ -898,7 +927,8 @@ namespace net.vieapps.Components.WebSockets
 				// message to close
 				if (result.MessageType == WebSocketMessageType.Close)
 				{
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"The remote endpoint is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "N/A"} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"The remote endpoint is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "N/A"} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					this.CloseWebSocket(websocket);
 					try
 					{
@@ -906,7 +936,8 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception ex)
 					{
-						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 					}
 					return;
 				}
@@ -915,7 +946,8 @@ namespace net.vieapps.Components.WebSockets
 				if (result.Count > WebSocketHelper.ReceiveBufferSize)
 				{
 					var message = $"WebSocket frame cannot exceed buffer size of {WebSocketHelper.ReceiveBufferSize:#,##0} bytes";
-					this._logger.Log(LogLevel.Debug, LogLevel.Debug, $"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					await websocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
 
 					this.CloseWebSocket(websocket);
@@ -926,7 +958,8 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception ex)
 					{
-						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 					}
 					return;
 				}
@@ -934,14 +967,16 @@ namespace net.vieapps.Components.WebSockets
 				// got a message
 				if (result.Count > 0)
 				{
-					this._logger.Log(LogLevel.Trace, LogLevel.Debug, $"A message was received - Type: {result.MessageType} - End of message: {result.EndOfMessage} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+					if (this._logger.IsEnabled(LogLevel.Trace))
+						this._logger.Log(LogLevel.Debug, $"A message was received - Type: {result.MessageType} - End of message: {result.EndOfMessage} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					try
 					{
 						this.MessageReceivedHandler?.Invoke(websocket, result, buffer.Take(result.Count).ToArray());
 					}
 					catch (Exception ex)
 					{
-						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 					}
 				}
 
@@ -960,7 +995,8 @@ namespace net.vieapps.Components.WebSockets
 						}
 						catch (Exception ex)
 						{
-							this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
+							if (this._logger.IsEnabled(LogLevel.Debug))
+								this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {ex.Message}", ex);
 						}
 						return;
 					}
@@ -1000,7 +1036,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 			}
 		}
@@ -1031,7 +1068,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 			}
 		}
@@ -1062,7 +1100,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 				catch (Exception e)
 				{
-					this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+					if (this._logger.IsEnabled(LogLevel.Debug))
+						this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 				}
 			}
 		}
@@ -1091,7 +1130,8 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch (Exception e)
 					{
-						this._logger.Log(LogLevel.Information, LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
+						if (this._logger.IsEnabled(LogLevel.Debug))
+							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 					}
 				}
 			}, cancellationToken);
@@ -1287,6 +1327,14 @@ namespace net.vieapps.Components.WebSockets
 		public Dictionary<string, object> Extra { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
+		/// Gets the header information of the <see cref="ManagedWebSocket">WebSocket</see> connection
+		/// </summary>
+		public Dictionary<string, string> Headers
+		{
+			get => this.Extra.TryGetValue("Headers", out object headers) && headers is Dictionary<string, string> ? headers as Dictionary<string, string> : new Dictionary<string, string>();
+		}
+
+		/// <summary>
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
 		protected abstract bool IncludeExceptionInCloseResponse { get; }
@@ -1364,7 +1412,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
 		/// </summary>
 		public override void Dispose()
-			=> this.DisposeAsync().Wait(4321);
+			=> this.DisposeAsync().GetAwaiter().GetResult();
 
 		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
 		{
@@ -1372,8 +1420,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				this._disposing = true;
 				Events.Log.WebSocketDispose(this.ID, this.State);
-				if (this.State == WebSocketState.Open)
-					await this.CloseOutputTimeoutAsync(closeStatus, closeStatusDescription, null, () => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State), ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())).ConfigureAwait(false);
+				await Task.WhenAll(this.State == WebSocketState.Open ? this.CloseOutputTimeoutAsync(closeStatus, closeStatusDescription, null, () => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State), ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())) : Task.CompletedTask).ConfigureAwait(false);
 				try
 				{
 					onDisposed?.Invoke();

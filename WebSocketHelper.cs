@@ -74,35 +74,25 @@ namespace net.vieapps.Components.WebSockets
 		public static Task WriteHeaderAsync(this Stream stream, string header, CancellationToken cancellationToken = default(CancellationToken))
 			=> stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken);
 
-		/// <summary>
-		/// Computes a WebSocket accept key from a given key
-		/// </summary>
-		/// <param name="key">The WebSocket request key</param>
-		/// <returns>A WebSocket accept key</returns>
-		public static string ComputeAcceptKey(this string key)
+		internal static string ComputeAcceptKey(this string key)
 			=> (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").GetHash("SHA1").ToBase64();
 
-		/// <summary>
-		/// Negotiates sub-protocol
-		/// </summary>
-		/// <param name="supportedSubProtocols"></param>
-		/// <param name="requestedSubProtocols"></param>
-		/// <returns></returns>
-		public static string NegotiateSubProtocol(this IEnumerable<string> requestedSubProtocols, IEnumerable<string> supportedSubProtocols)
+		internal static string NegotiateSubProtocol(this IEnumerable<string> requestedSubProtocols, IEnumerable<string> supportedSubProtocols)
 			=> requestedSubProtocols == null || supportedSubProtocols == null || !requestedSubProtocols.Any() || !supportedSubProtocols.Any()
 				? null
 				: requestedSubProtocols.Intersect(supportedSubProtocols).FirstOrDefault() ?? throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
 
-		/// <summary>
-		/// Set keep-alive interval to something more reasonable (because the TCP keep-alive default values of Windows are huge ~7200s)
-		/// </summary>
-		/// <param name="socket"></param>
-		/// <param name="keepaliveInterval"></param>
-		/// <param name="retryInterval"></param>
-		public static void SetKeepAliveInterval(this Socket socket, uint keepaliveInterval = 60000, uint retryInterval = 10000)
+		internal static void SetKeepAliveInterval(this Socket socket, uint keepaliveInterval = 60000, uint retryInterval = 10000)
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				socket.IOControl(IOControlCode.KeepAliveValues, ((uint)1).ToBytes().Concat(keepaliveInterval.ToBytes(), retryInterval.ToBytes()), null);
 		}
+
+		internal static Dictionary<string, string> ToDictionary(this string @string)
+			=> string.IsNullOrWhiteSpace(@string)
+				? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+				: @string.Replace("\r", "").ToList("\n")
+					.Where(header => header.IndexOf(":") > 0)
+					.ToDictionary(header => header.Left(header.IndexOf(":")).Trim(), header => header.Right(header.Length - header.IndexOf(":") - 1).Trim(), StringComparer.OrdinalIgnoreCase);
 	}
 }
