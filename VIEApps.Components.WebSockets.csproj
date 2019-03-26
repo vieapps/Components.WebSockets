@@ -11,7 +11,7 @@
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<AssemblyVersion>10.2.1903.3</AssemblyVersion>
 		<FileVersion>10.2.1903.3</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.03.15-disposed.objects.headers</InformationalVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.03.25-dual.IP.modes</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>

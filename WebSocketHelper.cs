@@ -82,8 +82,18 @@ namespace net.vieapps.Components.WebSockets
 				? null
 				: requestedSubProtocols.Intersect(supportedSubProtocols).FirstOrDefault() ?? throw new SubProtocolNegotiationFailedException("Unable to negotiate a sub-protocol");
 
-		internal static void SetKeepAliveInterval(this Socket socket, uint keepaliveInterval = 60000, uint retryInterval = 10000)
+		internal static void SetOptions(this Socket socket, bool noDelay = true, bool dualMode = false, uint keepaliveInterval = 60000, uint retryInterval = 10000)
 		{
+			// general options
+			socket.NoDelay = noDelay;
+			if (dualMode)
+			{
+				socket.DualMode = true;
+				socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+				socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, 1);
+			}
+
+			// specifict options (only avalable when running on Windows)
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				socket.IOControl(IOControlCode.KeepAliveValues, ((uint)1).ToBytes().Concat(keepaliveInterval.ToBytes(), retryInterval.ToBytes()), null);
 		}

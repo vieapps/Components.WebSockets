@@ -40,11 +40,6 @@ namespace net.vieapps.Components.WebSockets
 		bool _disposing = false, _disposed = false;
 
 		/// <summary>
-		/// Gets the listening port of the listener
-		/// </summary>
-		public int Port { get; private set; } = 46429;
-
-		/// <summary>
 		/// Gets or sets the SSL certificate for securing connections
 		/// </summary>
 		public X509Certificate2 Certificate { get; set; } = null;
@@ -203,17 +198,16 @@ namespace net.vieapps.Components.WebSockets
 				return;
 			}
 
-			// listen
+			// set X.509 certificate
+			this.Certificate = certificate ?? this.Certificate;
+
+			// open the listener and listen for incoming requests
 			try
 			{
 				// open the listener
-				this.Port = port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : 46429;
-				this.Certificate = certificate ?? this.Certificate;
-
-				this._tcpListener = new TcpListener(IPAddress.Any, this.Port);
-				this._tcpListener.Server.NoDelay = this.NoDelay;
-				this._tcpListener.Server.SetKeepAliveInterval();
-				this._tcpListener.Start(1024);
+				this._tcpListener = new TcpListener(IPAddress.IPv6Any, port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : 46429);
+				this._tcpListener.Server.SetOptions(this.NoDelay, true);
+				this._tcpListener.Start(512);
 
 				if (this._logger.IsEnabled(LogLevel.Debug))
 				{
@@ -225,9 +219,10 @@ namespace net.vieapps.Components.WebSockets
 					platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 					if (this.Certificate != null)
 						platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
-					this._logger.LogInformation($"The listener is started (listening port: {this.Port})\r\nPlatform: {platform}\r\nPowered by {WebSocketHelper.AgentName} v{this.GetType().Assembly.GetVersion()}");
+					this._logger.LogInformation($"The listener is started => {this._tcpListener.Server.LocalEndPoint}\r\nPlatform: {platform}\r\nPowered by {WebSocketHelper.AgentName} v{this.GetType().Assembly.GetVersion()}");
 				}
 
+				// callback when success
 				try
 				{
 					onSuccess?.Invoke();
@@ -243,7 +238,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (SocketException ex)
 			{
-				var message = $"Error occurred while listening on port \"{this.Port}\". Make sure another application is not running and consuming this port.";
+				var message = $"Error occurred while listening on port \"{(port > IPEndPoint.MinPort && port < IPEndPoint.MaxPort ? port : 46429)}\". Make sure another application is not running and consuming this port.";
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.Log(LogLevel.Error, message, ex);
 				try
@@ -325,11 +320,7 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				while (!this._listeningCTS.IsCancellationRequested)
-				{
-					var tcpClient = await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false);
-					tcpClient.Client.SetKeepAliveInterval();
-					this.AcceptClient(tcpClient);
-				}
+					this.AcceptClient(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false));
 			}
 			catch (Exception ex)
 			{
@@ -349,10 +340,12 @@ namespace net.vieapps.Components.WebSockets
 			ManagedWebSocket websocket = null;
 			try
 			{
-				var id = Guid.NewGuid();
-				var endpoint = tcpClient.Client.RemoteEndPoint;
+				// set optins
+				tcpClient.Client.SetOptions(this.NoDelay);
 
 				// get stream
+				var id = Guid.NewGuid();
+				var endpoint = tcpClient.Client.RemoteEndPoint;
 				Stream stream = null;
 				if (this.Certificate != null)
 					try
@@ -551,11 +544,9 @@ namespace net.vieapps.Components.WebSockets
 			{
 				// connect the TCP client
 				var id = Guid.NewGuid();
-				var tcpClient = new TcpClient
-				{
-					NoDelay = options.NoDelay
-				};
-				tcpClient.Client.SetKeepAliveInterval();
+
+				var tcpClient = new TcpClient();
+				tcpClient.Client.SetOptions(options.NoDelay);
 
 				if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
 				{
