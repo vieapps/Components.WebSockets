@@ -54,7 +54,7 @@ namespace net.vieapps.Components.WebSockets
 			this.RequestUri = requestUri;
 			this.RemoteEndPoint = remoteEndPoint;
 			this.LocalEndPoint = localEndPoint;
-			this.Extra["Headers"] = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			this.Set("Headers", headers);
 		}
 
 		/// <summary>

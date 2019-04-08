@@ -12,26 +12,24 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets or sets how often to send ping requests to the remote endpoint
 		/// </summary>
 		/// <remarks>
-		/// This is done to prevent proxy servers from closing your connection
-		/// The default is TimeSpan.Zero meaning that it is disabled.
+		/// This is done to prevent proxy servers from closing your connection, the default is TimeSpan.Zero meaning that it is disabled.
 		/// WebSocket servers usually send ping messages so it is not normally necessary for the client to send them (hence the TimeSpan.Zero default)
-		/// You can manually control ping pong messages using the PingPongManager class.
-		/// If you do that it is advisible to set this KeepAliveInterval to zero
+		/// You can manually control ping pong messages using the PingPongManager class. If you do that it is advisible to set this KeepAliveInterval to zero.
 		/// </remarks>
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.Zero;
 
 		/// <summary>
-		/// Gets or sets the sub-protocol (Sec-WebSocket-Protocol)
+		/// Gets or Sets the sub-protocol (Sec-WebSocket-Protocol)
 		/// </summary>
 		public string SubProtocol { get; set; }
 
 		/// <summary>
-		/// Gets or sets the extensions (Sec-WebSocket-Extensions)
+		/// Gets or Sets the extensions (Sec-WebSocket-Extensions)
 		/// </summary>
 		public string Extensions { get; set; }
 
 		/// <summary>
-		/// Gets or sets state to send a message immediately or not
+		/// Gets or Sets state to send a message immediately or not
 		/// </summary>
 		/// <remarks>
 		/// Set to true to send a message immediately with the least amount of latency (typical usage for chat)
@@ -42,12 +40,12 @@ namespace net.vieapps.Components.WebSockets
 		public bool NoDelay { get; set; } = true;
 
 		/// <summary>
-		/// Gets or sets the additional headers
+		/// Gets or Sets the additional headers
 		/// </summary>
 		public Dictionary<string, string> AdditionalHeaders { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
-		/// Gets or sets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
+		/// Gets or Sets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
 		/// <remarks>
 		/// The default is false
@@ -55,11 +53,26 @@ namespace net.vieapps.Components.WebSockets
 		public bool IncludeExceptionInCloseResponse { get; set; } = false;
 
 		/// <summary>
-		/// Gets or sets whether remote certificate errors should be ignored 
+		/// Gets or Sets whether remote certificate errors should be ignored 
 		/// </summary>
 		/// <remarks>
 		/// The default is false
 		/// </remarks>
 		public bool IgnoreCertificateErrors { get; set; } = false;
+
+		/// <summary>
+		/// Gets or Sets the function to prepare the custom 'PING' playload to send a 'PING' message
+		/// </summary>
+		public Func<ManagedWebSocket, byte[]> GetPingPayload { get; set; }
+
+		/// <summary>
+		/// Gets or Sets the function to prepare the custom 'PONG' playload to response to a 'PING' message
+		/// </summary>
+		public Func<ManagedWebSocket, byte[], byte[]> GetPongPayload { get; set; }
+
+		/// <summary>
+		/// Gets or Sets the action to fire when a 'PONG' message has been sent
+		/// </summary>
+		public Action<ManagedWebSocket, byte[]> OnPong { get; set; }
 	}
 }
