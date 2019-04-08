@@ -9,86 +9,40 @@ using net.vieapps.Components.Utility;
 
 namespace net.vieapps.Components.WebSockets
 {
-	/// <summary>
-	/// Pong EventArgs
-	/// </summary>
-	internal class PongEventArgs : EventArgs
-	{
-		/// <summary>
-		/// The data extracted from a Pong WebSocket frame
-		/// </summary>
-		public ArraySegment<byte> Payload { get; }
-
-		/// <summary>
-		/// Initialises a new instance of the PongEventArgs class
-		/// </summary>
-		/// <param name="payload">The pong payload must be 125 bytes or less (can be zero bytes)</param>
-		public PongEventArgs(ArraySegment<byte> payload) => this.Payload = payload;
-	}
-
-	// --------------------------------------------------
-
-	/// <summary>
-	/// Ping Pong Manager used to facilitate ping pong WebSocket messages
-	/// </summary>
-	internal interface IPingPongManager
-	{
-		/// <summary>
-		/// Raised when a Pong frame is received
-		/// </summary>
-		event EventHandler<PongEventArgs> Pong;
-
-		/// <summary>
-		/// Sends a ping frame
-		/// </summary>
-		/// <param name="payload">The payload (must be 125 bytes or less)</param>
-		/// <param name="cancellation">The cancellation token</param>
-		Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellation = default(CancellationToken));
-	}
-
-	// --------------------------------------------------
-
-	/// <summary>
-	/// Ping Pong Manager used to facilitate ping pong WebSocket messages
-	/// </summary>
-	internal class PingPongManager : IPingPongManager
+	internal class PingPongManager
 	{
 		readonly WebSocketImplementation _websocket;
-		readonly Task _pingTask;
 		readonly CancellationToken _cancellationToken;
-		readonly Stopwatch _stopwatch;
-		long _pingSentTicks;
+		readonly Action<ManagedWebSocket, byte[]> _onPong;
+		readonly Func<ManagedWebSocket, byte[], byte[]> _getPongPayload;
+		readonly Func<ManagedWebSocket, byte[]> _getPingPayload;
+		long _pingTimestamp = 0;
 
-		/// <summary>
-		/// Raised when a Pong frame is received
-		/// </summary>
-		public event EventHandler<PongEventArgs> Pong;
-
-		/// <summary>
-		/// Initialises a new instance of the PingPongManager to facilitate ping pong WebSocket messages.
-		/// </summary>
-		/// <param name="websocket">The WebSocket instance used to listen to ping messages and send pong messages</param>
-		/// <param name="cancellationToken">The token used to cancel a pending ping send AND the automatic sending of ping messages if KeepAliveInterval is positive</param>
-		public PingPongManager(WebSocketImplementation websocket, CancellationToken cancellationToken)
+		public PingPongManager(WebSocketImplementation websocket, WebSocketOptions options, CancellationToken cancellationToken)
 		{
 			this._websocket = websocket;
-			this._websocket.Pong += this.DoPong;
 			this._cancellationToken = cancellationToken;
-			this._stopwatch = Stopwatch.StartNew();
-			this._pingTask = Task.Run(this.DoPingAsync);
+			this._getPongPayload = options.GetPongPayload;
+			this._onPong = options.OnPong;
+			if (this._websocket.KeepAliveInterval != TimeSpan.Zero)
+			{
+				this._getPingPayload = options.GetPingPayload;
+				Task.Run(this.SendPingAsync).ConfigureAwait(false);
+			}
 		}
 
-		/// <summary>
-		/// Sends a ping frame
-		/// </summary>
-		/// <param name="payload">The payload (must be 125 bytes of less)</param>
-		/// <param name="cancellationToken">The cancellation token</param>
-		public Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken = default(CancellationToken))
-			=> this._websocket.SendPingAsync(payload, cancellationToken);
-
-		async Task DoPingAsync()
+		public void OnPong(byte[] pong)
 		{
-			Events.Log.PingPongManagerStarted(this._websocket.ID, (int)this._websocket.KeepAliveInterval.TotalSeconds);
+			this._pingTimestamp = 0;
+			this._onPong?.Invoke(this._websocket, pong);
+		}
+
+		public Task SendPongAsync(byte[] ping)
+			=> this._websocket.SendPongAsync((this._getPongPayload?.Invoke(this._websocket, ping) ?? ping).ToArraySegment(), this._cancellationToken);
+
+		public async Task SendPingAsync()
+		{
+			Events.Log.PingPongManagerStarted(this._websocket.ID, this._websocket.KeepAliveInterval.TotalSeconds.CastAs<int>());
 			try
 			{
 				while (!this._cancellationToken.IsCancellationRequested)
@@ -97,30 +51,22 @@ namespace net.vieapps.Components.WebSockets
 					if (this._websocket.State != WebSocketState.Open)
 						break;
 
-					if (this._pingSentTicks != 0)
+					if (this._pingTimestamp != 0)
 					{
 						Events.Log.KeepAliveIntervalExpired(this._websocket.ID, (int)this._websocket.KeepAliveInterval.TotalSeconds);
-						await this._websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No Pong message received in response to a Ping after KeepAliveInterval ({this._websocket.KeepAliveInterval})", this._cancellationToken).ConfigureAwait(false);
+						await this._websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No PONG message received in response to a PING message after keep-alive-interval ({this._websocket.KeepAliveInterval})", this._cancellationToken).ConfigureAwait(false);
 						break;
 					}
 
-					this._pingSentTicks = this._stopwatch.Elapsed.Ticks;
-					await this.SendPingAsync(this._pingSentTicks.ToArraySegment(), this._cancellationToken).ConfigureAwait(false);
+					this._pingTimestamp = DateTime.Now.ToUnixTimestamp();
+					await this._websocket.SendPingAsync((this._getPingPayload?.Invoke(this._websocket) ?? this._pingTimestamp.ToBytes()).ToArraySegment(), this._cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (OperationCanceledException)
+			catch (Exception)
 			{
-				// normal, do nothing
+				// do nothing
 			}
 			Events.Log.PingPongManagerEnded(this._websocket.ID);
-		}
-
-		protected virtual void OnPong(PongEventArgs args) => this.Pong?.Invoke(this, args);
-
-		void DoPong(object sender, PongEventArgs arg)
-		{
-			this._pingSentTicks = 0;
-			this.OnPong(arg);
 		}
 	}
 }

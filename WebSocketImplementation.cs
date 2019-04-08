@@ -1,6 +1,7 @@
 ﻿#region Related components
 using System;
 using System.Net;
+using System.Linq;
 using System.IO;
 using System.IO.Compression;
 using System.Net.WebSockets;
@@ -21,7 +22,7 @@ namespace net.vieapps.Components.WebSockets
 		#region Properties
 		readonly Func<MemoryStream> _recycledStreamFactory;
 		readonly Stream _stream;
-		readonly IPingPongManager _pingpongManager;
+		readonly PingPongManager _pingpongManager;
 		WebSocketState _state;
 		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
@@ -32,8 +33,6 @@ namespace net.vieapps.Components.WebSockets
 		readonly string _subProtocol;
 		readonly CancellationTokenSource _processingCTS;
 		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
-
-		public event EventHandler<PongEventArgs> Pong;
 
 		/// <summary>
 		/// Gets the state that indicates the reason why the remote endpoint initiated the close handshake
@@ -73,18 +72,14 @@ namespace net.vieapps.Components.WebSockets
 			this.RequestUri = requestUri;
 			this.RemoteEndPoint = remoteEndPoint;
 			this.LocalEndPoint = localEndPoint;
-			this.Extra["Headers"] = headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			this.Set("Headers", headers);
 
 			this._recycledStreamFactory = recycledStreamFactory ?? WebSocketHelper.GetRecyclableMemoryStreamFactory();
 			this._stream = stream;
 			this._state = WebSocketState.Open;
 			this._subProtocol = options.SubProtocol;
 			this._processingCTS = new CancellationTokenSource();
-
-			if (this.KeepAliveInterval == TimeSpan.Zero)
-				Events.Log.KeepAliveIntervalZero(this.ID);
-			else
-				this._pingpongManager = new PingPongManager(this, this._processingCTS.Token);
+			this._pingpongManager = new PingPongManager(this, options, this._processingCTS.Token);
 		}
 
 		/// <summary>
@@ -183,11 +178,11 @@ namespace net.vieapps.Components.WebSockets
 								return await this.RespondToCloseFrameAsync(frame, buffer, cts.Token).ConfigureAwait(false);
 
 							case WebSocketOpCode.Ping:
-								await this.SendPongAsync(new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count), cts.Token).ConfigureAwait(false);
+								await this._pingpongManager.SendPongAsync(buffer.Take(frame.Count).ToArray()).ConfigureAwait(false);
 								break;
 
 							case WebSocketOpCode.Pong:
-								this.Pong?.Invoke(this, new PongEventArgs(new ArraySegment<byte>(buffer.Array, frame.Count, buffer.Offset)));
+								this._pingpongManager.OnPong(buffer.Take(frame.Count).ToArray());
 								break;
 
 							case WebSocketOpCode.Text:
@@ -261,23 +256,17 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
-		/// Called when a Pong frame is received
-		/// </summary>
-		/// <param name="args"></param>
-		protected virtual void OnPong(PongEventArgs args) => this.Pong?.Invoke(this, args);
-
-		/// <summary>
 		/// Calls this when got ping messages (pong payload must be 125 bytes or less, pong should contain the same payload as the ping)
 		/// </summary>
 		/// <param name="payload"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		async Task SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
+		public async Task SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			// exceeded max length
 			if (payload.Count > 125)
 			{
-				var ex = new BufferOverflowException($"Max pong message size is 125 bytes, exceeded: {payload.Count}");
+				var ex = new BufferOverflowException($"Max PONG message size is 125 bytes, exceeded: {payload.Count}");
 				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, ex.Message, ex).ConfigureAwait(false);
 				throw ex;
 			}
@@ -294,7 +283,7 @@ namespace net.vieapps.Components.WebSockets
 			}
 			catch (Exception ex)
 			{
-				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Unable to send Pong response", ex).ConfigureAwait(false);
+				await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Unable to send PONG response", ex).ConfigureAwait(false);
 				throw;
 			}
 		}
@@ -308,7 +297,7 @@ namespace net.vieapps.Components.WebSockets
 		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			if (payload.Count > 125)
-				throw new BufferOverflowException($"Max ping message size is 125 bytes, exceeded: {payload.Count}");
+				throw new BufferOverflowException($"Max PING message size is 125 bytes, exceeded: {payload.Count}");
 
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())

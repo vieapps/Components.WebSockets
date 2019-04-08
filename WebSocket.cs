@@ -40,27 +40,27 @@ namespace net.vieapps.Components.WebSockets
 		bool _disposing = false, _disposed = false;
 
 		/// <summary>
-		/// Gets or sets the SSL certificate for securing connections
+		/// Gets or Sets the SSL certificate for securing connections
 		/// </summary>
 		public X509Certificate2 Certificate { get; set; } = null;
 
 		/// <summary>
-		/// Gets or sets the SSL protocol for securing connections with SSL Certificate
+		/// Gets or Sets the SSL protocol for securing connections with SSL Certificate
 		/// </summary>
 		public SslProtocols SslProtocol { get; set; } = SslProtocols.Tls;
 
 		/// <summary>
-		/// Gets or sets the collection of supported sub-protocol
+		/// Gets or Sets the collection of supported sub-protocol
 		/// </summary>
 		public IEnumerable<string> SupportedSubProtocols { get; set; } = new string[0];
 
 		/// <summary>
-		/// Gets or sets keep-alive interval (seconds) for sending ping messages from server
+		/// Gets or Sets the keep-alive interval for sending ping messages from server
 		/// </summary>
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
 
 		/// <summary>
-		/// Gets or sets a value that specifies whether the listener is disable the Nagle algorithm or not (default is true - means disable for better performance)
+		/// Gets or Sets a value that specifies whether the listener is disable the Nagle algorithm or not (default is true - means disable for better performance)
 		/// </summary>
 		/// <remarks>
 		/// Set to true to send a message immediately with the least amount of latency (typical usage for chat)
@@ -71,9 +71,9 @@ namespace net.vieapps.Components.WebSockets
 		public bool NoDelay { get; set; } = true;
 
 		/// <summary>
-		/// Gets or sets await interval (miliseconds) while receiving messages
+		/// Gets or Sets await interval between two rounds of receiving messages
 		/// </summary>
-		public int AwaitInterval { get; set; } = 0;
+		public TimeSpan ReceivingAwaitInterval { get; set; } = TimeSpan.Zero;
 		#endregion
 
 		#region Event Handlers
@@ -181,7 +181,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="certificate">The SSL Certificate to secure connections</param>
 		/// <param name="onSuccess">Action to fire when start successful</param>
 		/// <param name="onFailure">Action to fire when failed to start</param>
-		public void StartListen(int port = 46429, X509Certificate2 certificate = null, Action onSuccess = null, Action<Exception> onFailure = null)
+		/// <param name="getPingPayload">The function to get the custom 'PING' playload to send a 'PING' message</param>
+		/// <param name="getPongPayload">The function to get the custom 'PONG' playload to response to a 'PING' message</param>
+		/// <param name="onPong">The action to fire when a 'PONG' message has been sent</param>
+		public void StartListen(int port = 46429, X509Certificate2 certificate = null, Action onSuccess = null, Action<Exception> onFailure = null, Func<ManagedWebSocket, byte[]> getPingPayload = null, Func<ManagedWebSocket, byte[], byte[]> getPongPayload = null, Action<ManagedWebSocket, byte[]> onPong = null)
 		{
 			// check
 			if (this._tcpListener != null)
@@ -234,7 +237,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// listen for incoming connection requests
-				this.Listen();
+				this.Listen(getPingPayload, getPongPayload, onPong);
 			}
 			catch (SocketException ex)
 			{
@@ -273,15 +276,37 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="port">The port for listening</param>
 		/// <param name="onSuccess">Action to fire when start successful</param>
 		/// <param name="onFailure">Action to fire when failed to start</param>
+		/// <param name="getPingPayload">The function to get the custom 'PING' playload to send a 'PING' message</param>
+		/// <param name="getPongPayload">The function to get the custom 'PONG' playload to response to a 'PING' message</param>
+		/// <param name="onPong">The action to fire when a 'PONG' message has been sent</param>
+		public void StartListen(int port, Action onSuccess, Action<Exception> onFailure, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
+			=> this.StartListen(port, null, onSuccess, onFailure, getPingPayload, getPongPayload, onPong);
+
+		/// <summary>
+		/// Starts to listen for client requests as a WebSocket server
+		/// </summary>
+		/// <param name="port">The port for listening</param>
+		/// <param name="onSuccess">Action to fire when start successful</param>
+		/// <param name="onFailure">Action to fire when failed to start</param>
 		public void StartListen(int port, Action onSuccess, Action<Exception> onFailure)
-			=> this.StartListen(port, null, onSuccess, onFailure);
+			=> this.StartListen(port, onSuccess, onFailure, null, null, null);
+
+		/// <summary>
+		/// Starts to listen for client requests as a WebSocket server
+		/// </summary>
+		/// <param name="port">The port for listening</param>
+		/// <param name="getPingPayload">The function to get the custom 'PING' playload to send a 'PING' message</param>
+		/// <param name="getPongPayload">The function to get the custom 'PONG' playload to response to a 'PING' message</param>
+		/// <param name="onPong">The action to fire when a 'PONG' message has been sent</param>
+		public void StartListen(int port, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
+			=> this.StartListen(port, null, null, getPingPayload, getPongPayload, onPong);
 
 		/// <summary>
 		/// Starts to listen for client requests as a WebSocket server
 		/// </summary>
 		/// <param name="port">The port for listening</param>
 		public void StartListen(int port)
-			=> this.StartListen(port, null, null);
+			=> this.StartListen(port, null, null, null);
 
 		/// <summary>
 		/// Stops listen
@@ -309,18 +334,18 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		Task Listen()
+		Task Listen(Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 		{
 			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
-			return this.ListenAsync();
+			return this.ListenAsync(getPingPayload, getPongPayload, onPong);
 		}
 
-		async Task ListenAsync()
+		async Task ListenAsync(Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 		{
 			try
 			{
 				while (!this._listeningCTS.IsCancellationRequested)
-					this.AcceptClient(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false));
+					this.AcceptClient(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false), getPingPayload, getPongPayload, onPong);
 			}
 			catch (Exception ex)
 			{
@@ -332,10 +357,10 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		void AcceptClient(TcpClient tcpClient)
-			=> Task.Run(() => this.AcceptClientAsync(tcpClient)).ConfigureAwait(false);
+		void AcceptClient(TcpClient tcpClient, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
+			=> Task.Run(() => this.AcceptClientAsync(tcpClient, getPingPayload, getPongPayload, onPong)).ConfigureAwait(false);
 
-		async Task AcceptClientAsync(TcpClient tcpClient)
+		async Task AcceptClientAsync(TcpClient tcpClient, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 		{
 			ManagedWebSocket websocket = null;
 			try
@@ -415,13 +440,17 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// accept the request
-				var options = new WebSocketOptions
-				{
-					KeepAliveInterval = this.KeepAliveInterval
-				};
 				Events.Log.AcceptWebSocketStarted(id);
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.Log(LogLevel.Debug, $"The request has requested an upgrade to WebSocket protocol, negotiating WebSocket handshake ({id} @ {endpoint})");
+
+				var options = new WebSocketOptions
+				{
+					KeepAliveInterval = this.KeepAliveInterval.Ticks < 0 ? TimeSpan.FromSeconds(60) : this.KeepAliveInterval,
+					GetPingPayload = getPingPayload,
+					GetPongPayload = getPongPayload,
+					OnPong = onPong
+				};
 
 				try
 				{
@@ -441,7 +470,7 @@ namespace net.vieapps.Components.WebSockets
 					// negotiate subprotocol
 					match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(header);
 					options.SubProtocol = match.Success
-						? match.Groups[1].Value.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).NegotiateSubProtocol(this.SupportedSubProtocols)
+						? match.Groups[1].Value?.Trim().Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries).NegotiateSubProtocol(this.SupportedSubProtocols)
 						: null;
 
 					// handshake
@@ -653,7 +682,7 @@ namespace net.vieapps.Components.WebSockets
 					: null;
 
 				// throw if got invalid response code
-				if (!"101 Switching Protocols".IsEquals(responseCode))
+				if (!"101 Switching Protocols".IsEquals(responseCode) && !"101 Web Socket Protocol Handshake".IsEquals(responseCode))
 				{
 					var lines = response.Split(new[] { "\r\n" }, StringSplitOptions.None);
 					for (var index = 0; index < lines.Length; index++)
@@ -686,7 +715,7 @@ namespace net.vieapps.Components.WebSockets
 				// get the accepted sub-protocol
 				match = new Regex("Sec-WebSocket-Protocol: (.*)").Match(response);
 				options.SubProtocol = match.Success
-					? match.Groups[1].Value.Trim()
+					? match.Groups[1].Value?.Trim()
 					: null;
 
 				// update the connected WebSocket connection
@@ -972,10 +1001,10 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// wait for next round
-				if (this.AwaitInterval > 0)
+				if (this.ReceivingAwaitInterval.Ticks > 0)
 					try
 					{
-						await Task.Delay(this.AwaitInterval, this._processingCTS.Token).ConfigureAwait(false);
+						await Task.Delay(this.ReceivingAwaitInterval, this._processingCTS.Token).ConfigureAwait(false);
 					}
 					catch
 					{
@@ -1318,14 +1347,6 @@ namespace net.vieapps.Components.WebSockets
 		public Dictionary<string, object> Extra { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
-		/// Gets the header information of the <see cref="ManagedWebSocket">WebSocket</see> connection
-		/// </summary>
-		public Dictionary<string, string> Headers
-		{
-			get => this.Extra.TryGetValue("Headers", out object headers) && headers is Dictionary<string, string> ? headers as Dictionary<string, string> : new Dictionary<string, string>();
-		}
-
-		/// <summary>
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
 		protected abstract bool IncludeExceptionInCloseResponse { get; }
@@ -1429,6 +1450,55 @@ namespace net.vieapps.Components.WebSockets
 			this.Dispose();
 			GC.SuppressFinalize(this);
 		}
+		#endregion
+
+		#region Extra information
+		/// <summary>
+		/// Sets the value of a specified key of the extra information
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="key"></param>
+		/// <param name="value"></param>
+		public void Set<T>(string key, T value)
+			=> this.Extra[key] = value;
+
+		/// <summary>
+		/// Gets the value of a specified key from the extra information
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="key"></param>
+		/// <param name="default"></param>
+		/// <returns></returns>
+		public T Get<T>(string key, T @default = default(T))
+			=> this.Extra.TryGetValue(key, out object value) && value != null && value is T
+				? (T)value
+				: @default;
+
+		/// <summary>
+		/// Removes the value of a specified key from the extra information
+		/// </summary>
+		/// <param name="key"></param>
+		/// <returns></returns>
+		public bool Remove(string key)
+			=> this.Extra.Remove(key);
+
+		/// <summary>
+		/// Removes the value of a specified key from the extra information
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="key"></param>
+		/// <param name="value"></param>
+		/// <returns></returns>
+		public bool Remove<T>(string key, out T value)
+		{
+			value = this.Get<T>(key);
+			return this.Remove(key);
+		}
+
+		/// <summary>
+		/// Gets the header information of the <see cref="ManagedWebSocket">WebSocket</see> connection
+		/// </summary>
+		public Dictionary<string, string> Headers => this.Get("Headers", new Dictionary<string, string>());
 		#endregion
 
 	}
