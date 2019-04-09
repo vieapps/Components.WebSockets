@@ -40,22 +40,22 @@ namespace net.vieapps.Components.WebSockets
 		bool _disposing = false, _disposed = false;
 
 		/// <summary>
-		/// Gets or Sets the SSL certificate for securing connections
+		/// Gets or Sets the SSL certificate for securing connections (server)
 		/// </summary>
-		public X509Certificate2 Certificate { get; set; } = null;
+		public X509Certificate2 Certificate { get; set; }
 
 		/// <summary>
-		/// Gets or Sets the SSL protocol for securing connections with SSL Certificate
+		/// Gets or Sets the SSL protocol for securing connections with SSL Certificate (server)
 		/// </summary>
 		public SslProtocols SslProtocol { get; set; } = SslProtocols.Tls;
 
 		/// <summary>
-		/// Gets or Sets the collection of supported sub-protocol
+		/// Gets or Sets the collection of supported sub-protocol (server)
 		/// </summary>
 		public IEnumerable<string> SupportedSubProtocols { get; set; } = new string[0];
 
 		/// <summary>
-		/// Gets or Sets the keep-alive interval for sending ping messages from server
+		/// Gets or Sets the keep-alive interval for sending ping messages (server)
 		/// </summary>
 		public TimeSpan KeepAliveInterval { get; set; } = TimeSpan.FromSeconds(60);
 
@@ -137,9 +137,17 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
 		/// </summary>
+		/// <param name="cancellationToken">The cancellation token</param>
+		public WebSocket(CancellationToken cancellationToken)
+			: this(null, cancellationToken) { }
+
+		/// <summary>
+		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
+		/// </summary>
 		/// <param name="loggerFactory">The logger factory</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		public WebSocket(ILoggerFactory loggerFactory, CancellationToken cancellationToken) : this(loggerFactory, null, cancellationToken) { }
+		public WebSocket(ILoggerFactory loggerFactory, CancellationToken cancellationToken)
+			: this(loggerFactory, null, cancellationToken) { }
 
 		/// <summary>
 		/// Creates new an instance of the centralized <see cref="WebSocket">WebSocket</see>
@@ -799,7 +807,7 @@ namespace net.vieapps.Components.WebSockets
 			=> this.Connect(location, null, onSuccess, onFailure);
 		#endregion
 
-		#region Wrap a WebSocket connection of ASP.NET / ASP.NET Core
+		#region Wrap a WebSocket connection
 		/// <summary>
 		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
 		/// </summary>
@@ -1190,7 +1198,7 @@ namespace net.vieapps.Components.WebSockets
 			if (!this.AddWebSocket(websocket))
 			{
 				if (websocket != null)
-					await Task.Delay(UtilityService.GetRandomNumber(123, 456)).ConfigureAwait(false);
+					await Task.Delay(UtilityService.GetRandomNumber(123, 456), this._processingCTS.Token).ConfigureAwait(false);
 				return this.AddWebSocket(websocket);
 			}
 			return true;

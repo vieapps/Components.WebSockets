@@ -54,7 +54,7 @@ namespace net.vieapps.Components.WebSockets
 					if (this._pingTimestamp != 0)
 					{
 						Events.Log.KeepAliveIntervalExpired(this._websocket.ID, (int)this._websocket.KeepAliveInterval.TotalSeconds);
-						await this._websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No PONG message received in response to a PING message after keep-alive-interval ({this._websocket.KeepAliveInterval})", this._cancellationToken).ConfigureAwait(false);
+						await this._websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, $"No PONG message received in response to a PING message after keep-alive interval ({this._websocket.KeepAliveInterval})", this._cancellationToken).ConfigureAwait(false);
 						break;
 					}
 
