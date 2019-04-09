@@ -16,7 +16,7 @@ using net.vieapps.Components.Utility;
 
 namespace net.vieapps.Components.WebSockets
 {
-	internal class WebSocketImplementation : ManagedWebSocket
+	public class WebSocketImplementation : ManagedWebSocket
 	{
 
 		#region Properties
@@ -24,7 +24,7 @@ namespace net.vieapps.Components.WebSockets
 		readonly Stream _stream;
 		readonly PingPongManager _pingpongManager;
 		WebSocketState _state;
-		WebSocketMessageType _continuationFrameMessageType = WebSocketMessageType.Binary;
+		WebSocketMessageType _continuationMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription;
 		bool _isContinuationFrame = false;
@@ -60,15 +60,12 @@ namespace net.vieapps.Components.WebSockets
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
+		internal WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
 		{
-			if (options.KeepAliveInterval.Ticks < 0)
-				throw new ArgumentException("KeepAliveInterval must be Zero or positive", nameof(options));
-
 			this.ID = id;
 			this.IsClient = isClient;
 			this.IncludeExceptionInCloseResponse = options.IncludeExceptionInCloseResponse;
-			this.KeepAliveInterval = options.KeepAliveInterval;
+			this.KeepAliveInterval = options.KeepAliveInterval.Ticks < 0 ? TimeSpan.FromSeconds(60) : options.KeepAliveInterval;
 			this.RequestUri = requestUri;
 			this.RemoteEndPoint = remoteEndPoint;
 			this.LocalEndPoint = localEndPoint;
@@ -148,27 +145,27 @@ namespace net.vieapps.Components.WebSockets
 						catch (InternalBufferOverflowException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame is too large to fit in buffer. Use message fragmentation.", ex).ConfigureAwait(false);
-							throw;
+							throw ex;
 						}
 						catch (ArgumentOutOfRangeException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length is out of range", ex).ConfigureAwait(false);
-							throw;
+							throw ex;
 						}
 						catch (EndOfStreamException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InvalidPayloadData, "Unexpected end of stream encountered", ex).ConfigureAwait(false);
-							throw;
+							throw ex;
 						}
 						catch (OperationCanceledException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Operation cancelled", ex).ConfigureAwait(false);
-							throw;
+							throw ex;
 						}
 						catch (Exception ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
-							throw;
+							throw ex;
 						}
 
 						// process op-code
@@ -188,17 +185,17 @@ namespace net.vieapps.Components.WebSockets
 							case WebSocketOpCode.Text:
 								// continuation frames will follow, record the message type as text
 								if (!frame.IsFinBitSet)
-									this._continuationFrameMessageType = WebSocketMessageType.Text;
+									this._continuationMessageType = WebSocketMessageType.Text;
 								return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Text, frame.IsFinBitSet);
 
 							case WebSocketOpCode.Binary:
 								// continuation frames will follow, record the message type as binary
 								if (!frame.IsFinBitSet)
-									this._continuationFrameMessageType = WebSocketMessageType.Binary;
+									this._continuationMessageType = WebSocketMessageType.Binary;
 								return new WebSocketReceiveResult(frame.Count, WebSocketMessageType.Binary, frame.IsFinBitSet);
 
 							case WebSocketOpCode.Continuation:
-								return new WebSocketReceiveResult(frame.Count, this._continuationFrameMessageType, frame.IsFinBitSet);
+								return new WebSocketReceiveResult(frame.Count, this._continuationMessageType, frame.IsFinBitSet);
 
 							default:
 								var ex = new NotSupportedException($"Unknown WebSocket op-code: {frame.OpCode}");
