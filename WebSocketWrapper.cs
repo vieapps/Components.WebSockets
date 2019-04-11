@@ -19,6 +19,7 @@ namespace net.vieapps.Components.WebSockets
 		readonly System.Net.WebSockets.WebSocket _websocket = null;
 		readonly ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>> _buffers = new ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>>();
 		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+		readonly ILogger _logger;
 		bool _pending = false;
 
 		/// <summary>
@@ -50,6 +51,7 @@ namespace net.vieapps.Components.WebSockets
 		public WebSocketWrapper(System.Net.WebSockets.WebSocket websocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
 		{
 			this._websocket = websocket;
+			this._logger = Logger.CreateLogger<WebSocketWrapper>();
 			this.ID = Guid.NewGuid();
 			this.RequestUri = requestUri;
 			this.RemoteEndPoint = remoteEndPoint;
@@ -78,14 +80,19 @@ namespace net.vieapps.Components.WebSockets
 		{
 			// check disposed
 			if (this._disposed)
-				throw new ObjectDisposedException("WebSocketWrapper");
+			{
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogWarning($"Object disposed => {this.ID}");
+				throw new ObjectDisposedException($"WebSocketWrapper => {this.ID}");
+			}
 
 			// add into queue and check pending operations
 			this._buffers.Enqueue(new Tuple<ArraySegment<byte>, WebSocketMessageType, bool>(buffer, messageType, endOfMessage));
 			if (this._pending)
 			{
 				Events.Log.PendingOperations(this.ID);
-				Logger.Log<WebSocketWrapper>(LogLevel.Debug, LogLevel.Warning, $"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogWarning($"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 

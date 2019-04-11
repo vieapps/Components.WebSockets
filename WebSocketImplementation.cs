@@ -16,23 +16,24 @@ using net.vieapps.Components.Utility;
 
 namespace net.vieapps.Components.WebSockets
 {
-	public class WebSocketImplementation : ManagedWebSocket
+	internal class WebSocketImplementation : ManagedWebSocket
 	{
 
 		#region Properties
 		readonly Func<MemoryStream> _recycledStreamFactory;
 		readonly Stream _stream;
 		readonly PingPongManager _pingpongManager;
+		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+		readonly string _subProtocol;
+		readonly CancellationTokenSource _processingCTS;
+		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
+		readonly ILogger _logger;
 		WebSocketState _state;
 		WebSocketMessageType _continuationMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription;
 		bool _isContinuationFrame = false;
-		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 		bool _pending = false;
-		readonly string _subProtocol;
-		readonly CancellationTokenSource _processingCTS;
-		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
 
 		/// <summary>
 		/// Gets the state that indicates the reason why the remote endpoint initiated the close handshake
@@ -60,7 +61,7 @@ namespace net.vieapps.Components.WebSockets
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		internal WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
+		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
 		{
 			this.ID = id;
 			this.IsClient = isClient;
@@ -77,6 +78,7 @@ namespace net.vieapps.Components.WebSockets
 			this._subProtocol = options.SubProtocol;
 			this._processingCTS = new CancellationTokenSource();
 			this._pingpongManager = new PingPongManager(this, options, this._processingCTS.Token);
+			this._logger = Logger.CreateLogger<WebSocketImplementation>();
 		}
 
 		/// <summary>
@@ -89,14 +91,19 @@ namespace net.vieapps.Components.WebSockets
 		{
 			// check disposed
 			if (this._disposed)
-				throw new ObjectDisposedException("WebSocketImplementation");
+			{
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogWarning($"Object disposed => {this.ID}");
+				throw new ObjectDisposedException($"WebSocketImplementation => {this.ID}");
+			}
 
 			// add into queue and check pending operations
 			this._buffers.Enqueue(stream.ToArraySegment());
 			if (this._pending)
 			{
 				Events.Log.PendingOperations(this.ID);
-				Logger.Log<WebSocketImplementation>(LogLevel.Debug, LogLevel.Warning, $"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+				if (this._logger.IsEnabled(LogLevel.Debug))
+					this._logger.LogWarning($"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
@@ -211,6 +218,8 @@ namespace net.vieapps.Components.WebSockets
 				// however, if an unhandled exception is encountered and a close message not sent then send one here
 				if (this._state == WebSocketState.Open)
 					await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", ex).ConfigureAwait(false);
+				if (this._logger.IsEnabled(LogLevel.Trace))
+					this._logger.LogError(ex, $"Error occurred while receiving ({this.ID} @ {this.RemoteEndPoint}) => {ex.Message}");
 				throw ex;
 			}
 		}

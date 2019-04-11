@@ -117,8 +117,8 @@ var websocket = new WebSocket
 And this class has some methods for working on both side of client and server role:
 
 ```csharp
-void Connect(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailed);
-void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailed);
+void Connect(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess, Action<Exception> onFailure);
+void StartListen(int port, X509Certificate2 certificate, Action onSuccess, Action<Exception> onFailure, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong);
 void StopListen();
 ```
 
