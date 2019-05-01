@@ -62,10 +62,7 @@ namespace net.vieapps.Components.WebSockets
 					await this._websocket.SendPingAsync((this._getPingPayload?.Invoke(this._websocket) ?? this._pingTimestamp.ToBytes()).ToArraySegment(), this._cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (Exception)
-			{
-				// do nothing
-			}
+			catch { }
 			Events.Log.PingPongManagerEnded(this._websocket.ID);
 		}
 	}

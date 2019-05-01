@@ -860,38 +860,6 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
 		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint)
 			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, null, new Dictionary<string, string>(), null);
-
-		/// <summary>
-		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
-		/// </summary>
-		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
-		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="headers">The string that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="cookies">The string that presents the cookies of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
-		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		[Obsolete]
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferer, string headers, string cookies, Action<ManagedWebSocket> onSuccess = null)
-			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, (headers ?? "").ToDictionary(), onSuccess);
-
-		/// <summary>
-		/// Wraps a <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core and acts like a <see cref="WebSocket">WebSocket</see> server
-		/// </summary>
-		/// <param name="webSocket">The <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection of ASP.NET / ASP.NET Core</param>
-		/// <param name="requestUri">The original request URI of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="userAgent">The string that presents the user agent of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="urlReferer">The string that presents the url referer of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
-		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
-		[Obsolete]
-		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferer, Action<ManagedWebSocket> onSuccess)
-			=> this.WrapAsync(webSocket, requestUri, remoteEndPoint, localEndPoint, new Dictionary<string, string>(), onSuccess);
 		#endregion
 
 		#region Receive messages

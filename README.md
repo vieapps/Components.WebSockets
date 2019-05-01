@@ -67,6 +67,9 @@ public EndPoint LocalEndPoint { get; }
 
 // Extra information
 public Dictionary<string, object> Extra { get; }
+
+// Headers information
+public Dictionary<string, string> Headers { get; }
 ```
 
 ## Fly on the sky with Event-liked driven
@@ -135,7 +138,7 @@ Use the **StopListen** method to stop the listener.
 ### WebSocket server with Secure WebSockets (wss://)
 
 Enabling secure connections requires two things:
-- Pointing certificate to an X.509 certificate that containing a public and private key.
+- Pointing certificate to an x509 certificate that containing a public and private key.
 - Using the scheme **wss** instead of **ws** (or **https** instead of **http**) on all clients
 
 ```csharp
@@ -185,7 +188,7 @@ When integrate this component with your app that hosted by ASP.NET / ASP.NET Cor
 then the method **WrapAsync** is here to help. This method will return a task that run a process for receiving messages from this WebSocket connection.
 
 ```csharp
-Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, string userAgent, string urlReferrer, string headers, string cookies, Action<ManagedWebSocket> onSuccess);
+Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers, Action<ManagedWebSocket> onSuccess);
 ```
 
 And might be you need an extension method to wrap an existing WebSocket connection, then take a look at some lines of code below:
@@ -316,7 +319,7 @@ bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus
 
 Our prefers:
 - [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
-- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): rolling log files (by date) - high performance, and very simple to use
+- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): rolling log files (by hour or date) - high performance, and very simple to use
 
 ### Namespaces
 
