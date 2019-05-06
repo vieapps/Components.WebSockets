@@ -11,7 +11,7 @@
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<AssemblyVersion>10.2.1905.1</AssemblyVersion>
 		<FileVersion>10.2.1905.1</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.01-latest.components</InformationalVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.07-closing</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>

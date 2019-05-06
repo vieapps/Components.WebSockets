@@ -890,7 +890,7 @@ namespace net.vieapps.Components.WebSockets
 						closeStatusDescription = websocket.IsClient ? "Disconnected" : "Service is unavailable";
 					}
 
-					this.CloseWebSocket(websocket, closeStatus, closeStatusDescription);
+					await this.CloseWebSocketAsync(websocket, closeStatus, closeStatusDescription).ConfigureAwait(false);
 					try
 					{
 						this.ConnectionBrokenHandler?.Invoke(websocket);
@@ -928,7 +928,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
 						this._logger.Log(LogLevel.Debug, $"The remote endpoint is initiated to close - Status: {result.CloseStatus} - Description: {result.CloseStatusDescription ?? "N/A"} ({websocket.ID} @ {websocket.RemoteEndPoint})");
-					this.CloseWebSocket(websocket);
+					await this.CloseWebSocketAsync(websocket).ConfigureAwait(false);
 					try
 					{
 						this.ConnectionBrokenHandler?.Invoke(websocket);
@@ -949,7 +949,7 @@ namespace net.vieapps.Components.WebSockets
 						this._logger.Log(LogLevel.Debug, $"Close the connection because {message} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					await websocket.CloseAsync(WebSocketCloseStatus.MessageTooBig, $"{message}, send multiple frames instead.", CancellationToken.None).ConfigureAwait(false);
 
-					this.CloseWebSocket(websocket);
+					await this.CloseWebSocketAsync(websocket).ConfigureAwait(false);
 					try
 					{
 						this.ConnectionBrokenHandler?.Invoke(websocket);
@@ -987,7 +987,7 @@ namespace net.vieapps.Components.WebSockets
 					}
 					catch
 					{
-						this.CloseWebSocket(websocket, websocket.IsClient ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable, websocket.IsClient ? "Disconnected" : "Service is unavailable");
+						await this.CloseWebSocketAsync(websocket, websocket.IsClient ? WebSocketCloseStatus.NormalClosure : WebSocketCloseStatus.EndpointUnavailable, websocket.IsClient ? "Disconnected" : "Service is unavailable").ConfigureAwait(false);
 						try
 						{
 							this.ConnectionBrokenHandler?.Invoke(websocket);
@@ -1202,12 +1202,25 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns></returns>
-		bool CloseWebsocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription)
+		async Task<bool> CloseWebsocketAsync(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription)
 		{
 			if (websocket.State == WebSocketState.Open)
-				Task.Run(() => websocket.DisposeAsync(closeStatus, closeStatusDescription)).ConfigureAwait(false);
+				await websocket.DisposeAsync(closeStatus, closeStatusDescription).ConfigureAwait(false);
 			else
 				websocket.Close();
+			return true;
+		}
+
+		/// <summary>
+		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
+		/// </summary>
+		/// <param name="websocket">The <see cref="ManagedWebSocket">WebSocket</see> connection to close</param>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <returns></returns>
+		bool CloseWebsocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription)
+		{
+			Task.Run(() => this.CloseWebsocketAsync(websocket, closeStatus, closeStatusDescription)).ConfigureAwait(false);
 			return true;
 		}
 
@@ -1219,9 +1232,21 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(Guid id, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
-			=> this._websockets.TryRemove(id, out ManagedWebSocket websocket)
+			=> this._websockets.TryRemove(id, out var websocket)
 				? this.CloseWebsocket(websocket, closeStatus, closeStatusDescription)
 				: false;
+
+		/// <summary>
+		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
+		/// </summary>
+		/// <param name="id">The identity of a <see cref="ManagedWebSocket">WebSocket</see> connection to close</param>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <returns>true if closed and destroyed</returns>
+		public Task<bool> CloseWebSocketAsync(Guid id, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
+			=> this._websockets.TryRemove(id, out var websocket)
+				? this.CloseWebsocketAsync(websocket, closeStatus, closeStatusDescription)
+				: Task.FromResult(false);
 
 		/// <summary>
 		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
@@ -1233,7 +1258,19 @@ namespace net.vieapps.Components.WebSockets
 		public bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
 			=> websocket == null
 				? false
-				: this.CloseWebsocket(this._websockets.TryRemove(websocket.ID, out ManagedWebSocket webSocket) ? webSocket : websocket, closeStatus, closeStatusDescription);
+				: this.CloseWebsocket(this._websockets.TryRemove(websocket.ID, out var webSocket) ? webSocket : websocket, closeStatus, closeStatusDescription);
+
+		/// <summary>
+		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
+		/// </summary>
+		/// <param name="websocket">The <see cref="ManagedWebSocket">WebSocket</see> connection to close</param>
+		/// <param name="closeStatus">The close status to use</param>
+		/// <param name="closeStatusDescription">A description of why we are closing</param>
+		/// <returns>true if closed and destroyed</returns>
+		public Task<bool> CloseWebSocketAsync(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
+			=> websocket == null
+				? Task.FromResult(false)
+				: this.CloseWebsocketAsync(this._websockets.TryRemove(websocket.ID, out var webSocket) ? webSocket : websocket, closeStatus, closeStatusDescription);
 		#endregion
 
 		#region Dispose
