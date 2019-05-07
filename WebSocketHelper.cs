@@ -98,11 +98,15 @@ namespace net.vieapps.Components.WebSockets
 				socket.IOControl(IOControlCode.KeepAliveValues, ((uint)1).ToBytes().Concat(keepaliveInterval.ToBytes(), retryInterval.ToBytes()), null);
 		}
 
-		internal static Dictionary<string, string> ToDictionary(this string @string)
-			=> string.IsNullOrWhiteSpace(@string)
+		internal static Dictionary<string, string> ToDictionary(this string @string, Action<Dictionary<string, string>> onPreCompleted = null)
+		{
+			var dictionary = string.IsNullOrWhiteSpace(@string)
 				? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 				: @string.Replace("\r", "").ToList("\n")
 					.Where(header => header.IndexOf(":") > 0)
 					.ToDictionary(header => header.Left(header.IndexOf(":")).Trim(), header => header.Right(header.Length - header.IndexOf(":") - 1).Trim(), StringComparer.OrdinalIgnoreCase);
+			onPreCompleted?.Invoke(dictionary);
+			return dictionary;
+		}
 	}
 }
