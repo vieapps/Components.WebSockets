@@ -222,12 +222,12 @@ namespace net.vieapps.Components.WebSockets
 
 				if (this._logger.IsEnabled(LogLevel.Debug))
 				{
-					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-						? "Windows"
-						: RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-							? "Linux"
-							: "macOS";
-					platform += $" ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
+					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+						? "Linux"
+						: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+							? "macOS"
+							: "Windows";
+					platform += $" {RuntimeInformation.OSArchitecture.ToString().ToLower()} ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 					if (this.Certificate != null)
 						platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
 					this._logger.LogInformation($"The listener is started => {this._tcpListener.Server.LocalEndPoint}\r\nPlatform: {platform}\r\nPowered by {WebSocketHelper.AgentName} v{this.GetType().Assembly.GetVersion()}");
@@ -1319,7 +1319,6 @@ namespace net.vieapps.Components.WebSockets
 	/// </summary>
 	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket
 	{
-		protected bool _disposing = false, _disposed = false;
 
 		#region Properties
 		/// <summary>
@@ -1366,6 +1365,10 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
 		protected abstract bool IncludeExceptionInCloseResponse { get; }
+
+		protected bool IsDisposing { get; set; } = false;
+
+		protected bool IsDisposed { get; set; } = false;
 		#endregion
 
 		#region Methods
@@ -1444,9 +1447,9 @@ namespace net.vieapps.Components.WebSockets
 
 		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
 		{
-			if (!this._disposing && !this._disposed)
+			if (!this.IsDisposing && !this.IsDisposed)
 			{
-				this._disposing = true;
+				this.IsDisposing = true;
 				Events.Log.WebSocketDispose(this.ID, this.State);
 				await Task.WhenAll(this.State == WebSocketState.Open ? this.CloseOutputTimeoutAsync(closeStatus, closeStatusDescription, null, () => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State), ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())) : Task.CompletedTask).ConfigureAwait(false);
 				try
@@ -1454,8 +1457,8 @@ namespace net.vieapps.Components.WebSockets
 					onDisposed?.Invoke();
 				}
 				catch { }
-				this._disposed = true;
-				this._disposing = false;
+				this.IsDisposed = true;
+				this.IsDisposing = false;
 			}
 		}
 

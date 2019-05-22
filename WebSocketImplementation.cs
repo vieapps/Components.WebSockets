@@ -90,7 +90,7 @@ namespace net.vieapps.Components.WebSockets
 		async Task PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
 			// check disposed
-			if (this._disposed)
+			if (this.IsDisposed)
 			{
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogWarning($"Object disposed => {this.ID}");
@@ -450,7 +450,7 @@ namespace net.vieapps.Components.WebSockets
 
 		internal override void Close()
 		{
-			if (!this._disposing && !this._disposed)
+			if (!this.IsDisposing && !this.IsDisposed)
 			{
 				this._processingCTS.Cancel();
 				this._processingCTS.Dispose();
