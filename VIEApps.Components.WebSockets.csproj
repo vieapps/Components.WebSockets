@@ -9,14 +9,14 @@
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
 		<SignAssembly>false</SignAssembly>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
-		<AssemblyVersion>10.2.1905.2</AssemblyVersion>
-		<FileVersion>10.2.1905.2</FileVersion>
-		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.07-closing</InformationalVersion>
+		<AssemblyVersion>10.2.1906.1</AssemblyVersion>
+		<FileVersion>10.2.1906.1</FileVersion>
+		<InformationalVersion>v10.2.netstandard-2+rev:2019.05.23-extensions</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.2.1905.2</Version>
+		<Version>10.2.1906.1</Version>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET Standard 2.0 (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
 		<Authors>VIEApps.net</Authors>
@@ -25,8 +25,8 @@
 		<PackageOutputPath>..\</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
 		<PackageReleaseNotes>Improvement: add async close methods</PackageReleaseNotes>
+		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
 		<PackageIconUrl>https://github.com/vieapps/Components.Utility/raw/master/logo.png</PackageIconUrl>
-		<PackageProjectUrl>https://github.com/vieapps/Components.WebSockets</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 	</PropertyGroup>
 
@@ -39,7 +39,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1905.2" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1906.1" />
 	</ItemGroup>
 
 </Project>

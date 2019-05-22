@@ -79,7 +79,7 @@ namespace net.vieapps.Components.WebSockets
 		public override async Task SendAsync(ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
 		{
 			// check disposed
-			if (this._disposed)
+			if (this.IsDisposed)
 			{
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogWarning($"Object disposed => {this.ID}");
@@ -160,7 +160,7 @@ namespace net.vieapps.Components.WebSockets
 
 		internal override void Close()
 		{
-			if (!this._disposing && !this._disposed && "System.Net.WebSockets.ManagedWebSocket".Equals($"{this._websocket.GetType()}"))
+			if (!this.IsDisposing && !this.IsDisposed && "System.Net.WebSockets.ManagedWebSocket".Equals($"{this._websocket.GetType()}"))
 				this._websocket.Dispose();
 		}
 
