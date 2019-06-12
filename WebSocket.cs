@@ -47,7 +47,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Gets or Sets the SSL protocol for securing connections with SSL Certificate (server)
 		/// </summary>
-		public SslProtocols SslProtocol { get; set; } = SslProtocols.Tls;
+		public SslProtocols SslProtocol { get; set; } = SslProtocols.Tls12;
 
 		/// <summary>
 		/// Gets or Sets the collection of supported sub-protocol (server)
