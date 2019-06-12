@@ -44,8 +44,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			var buffer = new byte[WebSocketHelper.ReceiveBufferSize];
 			var offset = 0;
-			var read = 0;
-
+			int read;
 			do
 			{
 				if (offset >= WebSocketHelper.ReceiveBufferSize)
