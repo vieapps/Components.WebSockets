@@ -146,7 +146,7 @@ namespace net.vieapps.Components.WebSockets
 						WebSocketFrame frame = null;
 						try
 						{
-							frame = await this._stream.ReadAsync(buffer, cts.Token).ConfigureAwait(false);
+							frame = await this._stream.ReadFrameAsync(buffer, cts.Token).ConfigureAwait(false);
 							Events.Log.ReceivedFrame(this.ID, frame.OpCode, frame.IsFinBitSet, frame.Count);
 						}
 						catch (InternalBufferOverflowException ex)
@@ -432,7 +432,7 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS.Cancel();
 		}
 
-		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
+		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default, Action onDisposed = null)
 			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
 			{
 				this.Close();

@@ -155,7 +155,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="loggerFactory">The logger factory</param>
 		/// <param name="recycledStreamFactory">Used to get a recyclable memory stream (this can be used with the Microsoft.IO.RecyclableMemoryStreamManager class)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
-		public WebSocket(ILoggerFactory loggerFactory = null, Func<MemoryStream> recycledStreamFactory = null, CancellationToken cancellationToken = default(CancellationToken))
+		public WebSocket(ILoggerFactory loggerFactory = null, Func<MemoryStream> recycledStreamFactory = null, CancellationToken cancellationToken = default)
 		{
 			Logger.AssignLoggerFactory(loggerFactory);
 			this._logger = Logger.CreateLogger<WebSocket>();
@@ -1014,7 +1014,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public async Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public async Task SendAsync(Guid id, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default)
 		{
 			ManagedWebSocket websocket = null;
 			try
@@ -1046,7 +1046,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public async Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public async Task SendAsync(Guid id, string message, bool endOfMessage, CancellationToken cancellationToken = default)
 		{
 			ManagedWebSocket websocket = null;
 			try
@@ -1078,7 +1078,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public async Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public async Task SendAsync(Guid id, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default)
 		{
 			ManagedWebSocket websocket = null;
 			try
@@ -1111,7 +1111,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default)
 			=> this.GetWebSockets(predicate).ForEachAsync(async (websocket, token) =>
 			{
 				try
@@ -1140,7 +1140,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, string message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, string message, bool endOfMessage, CancellationToken cancellationToken = default)
 			=> this.SendAsync(predicate, message.ToArraySegment(), WebSocketMessageType.Text, endOfMessage, cancellationToken);
 
 		/// <summary>
@@ -1151,7 +1151,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), false if it is a multi-part message (and true for the last message)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, byte[] message, bool endOfMessage, CancellationToken cancellationToken = default)
 			=> this.SendAsync(predicate, message.ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 		#endregion
 
@@ -1376,7 +1376,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(string data, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(string data, bool endOfMessage, CancellationToken cancellationToken = default)
 			=> this.SendAsync((data ?? "").ToArraySegment(), WebSocketMessageType.Text, endOfMessage, cancellationToken);
 
 		/// <summary>
@@ -1386,7 +1386,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(byte[] data, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(byte[] data, bool endOfMessage, CancellationToken cancellationToken = default)
 			=> this.SendAsync((data ?? new byte[0]).ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 
 		/// <summary>
@@ -1396,7 +1396,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(ArraySegment<byte> data, bool endOfMessage, CancellationToken cancellationToken = default(CancellationToken))
+		public Task SendAsync(ArraySegment<byte> data, bool endOfMessage, CancellationToken cancellationToken = default)
 			=> this.SendAsync(data, WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 
 		/// <summary>
@@ -1442,7 +1442,7 @@ namespace net.vieapps.Components.WebSockets
 		public override void Dispose()
 			=> this.DisposeAsync().GetAwaiter().GetResult();
 
-		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default(CancellationToken), Action onDisposed = null)
+		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default, Action onDisposed = null)
 		{
 			if (!this.IsDisposing && !this.IsDisposed)
 			{

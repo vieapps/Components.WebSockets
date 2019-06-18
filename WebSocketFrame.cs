@@ -108,7 +108,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="buffer">The buffer to read into</param>
 		/// <param name="cancellationToken">the cancellation token</param>
 		/// <returns>A websocket frame</returns>
-		public static async Task<WebSocketFrame> ReadAsync(this Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+		public static async Task<WebSocketFrame> ReadFrameAsync(this Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			// allocate a small buffer to read small chunks of data from the stream
 			var smallBuffer = new ArraySegment<byte>(new byte[8]);
@@ -154,7 +154,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public static async Task<uint> ReadLengthAsync(this Stream stream, byte byte2, ArraySegment<byte> buffer, CancellationToken cancellationToken = default(CancellationToken))
+		public static async Task<uint> ReadLengthAsync(this Stream stream, byte byte2, ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
 		{
 			byte payloadLengthFlag = 0x7F;
 			var length = (uint)(byte2 & payloadLengthFlag);
