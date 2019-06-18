@@ -147,6 +147,17 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		/// <summary>
+		/// Read a WebSocket frame from the stream
+		/// </summary>
+		/// <param name="stream">The stream to read from</param>
+		/// <param name="buffer">The buffer to read into</param>
+		/// <param name="cancellationToken">the cancellation token</param>
+		/// <returns>A websocket frame</returns>
+		[Obsolete("Please change to use ReadFrameAsync method")]
+		public static Task<WebSocketFrame> ReadAsync(this Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+			=> stream.ReadFrameAsync(buffer, cancellationToken);
+
+		/// <summary>
 		/// Reads the length of the payload according to the contents of byte2
 		/// </summary>
 		/// <param name="byte2"></param>
