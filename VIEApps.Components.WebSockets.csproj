@@ -9,14 +9,14 @@
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
 		<SignAssembly>false</SignAssembly>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
-		<AssemblyVersion>10.3.1906.3</AssemblyVersion>
-		<FileVersion>10.3.1906.3</FileVersion>
-		<InformationalVersion>v10.3.netstandard-2.x+rev:2019.06.18-multiple.targets.preview</InformationalVersion>
+		<AssemblyVersion>10.3.1906.4</AssemblyVersion>
+		<FileVersion>10.3.1906.4</FileVersion>
+		<InformationalVersion>v10.3+rev:2019.06.20-multiple.targets</InformationalVersion>
 		<Product>VIEApps NGX</Product>
 		<Company>VIEApps.net</Company>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.3.1906.3-preview</Version>
+		<Version>10.3.1906.4-preview</Version>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET Standard 2.x (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
 		<Authors>VIEApps.net</Authors>
@@ -38,8 +38,12 @@
 		<None Remove="README.md" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1906.3-preview" />
+	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.2.1906.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1906.4-preview" />
 	</ItemGroup>
 
 </Project>
