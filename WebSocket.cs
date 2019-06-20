@@ -663,7 +663,7 @@ namespace net.vieapps.Components.WebSockets
 					handshake += $"Sec-WebSocket-Protocol: {options.SubProtocol}\r\n";
 				if (!string.IsNullOrWhiteSpace(options.Extensions))
 					handshake += $"Sec-WebSocket-Extensions: {options.Extensions}\r\n";
-				options.AdditionalHeaders?.ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
+				options.AdditionalHeaders?.Where(x => !x.Key.Equals("Host", StringComparison.OrdinalIgnoreCase)).ForEach(kvp => handshake += $"{kvp.Key}: {kvp.Value}\r\n");
 
 				Events.Log.SendingHandshake(id, handshake);
 				await stream.WriteHeaderAsync(handshake, this._processingCTS.Token).ConfigureAwait(false);
