@@ -7,20 +7,21 @@
 		<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\VIEApps.Components.WebSockets.xml</DocumentationFile>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<SignAssembly>false</SignAssembly>
+		<SignAssembly>$(Sign)</SignAssembly>
+		<DefineConstants>$(SignConstant)</DefineConstants>
 		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
-		<AssemblyVersion>10.3.1906.5</AssemblyVersion>
-		<FileVersion>10.3.1906.5</FileVersion>
-		<InformationalVersion>v10.3.1906+rev:2019.06.21-multiple.targets</InformationalVersion>
+		<AssemblyVersion>10.3$(ReleaseVersion)</AssemblyVersion>
+		<FileVersion>10.3$(ReleaseVersion)</FileVersion>
+		<InformationalVersion>10.3-$(TargetFramework)-$(ReleaseRevision)</InformationalVersion>
+		<Version>10.3$(ReleaseVersion)$(ReleaseSurfix)</Version>
 		<Product>VIEApps NGX</Product>
-		<Company>VIEApps.net</Company>
-		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-		<PackageId>VIEApps.Components.WebSockets</PackageId>
-		<Version>10.3.1906.5-preview</Version>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET Standard 2.x (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
-		<Authors>VIEApps.net</Authors>
 		<Copyright>© 2019 VIEApps.net</Copyright>
+		<Authors>VIEApps.net</Authors>
+		<Company>VIEApps.net</Company>
+		<GeneratePackageOnBuild>$(GeneratePackage)</GeneratePackageOnBuild>
+		<PackageId>VIEApps.Components.WebSockets$(PackageSurfix)</PackageId>
 		<PackageLicense>LICENSE.md</PackageLicense>
 		<PackageOutputPath>..\</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
@@ -39,7 +40,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1906.5-preview" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1907.1-preview" />
 	</ItemGroup>
 
 </Project>
