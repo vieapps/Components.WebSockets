@@ -587,7 +587,7 @@ namespace net.vieapps.Components.WebSockets
 				var tcpClient = new TcpClient();
 				tcpClient.Client.SetOptions(options.NoDelay);
 
-				if (IPAddress.TryParse(uri.Host, out IPAddress ipAddress))
+				if (IPAddress.TryParse(uri.Host, out var ipAddress))
 				{
 					Events.Log.ClientConnectingToIPAddress(id, ipAddress.ToString(), uri.Port);
 					await tcpClient.ConnectAsync(address: ipAddress, port: uri.Port).WithCancellationToken(this._processingCTS.Token).ConfigureAwait(false);
@@ -1487,7 +1487,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="key"></param>
 		/// <param name="default"></param>
 		/// <returns></returns>
-		public T Get<T>(string key, T @default = default(T))
+		public T Get<T>(string key, T @default = default)
 			=> this.Extra.TryGetValue(key, out object value) && value != null && value is T
 				? (T)value
 				: @default;

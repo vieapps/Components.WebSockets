@@ -92,7 +92,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				Events.Log.PendingOperations(this.ID);
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogWarning($"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+					this._logger.LogWarning($"WebSocketWrapper #{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
@@ -102,7 +102,7 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				while (this.State == WebSocketState.Open && this._buffers.Count > 0)
-					if (this._buffers.TryDequeue(out Tuple<ArraySegment<byte>, WebSocketMessageType, bool> data))
+					if (this._buffers.TryDequeue(out var data))
 						await this._websocket.SendAsync(buffer: data.Item1, messageType: data.Item2, endOfMessage: data.Item3, cancellationToken: cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception)

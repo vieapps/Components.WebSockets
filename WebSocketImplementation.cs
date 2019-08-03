@@ -103,7 +103,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				Events.Log.PendingOperations(this.ID);
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogWarning($"#{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+					this._logger.LogWarning($"WebSocketImplementation #{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
@@ -113,7 +113,7 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				while (this._buffers.Count > 0)
-					if (this._buffers.TryDequeue(out ArraySegment<byte> buffer))
+					if (this._buffers.TryDequeue(out var buffer))
 						await this._stream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception)
@@ -248,7 +248,7 @@ namespace net.vieapps.Components.WebSockets
 				using (var stream = this._recycledStreamFactory())
 				{
 					var closePayload = new ArraySegment<byte>(buffer.Array, buffer.Offset, frame.Count);
-					stream.Write(WebSocketOpCode.ConnectionClose, closePayload, true, this.IsClient);
+					stream.WriteFrame(WebSocketOpCode.ConnectionClose, closePayload, true, this.IsClient);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, closePayload.Count, false);
 					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
@@ -282,7 +282,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this._state == WebSocketState.Open)
 					using (var stream = this._recycledStreamFactory())
 					{
-						stream.Write(WebSocketOpCode.Pong, payload, true, this.IsClient);
+						stream.WriteFrame(WebSocketOpCode.Pong, payload, true, this.IsClient);
 						Events.Log.SendingFrame(this.ID, WebSocketOpCode.Pong, true, payload.Count, false);
 						await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 					}
@@ -308,7 +308,7 @@ namespace net.vieapps.Components.WebSockets
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())
 				{
-					stream.Write(WebSocketOpCode.Ping, payload, true, this.IsClient);
+					stream.WriteFrame(WebSocketOpCode.Ping, payload, true, this.IsClient);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.Ping, true, payload.Count, false);
 					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 				}
@@ -347,7 +347,7 @@ namespace net.vieapps.Components.WebSockets
 			if (this._state == WebSocketState.Open)
 				using (var stream = this._recycledStreamFactory())
 				{
-					stream.Write(opCode, buffer, endOfMessage, this.IsClient);
+					stream.WriteFrame(opCode, buffer, endOfMessage, this.IsClient);
 					Events.Log.SendingFrame(this.ID, opCode, endOfMessage, buffer.Count, false);
 					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
 					this._isContinuationFrame = !endOfMessage;
@@ -382,7 +382,7 @@ namespace net.vieapps.Components.WebSockets
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
-					stream.Write(WebSocketOpCode.ConnectionClose, buffer, true, this.IsClient);
+					stream.WriteFrame(WebSocketOpCode.ConnectionClose, buffer, true, this.IsClient);
 					Events.Log.CloseHandshakeStarted(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
 					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
@@ -410,7 +410,7 @@ namespace net.vieapps.Components.WebSockets
 				using (var stream = this._recycledStreamFactory())
 				{
 					var buffer = this.BuildClosePayload(closeStatus, closeStatusDescription);
-					stream.Write(WebSocketOpCode.ConnectionClose, buffer, true, this.IsClient);
+					stream.WriteFrame(WebSocketOpCode.ConnectionClose, buffer, true, this.IsClient);
 					Events.Log.CloseOutputNoHandshake(this.ID, closeStatus, closeStatusDescription);
 					Events.Log.SendingFrame(this.ID, WebSocketOpCode.ConnectionClose, true, buffer.Count, false);
 					await this.PutOnTheWireAsync(stream, cancellationToken).ConfigureAwait(false);
