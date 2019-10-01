@@ -4,15 +4,12 @@
 		<TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<WarningLevel>3</WarningLevel>
-		<DocumentationFile>bin\$(Configuration)\$(TargetFramework)\VIEApps.Components.WebSockets.xml</DocumentationFile>
+		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Components.WebSockets.xml</DocumentationFile>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<SignAssembly>$(Sign)</SignAssembly>
-		<DefineConstants>$(SignConstant)</DefineConstants>
-		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
 		<AssemblyVersion>10.3$(ReleaseVersion)</AssemblyVersion>
 		<FileVersion>10.3$(ReleaseVersion)</FileVersion>
-		<InformationalVersion>10.3-$(TargetFramework)-$(ReleaseRevision)</InformationalVersion>
+		<InformationalVersion>10.3@$(TargetFramework)#sn:$(Sign)-$(ReleaseRevision)</InformationalVersion>
 		<Version>10.3$(ReleaseVersion)$(ReleaseSuffix)</Version>
 		<Product>VIEApps NGX</Product>
 		<Title>VIEApps NGX WebSockets</Title>
@@ -20,11 +17,17 @@
 		<Copyright>© 2019 VIEApps.net</Copyright>
 		<Authors>VIEApps.net</Authors>
 		<Company>VIEApps.net</Company>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<SignAssembly>$(Sign)</SignAssembly>
+		<AssemblyOriginatorKeyFile>../VIEApps.Components.snk</AssemblyOriginatorKeyFile>
+		<DefineConstants>$(SignConstant)</DefineConstants>
 		<GeneratePackageOnBuild>$(GeneratePackage)</GeneratePackageOnBuild>
 		<PackageId>VIEApps.Components.WebSockets$(PackageSuffix)</PackageId>
 		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
 		<PackageIcon>Icon.png</PackageIcon>
-		<PackageOutputPath>..\</PackageOutputPath>
+		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
 		<PackageReleaseNotes>Support .NET Standard 2.1</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
@@ -41,8 +44,12 @@
 		<None Visible="false" Include="Icon.png" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.3.1910.1" />
+	<ItemGroup Condition="'$(GeneratePackage)'!='true'">
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.1910.2" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(GeneratePackage)'=='true'">
+		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
 	</ItemGroup>
 
 </Project>
