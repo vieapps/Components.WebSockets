@@ -487,7 +487,7 @@ namespace net.vieapps.Components.WebSockets
 					var handshake =
 						$"HTTP/1.1 101 Switching Protocols\r\n" +
 						$"Connection: Upgrade\r\n" +
-						$"Upgrade: WebSocket\r\n" +
+						$"Upgrade: websocket\r\n" +
 						$"Server: {WebSocketHelper.AgentName}\r\n" +
 						$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 						$"Sec-WebSocket-Accept: {requestKey.ComputeAcceptKey()}\r\n";
@@ -653,7 +653,7 @@ namespace net.vieapps.Components.WebSockets
 					$"Host: {uri.Host}:{uri.Port}\r\n" +
 					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}\r\n" +
 					$"Connection: Upgrade\r\n" +
-					$"Upgrade: WebSocket\r\n" +
+					$"Upgrade: websocket\r\n" +
 					$"User-Agent: Mozilla/5.0 ({WebSocketHelper.AgentName}/{RuntimeInformation.FrameworkDescription.Trim()}/{(RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Macintosh; Intel Mac OS X; " : "")}{RuntimeInformation.OSDescription.Trim()})\r\n" +
 					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
