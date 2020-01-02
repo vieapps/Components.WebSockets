@@ -466,7 +466,7 @@ namespace net.vieapps.Components.WebSockets
 				{
 					// check the version (support version 13 and above)
 					match = new Regex("Sec-WebSocket-Version: (.*)").Match(header);
-					if (!match.Success || !Int32.TryParse(match.Groups[1].Value, out int version))
+					if (!match.Success || !Int32.TryParse(match.Groups[1].Value, out var version))
 						throw new VersionNotSupportedException("Unable to find \"Sec-WebSocket-Version\" in the upgrade request");
 					else if (version < 13)
 						throw new VersionNotSupportedException($"WebSocket Version {version} is not supported, must be 13 or above");
@@ -966,7 +966,7 @@ namespace net.vieapps.Components.WebSockets
 				if (result.Count > 0)
 				{
 					if (this._logger.IsEnabled(LogLevel.Trace))
-						this._logger.Log(LogLevel.Debug, $"A message was received - Type: {result.MessageType} - End of message: {result.EndOfMessage} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
+						this._logger.Log(LogLevel.Debug, $"A message was received - Type: {result.MessageType} - EoM: {result.EndOfMessage} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					try
 					{
 						this.MessageReceivedHandler?.Invoke(websocket, result, buffer.Take(result.Count).ToArray());
