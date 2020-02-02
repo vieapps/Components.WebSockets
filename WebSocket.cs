@@ -1509,8 +1509,13 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public bool Remove<T>(string key, out T value)
 		{
-			value = this.Get<T>(key);
-			return this.Remove(key);
+			if (this.Extra.Remove(key, out var val) && val is T)
+			{
+				value = (T)val;
+				return true;
+			}
+			value = default;
+			return false;
 		}
 
 		/// <summary>
