@@ -1,6 +1,6 @@
 ﻿# VIEApps.Components.WebSockets
 
-A concrete implementation of the **System.Net.WebSockets.WebSocket** abstract class on .NET Standard 2.x,
+A concrete implementation of the **System.Net.WebSockets.WebSocket** abstract class on .NET Standard 2.x/.NET Core 2.x+,
 that allows you to make WebSocket connections as a client or to respond to WebSocket requests as a server
 (or wrap existing WebSocket connections of ASP.NET / ASP.NET Core).
 
@@ -350,7 +350,7 @@ using net.vieapps.Components.WebSockets;
 ## Performance Tuning
 
 While working directly with this component, performance is not your problem, but when you wrap WebSocket connections of ASP.NET
-or ASP.NET Corre (with IIS Integration), may be you reach max 5,000 concurrent connections (because IIS allows 5,000 CCU by default).
+or ASP.NET Core (with IIS Integration), may be you reach max 5,000 concurrent connections (because IIS allows 5,000 CCU by default).
 
 ASP.NET and IIS scale very well, but you'll need to change a few settings to set up your server for lots of concurrent connections,
 as opposed to lots of requests per second.
