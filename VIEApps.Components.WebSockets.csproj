@@ -47,7 +47,7 @@
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)'!='true'">
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.2002.5" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.2003.2" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(GeneratePackage)'=='true'">
