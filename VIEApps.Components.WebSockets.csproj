@@ -31,7 +31,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Do some little code refactoring</PackageReleaseNotes>
+		<PackageReleaseNotes>Improvement: add support of IAsyncDisposable</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -46,11 +46,15 @@
 		<None Visible="false" Include="Icon.png" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
-	<ItemGroup Condition="'$(GeneratePackage)'!='true'">
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.2003.2" />
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="1.1.0" Condition="'$(TargetFramework)' == 'netstandard2.0' or '$(TargetFramework)' == 'netcoreapp2.1'" />
 	</ItemGroup>
 
-	<ItemGroup Condition="'$(GeneratePackage)'=='true'">
+	<ItemGroup Condition="'$(GeneratePackage)' != 'true'">
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.3.2003.3" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(GeneratePackage)' == 'true'">
 		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.3$(ReleaseVersion)" />
 	</ItemGroup>
 

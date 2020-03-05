@@ -418,9 +418,6 @@ namespace net.vieapps.Components.WebSockets
 			}
 			else
 				Events.Log.InvalidStateBeforeCloseOutput(this.ID, this._state);
-
-			// cancel pending reads
-			this._processingCTS.Cancel();
 		}
 
 		/// <summary>
@@ -432,36 +429,24 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS.Cancel();
 		}
 
-		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default, Action onDisposed = null)
-			=> base.DisposeAsync(closeStatus, closeStatusDescription, cancellationToken, () =>
-			{
-				this.Close();
-				try
-				{
-					onDisposed?.Invoke();
-				}
-				catch { }
-				try
-				{
-					this._lock.Dispose();
-				}
-				catch { }
-			});
-
-		internal override void Close()
-		{
-			if (!this.IsDisposing && !this.IsDisposed)
+		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
+			=> base.DisposeAsync(closeStatus, closeStatusDescription, _ =>
 			{
 				this._processingCTS.Cancel();
 				this._processingCTS.Dispose();
 				this._stream.Close();
-			}
-		}
+				this._stream.Dispose();
+				this._lock.Dispose();
+				next?.Invoke(this);
+			});
+
+		public override ValueTask DisposeAsync()
+			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
+
+		public override void Dispose()
+			=> this.DisposeAsync().AsTask().Wait();
 
 		~WebSocketImplementation()
-		{
-			this.Dispose();
-			GC.SuppressFinalize(this);
-		}
+			=> this.Dispose();
 	}
 }

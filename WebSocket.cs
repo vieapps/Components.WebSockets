@@ -29,7 +29,7 @@ namespace net.vieapps.Components.WebSockets
 	/// <summary>
 	/// The centralized point for working with WebSocket
 	/// </summary>
-	public class WebSocket : IDisposable
+	public class WebSocket : IDisposable, IAsyncDisposable
 	{
 
 		#region Properties
@@ -39,7 +39,6 @@ namespace net.vieapps.Components.WebSockets
 		readonly CancellationTokenSource _processingCTS = null;
 		CancellationTokenSource _listeningCTS = null;
 		TcpListener _tcpListener = null;
-		bool _disposing = false, _disposed = false;
 
 		/// <summary>
 		/// Gets or Sets the SSL certificate for securing connections (server)
@@ -76,6 +75,16 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets or Sets await interval between two rounds of receiving messages
 		/// </summary>
 		public TimeSpan ReceivingAwaitInterval { get; set; } = TimeSpan.Zero;
+
+		/// <summary>
+		/// Gets the state that determines the WebSocket object is disposing or not
+		/// </summary>
+		public bool IsDisposing { get; private set; } = false;
+
+		/// <summary>
+		/// Gets the state that determines the WebSocket object was disposed or not
+		/// </summary>
+		public bool IsDisposed { get; private set; } = false;
 		#endregion
 
 		#region Event Handlers
@@ -85,7 +94,7 @@ namespace net.vieapps.Components.WebSockets
 		public event Action<ManagedWebSocket, Exception> ErrorHandler;
 
 		/// <summary>
-		/// Gets or Sets the action to fire when got an error while processing
+		/// Gets or Sets the action to run when got an error while processing
 		/// </summary>
 		public Action<ManagedWebSocket, Exception> OnError
 		{
@@ -99,7 +108,7 @@ namespace net.vieapps.Components.WebSockets
 		public event Action<ManagedWebSocket> ConnectionEstablishedHandler;
 
 		/// <summary>
-		/// Gets or Sets the action to fire when a connection is established
+		/// Gets or Sets the action to run when a connection is established
 		/// </summary>
 		public Action<ManagedWebSocket> OnConnectionEstablished
 		{
@@ -113,7 +122,7 @@ namespace net.vieapps.Components.WebSockets
 		public event Action<ManagedWebSocket> ConnectionBrokenHandler;
 
 		/// <summary>
-		/// Gets or Sets the action to fire when a connection is broken
+		/// Gets or Sets the action to run when a connection is broken
 		/// </summary>
 		public Action<ManagedWebSocket> OnConnectionBroken
 		{
@@ -127,7 +136,7 @@ namespace net.vieapps.Components.WebSockets
 		public event Action<ManagedWebSocket, WebSocketReceiveResult, byte[]> MessageReceivedHandler;
 
 		/// <summary>
-		/// Gets or Sets the action to fire when a message is received
+		/// Gets or Sets the action to run when a message is received
 		/// </summary>
 		public Action<ManagedWebSocket, WebSocketReceiveResult, byte[]> OnMessageReceived
 		{
@@ -193,7 +202,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onFailure">Action to fire when failed to start</param>
 		/// <param name="getPingPayload">The function to get the custom 'PING' playload to send a 'PING' message</param>
 		/// <param name="getPongPayload">The function to get the custom 'PONG' playload to response to a 'PING' message</param>
-		/// <param name="onPong">The action to fire when a 'PONG' message has been sent</param>
+		/// <param name="onPong">The action to run when a 'PONG' message has been sent</param>
 		public void StartListen(int port = 46429, X509Certificate2 certificate = null, Action onSuccess = null, Action<Exception> onFailure = null, Func<ManagedWebSocket, byte[]> getPingPayload = null, Func<ManagedWebSocket, byte[], byte[]> getPongPayload = null, Action<ManagedWebSocket, byte[]> onPong = null)
 		{
 			// check
@@ -288,7 +297,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onFailure">Action to fire when failed to start</param>
 		/// <param name="getPingPayload">The function to get the custom 'PING' playload to send a 'PING' message</param>
 		/// <param name="getPongPayload">The function to get the custom 'PONG' playload to response to a 'PING' message</param>
-		/// <param name="onPong">The action to fire when a 'PONG' message has been sent</param>
+		/// <param name="onPong">The action to run when a 'PONG' message has been sent</param>
 		public void StartListen(int port, Action onSuccess, Action<Exception> onFailure, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 			=> this.StartListen(port, null, onSuccess, onFailure, getPingPayload, getPongPayload, onPong);
 
@@ -307,7 +316,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="port">The port for listening</param>
 		/// <param name="getPingPayload">The function to get the custom 'PING' playload to send a 'PING' message</param>
 		/// <param name="getPongPayload">The function to get the custom 'PONG' playload to response to a 'PING' message</param>
-		/// <param name="onPong">The action to fire when a 'PONG' message has been sent</param>
+		/// <param name="onPong">The action to run when a 'PONG' message has been sent</param>
 		public void StartListen(int port, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 			=> this.StartListen(port, null, null, getPingPayload, getPongPayload, onPong);
 
@@ -818,7 +827,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="remoteEndPoint">The remote endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="localEndPoint">The local endpoint of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
 		/// <param name="headers">The collection that presents the headers of the client that made this request to the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection</param>
-		/// <param name="onSuccess">The action to fire when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
+		/// <param name="onSuccess">The action to run when the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> connection is wrap success</param>
 		/// <returns>A task that run the receiving process when wrap successful or an exception when failed</returns>
 		public Task WrapAsync(System.Net.WebSockets.WebSocket webSocket, Uri requestUri, EndPoint remoteEndPoint = null, EndPoint localEndPoint = null, Dictionary<string, string> headers = null, Action<ManagedWebSocket> onSuccess = null)
 		{
@@ -1205,8 +1214,6 @@ namespace net.vieapps.Components.WebSockets
 		{
 			if (websocket.State == WebSocketState.Open)
 				await websocket.DisposeAsync(closeStatus, closeStatusDescription).ConfigureAwait(false);
-			else
-				websocket.Close();
 			return true;
 		}
 
@@ -1273,24 +1280,23 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Dispose
-		public void Dispose()
+		/// <summary>
+		/// Disposes this WebSocket
+		/// </summary>
+		/// <param name="next">The action to run when the WebSocket object was disposed</param>
+		/// <returns></returns>
+		async Task DisposeAsync(Action<WebSocket> next)
 		{
-			// check state
-			if (this._disposing || this._disposed)
-				return;
-
 			// update state
-			this._disposing = true;
+			GC.SuppressFinalize(this);
+			this.IsDisposing = true;
 
 			// stop listener
 			this.StopListen();
 
 			// close all WebSocket connections
-			using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
-			{
-				Task.WaitAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected", cts.Token)).ToArray(), TimeSpan.FromSeconds(5));
-				this._websockets.Clear();
-			}
+			await Task.WhenAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected"))).ConfigureAwait(false);
+			this._websockets.Clear();
 
 			// cancel all pending operations
 			this._listeningCTS?.Dispose();
@@ -1298,15 +1304,29 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS.Dispose();
 
 			// update state
-			this._disposed = true;
-			this._disposing = false;
+			this.IsDisposing = false;
+			this.IsDisposed = true;
+
+			// run the next action
+			try
+			{
+				next?.Invoke(this);
+			}
+			catch { }
 		}
 
+		/// <summary>
+		/// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources asynchronously
+		/// </summary>
+		/// <returns></returns>
+		public ValueTask DisposeAsync()
+			=> new ValueTask(this.IsDisposing || this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(null));
+
+		public void Dispose()
+			=> this.DisposeAsync().AsTask().Wait();
+
 		~WebSocket()
-		{
-			this.Dispose();
-			GC.SuppressFinalize(this);
-		}
+			=> this.Dispose();
 		#endregion
 
 	}
@@ -1316,7 +1336,7 @@ namespace net.vieapps.Components.WebSockets
 	/// <summary>
 	/// An implementation or a wrapper of the <see cref="System.Net.WebSockets.WebSocket">WebSocket</see> abstract class with more useful information
 	/// </summary>
-	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket
+	public abstract class ManagedWebSocket : System.Net.WebSockets.WebSocket, IAsyncDisposable
 	{
 
 		#region Properties
@@ -1365,112 +1385,182 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		protected abstract bool IncludeExceptionInCloseResponse { get; }
 
-		protected bool IsDisposing { get; set; } = false;
+		/// <summary>
+		/// Gets the state that determines the WebSocket object is disposing or not
+		/// </summary>
+		protected bool IsDisposing { get; private set; } = false;
 
-		protected bool IsDisposed { get; set; } = false;
+		/// <summary>
+		/// Gets the state that determines the WebSocket object was disposed or not
+		/// </summary>
+		protected bool IsDisposed { get; private set; } = false;
 		#endregion
 
-		#region Methods
+		#region Send methods
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
 		/// </summary>
-		/// <param name="data">The text data to send</param>
+		/// <param name="message">The message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(string data, bool endOfMessage, CancellationToken cancellationToken = default)
-			=> this.SendAsync((data ?? "").ToArraySegment(), WebSocketMessageType.Text, endOfMessage, cancellationToken);
+		public Task SendAsync(ArraySegment<byte> message, bool endOfMessage, CancellationToken cancellationToken = default)
+			=> this.SendAsync(message, WebSocketMessageType.Binary, endOfMessage, cancellationToken);
 
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
 		/// </summary>
-		/// <param name="data">The binary data to send</param>
-		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
+		/// <param name="message">The message to send</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(byte[] data, bool endOfMessage, CancellationToken cancellationToken = default)
-			=> this.SendAsync((data ?? new byte[0]).ToArraySegment(), WebSocketMessageType.Binary, endOfMessage, cancellationToken);
+		public async Task SendAsync(ArraySegment<byte> message, CancellationToken cancellationToken = default)
+		{
+			var messages = message.Split(WebSocketHelper.ReceiveBufferSize);
+			await messages.ForEachAsync((msg, index, token) => this.SendAsync(msg, index == messages.Count - 1, token), cancellationToken, true, false).ConfigureAwait(false);
+		}
 
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
 		/// </summary>
-		/// <param name="data">The binary data to send</param>
+		/// <param name="message">The message to send</param>
 		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public Task SendAsync(ArraySegment<byte> data, bool endOfMessage, CancellationToken cancellationToken = default)
-			=> this.SendAsync(data, WebSocketMessageType.Binary, endOfMessage, cancellationToken);
+		public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken = default)
+			=> this.SendAsync((message ?? new byte[0]).ToArraySegment(), endOfMessage, cancellationToken);
 
 		/// <summary>
-		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection automatically in response to some invalid data from the remote host
+		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
+		/// </summary>
+		/// <param name="message">The message to send</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public async Task SendAsync(byte[] message, CancellationToken cancellationToken = default)
+		{
+			var messages = (message ?? new byte[0]).ToArraySegment().Split(WebSocketHelper.ReceiveBufferSize);
+			await messages.ForEachAsync((msg, index, token) => this.SendAsync(msg, index == messages.Count - 1, token), cancellationToken, true, false).ConfigureAwait(false);
+		}
+
+		/// <summary>
+		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
+		/// </summary>
+		/// <param name="message">The message to send</param>
+		/// <param name="endOfMessage">true if this message is a standalone message (this is the norm), if its a multi-part message then false (and true for the last)</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public Task SendAsync(string message, bool endOfMessage, CancellationToken cancellationToken = default)
+			=> this.SendAsync((message ?? "").ToArraySegment(), WebSocketMessageType.Text, endOfMessage, cancellationToken);
+
+		/// <summary>
+		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
+		/// </summary>
+		/// <param name="message">The message to send</param>
+		/// <param name="cancellationToken">The cancellation token</param>
+		/// <returns></returns>
+		public async Task SendAsync(string message, CancellationToken cancellationToken = default)
+		{
+			var messages = (message ?? "").ToArraySegment().Split(WebSocketHelper.ReceiveBufferSize);
+			await messages.ForEachAsync((msg, index, token) => this.SendAsync(msg, WebSocketMessageType.Text, index == messages.Count - 1, token), cancellationToken, true, false).ConfigureAwait(false);
+		}
+		#endregion
+
+		#region Close & Dispose methods
+		/// <summary>
+		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection automatically in period of time (to response to some invalid data from the remote host)
 		/// </summary>
 		/// <param name="closeStatus">The close status to use</param>
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <param name="exception">The exception (for logging)</param>
-		/// <param name="onCancel">The action to fire when got operation canceled exception</param>
-		/// <param name="onError">The action to fire when got error exception</param>
+		/// <param name="onSuccess">The action to run when the connection was closed successful</param>
+		/// <param name="onError">The action to run when got any error</param>
+		/// <param name="awaitingTimes">The seconds for awaiting</param>
 		/// <returns></returns>
-		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception exception, Action onCancel = null, Action<Exception> onError = null)
+		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception exception, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onError = null, int awaitingTimes = 3)
 		{
-			var timespan = TimeSpan.FromSeconds(4);
 			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
-
-			try
+			using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromSeconds(awaitingTimes > 0 ? awaitingTimes : 3)))
 			{
-				using (var cts = new CancellationTokenSource(timespan))
+				try
 				{
-					await Task.WhenAll(
-						this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this.IncludeExceptionInCloseResponse && exception != null ? "\r\n\r\n" + exception.ToString() : ""), CancellationToken.None),
-						Task.Delay((int)timespan.TotalSeconds - 1, cts.Token)
-					).ConfigureAwait(false);
+					await this.CloseOutputAsync(closeStatus, (closeStatusDescription ?? "") + (this.IncludeExceptionInCloseResponse && exception != null ? "\r\n\r\n" + exception.ToString() : ""), timeoutToken.Token).ConfigureAwait(false);
+					onSuccess?.Invoke(this);
 				}
-			}
-			catch (OperationCanceledException)
-			{
-				Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, (int)timespan.TotalSeconds, closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
-				onCancel?.Invoke();
-			}
-			catch (Exception closeException)
-			{
-				Events.Log.CloseOutputAutoTimeoutError(this.ID, closeException.ToString(), closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
-				Logger.Log<ManagedWebSocket>(LogLevel.Debug, LogLevel.Warning, $"Error occurred while closing a WebSocket connection by time-out: {closeException.Message} ({this.ID} @ {this.RemoteEndPoint})", closeException);
-				onError?.Invoke(closeException);
+				catch (OperationCanceledException ex)
+				{
+					Events.Log.CloseOutputAutoTimeoutCancelled(this.ID, awaitingTimes > 0 ? awaitingTimes : 3, closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
+					onError?.Invoke(ex);
+				}
+				catch (Exception ex)
+				{
+					Events.Log.CloseOutputAutoTimeoutError(this.ID, ex.ToString(), closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
+					Logger.Log<ManagedWebSocket>(LogLevel.Debug, LogLevel.Warning, $"Error occurred while closing a WebSocket connection by time-out => {ex.Message} ({this.ID} @ {this.RemoteEndPoint})", ex);
+					onError?.Invoke(ex);
+				}
 			}
 		}
 
 		/// <summary>
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
 		/// </summary>
-		public override void Dispose()
-			=> this.DisposeAsync().GetAwaiter().GetResult();
-
-		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable", CancellationToken cancellationToken = default, Action onDisposed = null)
+		/// <param name="closeStatus">The closing status</param>
+		/// <param name="closeStatusDescription">The closing status description</param>
+		/// <param name="next">The action to run when the WebSocket object was disposed</param>
+		/// <returns></returns>
+		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
 		{
 			if (!this.IsDisposing && !this.IsDisposed)
 			{
+				// update state
 				this.IsDisposing = true;
 				Events.Log.WebSocketDispose(this.ID, this.State);
-				await Task.WhenAll(this.State == WebSocketState.Open ? this.CloseOutputTimeoutAsync(closeStatus, closeStatusDescription, null, () => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State), ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())) : Task.CompletedTask).ConfigureAwait(false);
+
+				// close output
+				var disposer = this.State != WebSocketState.Open
+					? Task.CompletedTask
+					: this.CloseOutputTimeoutAsync(
+						closeStatus,
+						closeStatusDescription,
+						null,
+						_ => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State),
+						ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())
+					);
+				await disposer.ConfigureAwait(false);
+
+				// run the next action
 				try
 				{
-					onDisposed?.Invoke();
+					next?.Invoke(this);
 				}
-				catch { }
+				catch (Exception ex)
+				{
+					Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString());
+				}
+
+				// update state
 				this.IsDisposed = true;
 				this.IsDisposing = false;
+				GC.SuppressFinalize(this);
 			}
 		}
 
-		internal virtual void Close() { }
+		/// <summary>
+		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
+		/// </summary>
+		/// <returns></returns>
+		public virtual ValueTask DisposeAsync()
+			=> new ValueTask(this.IsDisposing || this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
+
+		/// <summary>
+		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
+		/// </summary>
+		public override void Dispose()
+			=> this.DisposeAsync().AsTask().Wait();
 
 		~ManagedWebSocket()
-		{
-			this.Dispose();
-			GC.SuppressFinalize(this);
-		}
+			=> this.Dispose();
 		#endregion
 
-		#region Extra information
+		#region Working with Extra information
 		/// <summary>
 		/// Sets the value of a specified key of the extra information
 		/// </summary>
