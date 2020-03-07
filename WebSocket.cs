@@ -77,11 +77,6 @@ namespace net.vieapps.Components.WebSockets
 		public TimeSpan ReceivingAwaitInterval { get; set; } = TimeSpan.Zero;
 
 		/// <summary>
-		/// Gets the state that determines the WebSocket object is disposing or not
-		/// </summary>
-		public bool IsDisposing { get; private set; } = false;
-
-		/// <summary>
 		/// Gets the state that determines the WebSocket object was disposed or not
 		/// </summary>
 		public bool IsDisposed { get; private set; } = false;
@@ -1289,7 +1284,7 @@ namespace net.vieapps.Components.WebSockets
 		{
 			// update state
 			GC.SuppressFinalize(this);
-			this.IsDisposing = true;
+			this.IsDisposed = true;
 
 			// stop listener
 			this.StopListen();
@@ -1302,10 +1297,6 @@ namespace net.vieapps.Components.WebSockets
 			this._listeningCTS?.Dispose();
 			this._processingCTS.Cancel();
 			this._processingCTS.Dispose();
-
-			// update state
-			this.IsDisposing = false;
-			this.IsDisposed = true;
 
 			// run the next action
 			try
@@ -1320,7 +1311,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <returns></returns>
 		public ValueTask DisposeAsync()
-			=> new ValueTask(this.IsDisposing || this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(null));
+			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(null));
 
 		public void Dispose()
 			=> this.DisposeAsync().AsTask().Wait();
@@ -1384,11 +1375,6 @@ namespace net.vieapps.Components.WebSockets
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
 		/// </summary>
 		protected abstract bool IncludeExceptionInCloseResponse { get; }
-
-		/// <summary>
-		/// Gets the state that determines the WebSocket object is disposing or not
-		/// </summary>
-		protected bool IsDisposing { get; private set; } = false;
 
 		/// <summary>
 		/// Gets the state that determines the WebSocket object was disposed or not
@@ -1508,13 +1494,13 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
 		{
-			if (!this.IsDisposing && !this.IsDisposed)
+			if (!this.IsDisposed)
 			{
-				// update state
-				this.IsDisposing = true;
+				// close output
+				this.IsDisposed = true;
+				GC.SuppressFinalize(this);
 				Events.Log.WebSocketDispose(this.ID, this.State);
 
-				// close output
 				var disposer = this.State != WebSocketState.Open
 					? Task.CompletedTask
 					: this.CloseOutputTimeoutAsync(
@@ -1535,11 +1521,6 @@ namespace net.vieapps.Components.WebSockets
 				{
 					Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString());
 				}
-
-				// update state
-				this.IsDisposed = true;
-				this.IsDisposing = false;
-				GC.SuppressFinalize(this);
 			}
 		}
 
@@ -1548,7 +1529,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <returns></returns>
 		public virtual ValueTask DisposeAsync()
-			=> new ValueTask(this.IsDisposing || this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
+			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
 
 		/// <summary>
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
