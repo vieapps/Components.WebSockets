@@ -1280,7 +1280,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <param name="next">The action to run when the WebSocket object was disposed</param>
 		/// <returns></returns>
-		async Task DisposeAsync(Action<WebSocket> next)
+		async ValueTask DisposeAsync(Action<WebSocket> next)
 		{
 			// update state
 			GC.SuppressFinalize(this);
@@ -1290,7 +1290,7 @@ namespace net.vieapps.Components.WebSockets
 			this.StopListen();
 
 			// close all WebSocket connections
-			await Task.WhenAll(this._websockets.Values.Select(websocket => websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected"))).ConfigureAwait(false);
+			await this._websockets.Values.ForEachAsync(async (websocket, cancellationToken) => await websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected").ConfigureAwait(false)).ConfigureAwait(false);
 			this._websockets.Clear();
 
 			// cancel all pending operations
@@ -1311,7 +1311,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <returns></returns>
 		public ValueTask DisposeAsync()
-			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(null));
+			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(null);
 
 		public void Dispose()
 			=> this.DisposeAsync().AsTask().Wait();
@@ -1461,7 +1461,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onError">The action to run when got any error</param>
 		/// <param name="awaitingTimes">The seconds for awaiting</param>
 		/// <returns></returns>
-		internal async Task CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception exception, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onError = null, int awaitingTimes = 3)
+		internal async ValueTask CloseOutputTimeoutAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription, Exception exception, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onError = null, int awaitingTimes = 3)
 		{
 			Events.Log.CloseOutputAutoTimeout(this.ID, closeStatus, closeStatusDescription, exception != null ? exception.ToString() : "N/A");
 			using (var timeoutToken = new CancellationTokenSource(TimeSpan.FromSeconds(awaitingTimes > 0 ? awaitingTimes : 3)))
@@ -1492,7 +1492,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">The closing status description</param>
 		/// <param name="next">The action to run when the WebSocket object was disposed</param>
 		/// <returns></returns>
-		internal virtual async Task DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
+		internal virtual async ValueTask DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
 		{
 			if (!this.IsDisposed)
 			{
@@ -1500,17 +1500,14 @@ namespace net.vieapps.Components.WebSockets
 				this.IsDisposed = true;
 				GC.SuppressFinalize(this);
 				Events.Log.WebSocketDispose(this.ID, this.State);
-
-				var disposer = this.State != WebSocketState.Open
-					? Task.CompletedTask
-					: this.CloseOutputTimeoutAsync(
+				if (this.State == WebSocketState.Open)
+					await this.CloseOutputTimeoutAsync(
 						closeStatus,
 						closeStatusDescription,
 						null,
 						_ => Events.Log.WebSocketDisposeCloseTimeout(this.ID, this.State),
 						ex => Events.Log.WebSocketDisposeError(this.ID, this.State, ex.ToString())
-					);
-				await disposer.ConfigureAwait(false);
+					).ConfigureAwait(false);
 
 				// run the next action
 				try
@@ -1529,7 +1526,7 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <returns></returns>
 		public virtual ValueTask DisposeAsync()
-			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
+			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
 
 		/// <summary>
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)

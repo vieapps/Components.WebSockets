@@ -37,7 +37,7 @@ namespace net.vieapps.Components.WebSockets
 			this._onPong?.Invoke(this._websocket, pong);
 		}
 
-		public Task SendPongAsync(byte[] ping)
+		public ValueTask SendPongAsync(byte[] ping)
 			=> this._websocket.SendPongAsync((this._getPongPayload?.Invoke(this._websocket, ping) ?? ping).ToArraySegment(), this._cancellationToken);
 
 		public async Task SendPingAsync()

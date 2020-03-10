@@ -87,7 +87,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		async Task PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
+		async ValueTask PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
 			// check disposed
 			if (this.IsDisposed)
@@ -228,7 +228,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Called when a Close frame is received
 		/// Send a response close frame if applicable
 		/// </summary>
-		async Task<WebSocketReceiveResult> RespondToCloseFrameAsync(WebSocketFrame frame, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+		async ValueTask<WebSocketReceiveResult> RespondToCloseFrameAsync(WebSocketFrame frame, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			this._closeStatus = frame.CloseStatus;
 			this._closeStatusDescription = frame.CloseStatusDescription;
@@ -267,7 +267,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="payload"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async Task SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
+		public async ValueTask SendPongAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			// exceeded max length
 			if (payload.Count > 125)
@@ -300,7 +300,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="payload"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async Task SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
+		public async ValueTask SendPingAsync(ArraySegment<byte> payload, CancellationToken cancellationToken)
 		{
 			if (payload.Count > 125)
 				throw new BufferOverflowException($"Max PING message size is 125 bytes, exceeded: {payload.Count}");
@@ -429,7 +429,7 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS.Cancel();
 		}
 
-		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
+		internal override ValueTask DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
 			=> base.DisposeAsync(closeStatus, closeStatusDescription, _ =>
 			{
 				this._processingCTS.Cancel();
@@ -441,7 +441,7 @@ namespace net.vieapps.Components.WebSockets
 			});
 
 		public override ValueTask DisposeAsync()
-			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
+			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
 
 		public override void Dispose()
 			=> this.DisposeAsync().AsTask().Wait();

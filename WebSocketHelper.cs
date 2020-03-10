@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
@@ -40,7 +39,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream">The stream to read from</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns>The HTTP header</returns>
-		public static async Task<string> ReadHeaderAsync(this Stream stream, CancellationToken cancellationToken = default)
+		public static async ValueTask<string> ReadHeaderAsync(this Stream stream, CancellationToken cancellationToken = default)
 		{
 			var buffer = new byte[WebSocketHelper.ReceiveBufferSize];
 			var offset = 0;
@@ -70,7 +69,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="header">The header (without the new line characters)</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public static async Task WriteHeaderAsync(this Stream stream, string header, CancellationToken cancellationToken = default)
+		public static async ValueTask WriteHeaderAsync(this Stream stream, string header, CancellationToken cancellationToken = default)
 			=> await stream.WriteAsync((header.Trim() + "\r\n\r\n").ToArraySegment(), cancellationToken).ConfigureAwait(false);
 
 		internal static string ComputeAcceptKey(this string key)

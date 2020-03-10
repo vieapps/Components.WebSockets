@@ -109,7 +109,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="stream"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		static async Task<uint> ReadLengthAsync(this Stream stream, byte byte2, ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
+		static async ValueTask<uint> ReadLengthAsync(this Stream stream, byte byte2, ArraySegment<byte> buffer, CancellationToken cancellationToken = default)
 		{
 			byte payloadLengthFlag = 0x7F;
 			var length = (uint)(byte2 & payloadLengthFlag);
@@ -131,7 +131,7 @@ namespace net.vieapps.Components.WebSockets
 			return length;
 		}
 
-		static async Task ReadExactlyAsync(this Stream stream, int length, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+		static async ValueTask ReadExactlyAsync(this Stream stream, int length, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			if (length == 0)
 				return;
@@ -155,7 +155,7 @@ namespace net.vieapps.Components.WebSockets
 			while (offset < length);
 		}
 
-		static async Task<ushort> ReadShortExactlyAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+		static async ValueTask<ushort> ReadShortExactlyAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			await stream.ReadExactlyAsync(2, buffer, cancellationToken).ConfigureAwait(false);
 			if (!isLittleEndian)
@@ -163,7 +163,7 @@ namespace net.vieapps.Components.WebSockets
 			return BitConverter.ToUInt16(buffer.Array, buffer.Offset);
 		}
 
-		static async Task<ulong> ReadLongExactlyAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+		static async ValueTask<ulong> ReadLongExactlyAsync(this Stream stream, bool isLittleEndian, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			await stream.ReadExactlyAsync(8, buffer, cancellationToken).ConfigureAwait(false);
 			if (!isLittleEndian)
@@ -194,7 +194,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="buffer">The buffer to read into</param>
 		/// <param name="cancellationToken">the cancellation token</param>
 		/// <returns>A websocket frame</returns>
-		public static async Task<WebSocketFrame> ReadFrameAsync(this Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
+		public static async ValueTask<WebSocketFrame> ReadFrameAsync(this Stream stream, ArraySegment<byte> buffer, CancellationToken cancellationToken)
 		{
 			// allocate a small buffer to read small chunks of data from the stream
 			var smallBuffer = new ArraySegment<byte>(new byte[8]);

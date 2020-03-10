@@ -142,7 +142,7 @@ namespace net.vieapps.Components.WebSockets
 		public override void Abort()
 			=> this._websocket.Abort();
 
-		internal override Task DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
+		internal override ValueTask DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
 			=> base.DisposeAsync(closeStatus, closeStatusDescription, _ =>
 			{
 				if ("System.Net.WebSockets.ManagedWebSocket".Equals($"{this._websocket.GetType()}"))
@@ -152,7 +152,7 @@ namespace net.vieapps.Components.WebSockets
 			});
 
 		public override ValueTask DisposeAsync()
-			=> new ValueTask(this.IsDisposed ? Task.CompletedTask : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable));
+			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
 
 		public override void Dispose()
 			=> this.DisposeAsync().AsTask().Wait();
