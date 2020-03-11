@@ -1421,11 +1421,8 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="message">The message to send</param>
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
-		public async Task SendAsync(byte[] message, CancellationToken cancellationToken = default)
-		{
-			var messages = (message ?? new byte[0]).ToArraySegment().Split(WebSocketHelper.ReceiveBufferSize);
-			await messages.ForEachAsync((msg, index, token) => this.SendAsync(msg, index == messages.Count - 1, token), cancellationToken, true, false).ConfigureAwait(false);
-		}
+		public Task SendAsync(byte[] message, CancellationToken cancellationToken = default)
+			=> this.SendAsync((message ?? new byte[0]).ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
