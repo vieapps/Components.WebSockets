@@ -1,6 +1,5 @@
 ﻿#region Related components
 using System;
-using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;

@@ -413,9 +413,8 @@ namespace net.vieapps.Components.WebSockets
 					{
 						Events.Log.ServerSslCertificateError(id, ex.ToString());
 						if (ex is AuthenticationException)
-							throw ex;
-						else
-							throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
+							throw;
+						throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
 					}
 				else
 				{
@@ -509,13 +508,13 @@ namespace net.vieapps.Components.WebSockets
 				{
 					Events.Log.WebSocketVersionNotSupported(id, ex.ToString());
 					await stream.WriteHeaderAsync($"HTTP/1.1 426 Upgrade Required\r\nSec-WebSocket-Version: 13\r\nException: {ex.Message}", this._listeningCTS.Token).ConfigureAwait(false);
-					throw ex;
+					throw;
 				}
 				catch (Exception ex)
 				{
 					Events.Log.BadRequest(id, ex.ToString());
 					await stream.WriteHeaderAsync($"HTTP/1.1 400 Bad Request\r\nException: {ex.Message}", this._listeningCTS.Token).ConfigureAwait(false);
-					throw ex;
+					throw;
 				}
 
 				Events.Log.ServerHandshakeSuccess(id);
@@ -635,9 +634,8 @@ namespace net.vieapps.Components.WebSockets
 					{
 						Events.Log.ClientSslCertificateError(id, ex.ToString());
 						if (ex is AuthenticationException)
-							throw ex;
-						else
-							throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
+							throw;
+						throw new AuthenticationException($"Cannot secure the connection: {ex.Message}", ex);
 					}
 				else
 				{
@@ -1163,9 +1161,7 @@ namespace net.vieapps.Components.WebSockets
 
 		#region Connection management
 		bool AddWebSocket(ManagedWebSocket websocket)
-			=> websocket != null
-				? this._websockets.TryAdd(websocket.ID, websocket)
-				: false;
+			=> websocket != null && this._websockets.TryAdd(websocket.ID, websocket);
 
 		async Task<bool> AddWebSocketAsync(ManagedWebSocket websocket)
 		{
@@ -1233,9 +1229,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(Guid id, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
-			=> this._websockets.TryRemove(id, out var websocket)
-				? this.CloseWebsocket(websocket, closeStatus, closeStatusDescription)
-				: false;
+			=> this._websockets.TryRemove(id, out var websocket) && this.CloseWebsocket(websocket, closeStatus, closeStatusDescription);
 
 		/// <summary>
 		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
@@ -1257,9 +1251,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="closeStatusDescription">A description of why we are closing</param>
 		/// <returns>true if closed and destroyed</returns>
 		public bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus = WebSocketCloseStatus.EndpointUnavailable, string closeStatusDescription = "Service is unavailable")
-			=> websocket == null
-				? false
-				: this.CloseWebsocket(this._websockets.TryRemove(websocket.ID, out var webSocket) ? webSocket : websocket, closeStatus, closeStatusDescription);
+			=> websocket != null && this.CloseWebsocket(this._websockets.TryRemove(websocket.ID, out var webSocket) ? webSocket : websocket, closeStatus, closeStatusDescription);
 
 		/// <summary>
 		/// Closes the <see cref="ManagedWebSocket">WebSocket</see> connection and remove from the centralized collections
@@ -1283,14 +1275,13 @@ namespace net.vieapps.Components.WebSockets
 		async ValueTask DisposeAsync(Action<WebSocket> next)
 		{
 			// update state
-			GC.SuppressFinalize(this);
 			this.IsDisposed = true;
 
 			// stop listener
 			this.StopListen();
 
 			// close all WebSocket connections
-			await this._websockets.Values.ForEachAsync(async (websocket, cancellationToken) => await websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected").ConfigureAwait(false)).ConfigureAwait(false);
+			await this._websockets.Values.ForEachAsync(async websocket => await websocket.DisposeAsync(WebSocketCloseStatus.NormalClosure, "Disconnected").ConfigureAwait(false)).ConfigureAwait(false);
 			this._websockets.Clear();
 
 			// cancel all pending operations
@@ -1314,7 +1305,10 @@ namespace net.vieapps.Components.WebSockets
 			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(null);
 
 		public void Dispose()
-			=> this.DisposeAsync().AsTask().Wait();
+		{
+			GC.SuppressFinalize(this);
+			this.DisposeAsync().AsTask().Wait();
+		}
 
 		~WebSocket()
 			=> this.Dispose();
@@ -1402,7 +1396,7 @@ namespace net.vieapps.Components.WebSockets
 		public async Task SendAsync(ArraySegment<byte> message, CancellationToken cancellationToken = default)
 		{
 			var messages = message.Split(WebSocketHelper.ReceiveBufferSize);
-			await messages.ForEachAsync((msg, index, token) => this.SendAsync(msg, index == messages.Count - 1, token), cancellationToken, true, false).ConfigureAwait(false);
+			await messages.ForEachAsync((msg, index) => this.SendAsync(msg, index == messages.Count - 1, cancellationToken), true, false).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -1413,7 +1407,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public Task SendAsync(byte[] message, bool endOfMessage, CancellationToken cancellationToken = default)
-			=> this.SendAsync((message ?? new byte[0]).ToArraySegment(), endOfMessage, cancellationToken);
+			=> this.SendAsync((message ?? Array.Empty<byte>()).ToArraySegment(), endOfMessage, cancellationToken);
 
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
@@ -1422,7 +1416,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public Task SendAsync(byte[] message, CancellationToken cancellationToken = default)
-			=> this.SendAsync((message ?? new byte[0]).ToArraySegment(), cancellationToken);
+			=> this.SendAsync((message ?? Array.Empty<byte>()).ToArraySegment(), cancellationToken);
 
 		/// <summary>
 		/// Sends data over the <see cref="ManagedWebSocket">WebSocket</see> connection asynchronously
@@ -1443,7 +1437,7 @@ namespace net.vieapps.Components.WebSockets
 		public async Task SendAsync(string message, CancellationToken cancellationToken = default)
 		{
 			var messages = (message ?? "").ToArraySegment().Split(WebSocketHelper.ReceiveBufferSize);
-			await messages.ForEachAsync((msg, index, token) => this.SendAsync(msg, WebSocketMessageType.Text, index == messages.Count - 1, token), cancellationToken, true, false).ConfigureAwait(false);
+			await messages.ForEachAsync((msg, index) => this.SendAsync(msg, WebSocketMessageType.Text, index == messages.Count - 1, cancellationToken), true, false).ConfigureAwait(false);
 		}
 		#endregion
 
@@ -1495,7 +1489,6 @@ namespace net.vieapps.Components.WebSockets
 			{
 				// close output
 				this.IsDisposed = true;
-				GC.SuppressFinalize(this);
 				Events.Log.WebSocketDispose(this.ID, this.State);
 				if (this.State == WebSocketState.Open)
 					await this.CloseOutputTimeoutAsync(
@@ -1529,7 +1522,10 @@ namespace net.vieapps.Components.WebSockets
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
 		/// </summary>
 		public override void Dispose()
-			=> this.DisposeAsync().AsTask().Wait();
+		{
+			GC.SuppressFinalize(this);
+			this.DisposeAsync().AsTask().Wait();
+		}
 
 		~ManagedWebSocket()
 			=> this.Dispose();

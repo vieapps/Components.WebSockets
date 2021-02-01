@@ -3,15 +3,14 @@ using System;
 using System.Net;
 using System.Linq;
 using System.IO;
-using System.IO.Compression;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
-using net.vieapps.Components.WebSockets.Exceptions;
 using net.vieapps.Components.Utility;
+using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
@@ -152,27 +151,27 @@ namespace net.vieapps.Components.WebSockets
 						catch (InternalBufferOverflowException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.MessageTooBig, "Frame is too large to fit in buffer. Use message fragmentation.", ex).ConfigureAwait(false);
-							throw ex;
+							throw;
 						}
 						catch (ArgumentOutOfRangeException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.ProtocolError, "Payload length is out of range", ex).ConfigureAwait(false);
-							throw ex;
+							throw;
 						}
 						catch (EndOfStreamException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InvalidPayloadData, "Unexpected end of stream encountered", ex).ConfigureAwait(false);
-							throw ex;
+							throw;
 						}
 						catch (OperationCanceledException ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.EndpointUnavailable, "Operation cancelled", ex).ConfigureAwait(false);
-							throw ex;
+							throw;
 						}
 						catch (Exception ex)
 						{
 							await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Error reading WebSocket frame", ex).ConfigureAwait(false);
-							throw ex;
+							throw;
 						}
 
 						// process op-code
@@ -220,7 +219,7 @@ namespace net.vieapps.Components.WebSockets
 					await this.CloseOutputTimeoutAsync(WebSocketCloseStatus.InternalServerError, "Got an unexpected error while reading from WebSocket", ex).ConfigureAwait(false);
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.LogError(ex, $"Error occurred while receiving ({this.ID} @ {this.RemoteEndPoint}) => {ex.Message}");
-				throw ex;
+				throw;
 			}
 		}
 

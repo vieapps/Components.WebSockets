@@ -3,11 +3,9 @@ using System;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using net.vieapps.Components.Utility;
-using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
 
 namespace net.vieapps.Components.WebSockets
