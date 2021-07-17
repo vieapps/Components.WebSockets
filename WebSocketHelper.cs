@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Microsoft.IO;
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
 #endregion
@@ -15,6 +16,8 @@ namespace net.vieapps.Components.WebSockets
 {
 	public static class WebSocketHelper
 	{
+		static RecyclableMemoryStreamManager RecyclableMemoryStreamManager { get; set; }
+
 		/// <summary>
 		/// Gets or sets the size (length) of the protocol buffer used to receive and parse frames
 		/// </summary>
@@ -30,7 +33,18 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <returns></returns>
 		public static Func<MemoryStream> GetRecyclableMemoryStreamFactory()
-			=> UtilityService.GetRecyclableMemoryStreamFactory(16 * 1024, 4, 128 * 1024);
+			=> () =>
+			{
+				try
+				{
+					WebSocketHelper.RecyclableMemoryStreamManager = WebSocketHelper.RecyclableMemoryStreamManager ?? UtilityService.GetRecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024);
+					return WebSocketHelper.RecyclableMemoryStreamManager.GetStream();
+				}
+				catch
+				{
+					return new MemoryStream();
+				}
+			};
 
 		/// <summary>
 		/// Reads the header
@@ -48,7 +62,11 @@ namespace net.vieapps.Components.WebSockets
 				if (offset >= WebSocketHelper.ReceiveBufferSize)
 					throw new EntityTooLargeException("Header is too large to fit into the buffer");
 
+#if NETSTANDARD2_0
 				read = await stream.ReadAsync(buffer, offset, WebSocketHelper.ReceiveBufferSize - offset, cancellationToken).ConfigureAwait(false);
+#else
+				read = await stream.ReadAsync(buffer.AsMemory(offset, WebSocketHelper.ReceiveBufferSize - offset), cancellationToken).ConfigureAwait(false);
+#endif
 				offset += read;
 				var header = buffer.GetString(offset);
 

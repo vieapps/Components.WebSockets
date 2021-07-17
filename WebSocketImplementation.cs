@@ -111,7 +111,7 @@ namespace net.vieapps.Components.WebSockets
 			await this._lock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
-				while (this._buffers.Count > 0)
+				while (!this._buffers.IsEmpty)
 					if (this._buffers.TryDequeue(out var buffer))
 						await this._stream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
 			}
@@ -443,7 +443,10 @@ namespace net.vieapps.Components.WebSockets
 			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
 
 		public override void Dispose()
-			=> this.DisposeAsync().AsTask().Wait();
+		{
+			GC.SuppressFinalize(this);
+			this.DisposeAsync().Run(true);
+		}
 
 		~WebSocketImplementation()
 			=> this.Dispose();

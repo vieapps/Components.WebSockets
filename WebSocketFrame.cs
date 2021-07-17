@@ -145,7 +145,11 @@ namespace net.vieapps.Components.WebSockets
 			var offset = 0;
 			do
 			{
+#if NETSTANDARD2_0
 				var read = await stream.ReadAsync(buffer.Array, buffer.Offset + offset, length - offset, cancellationToken).ConfigureAwait(false);
+#else
+				var read = await stream.ReadAsync(buffer.Array.AsMemory(buffer.Offset + offset, length - offset), cancellationToken).ConfigureAwait(false);
+#endif
 				if (read == 0)
 					throw new EndOfStreamException($"Unexpected end of stream encountered whilst attempting to read {length:#,##0} bytes");
 				offset += read;

@@ -372,7 +372,7 @@ namespace net.vieapps.Components.WebSockets
 		}
 
 		void AcceptClient(TcpClient tcpClient, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
-			=> Task.Run(() => this.AcceptClientAsync(tcpClient, getPingPayload, getPongPayload, onPong)).ConfigureAwait(false);
+			=> this.AcceptClientAsync(tcpClient, getPingPayload, getPongPayload, onPong).Run();
 
 		async Task AcceptClientAsync(TcpClient tcpClient, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 		{
@@ -779,7 +779,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailure">Action to fire when failed to connect</param>
 		public void Connect(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
-			=> Task.Run(() => this.ConnectAsync(uri, options ?? new WebSocketOptions(), onSuccess, onFailure)).ConfigureAwait(false);
+			=> this.ConnectAsync(uri, options ?? new WebSocketOptions(), onSuccess, onFailure).Run();
 
 		/// <summary>
 		/// Connects to a remote endpoint as a WebSocket client
@@ -868,7 +868,7 @@ namespace net.vieapps.Components.WebSockets
 
 		#region Receive messages
 		void Receive(ManagedWebSocket websocket)
-			=> Task.Run(() => this.ReceiveAsync(websocket)).ConfigureAwait(false);
+			=> this.ReceiveAsync(websocket).Run();
 
 		async Task ReceiveAsync(ManagedWebSocket websocket)
 		{
@@ -1116,11 +1116,11 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="cancellationToken">The cancellation token</param>
 		/// <returns></returns>
 		public Task SendAsync(Func<ManagedWebSocket, bool> predicate, ArraySegment<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken = default)
-			=> this.GetWebSockets(predicate).ForEachAsync(async (websocket, token) =>
+			=> this.GetWebSockets(predicate).ForEachAsync(async websocket =>
 			{
 				try
 				{
-					await websocket.SendAsync(buffer.Clone(), messageType, endOfMessage, token).ConfigureAwait(false);
+					await websocket.SendAsync(buffer.Clone(), messageType, endOfMessage, cancellationToken).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -1134,7 +1134,7 @@ namespace net.vieapps.Components.WebSockets
 							this._logger.Log(LogLevel.Error, $"Error occurred while calling the handler => {e.Message}", e);
 					}
 				}
-			}, cancellationToken);
+			});
 
 		/// <summary>
 		/// Sends the message to the <see cref="ManagedWebSocket">WebSocket</see> connections that matched with the predicate
@@ -1217,7 +1217,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		bool CloseWebsocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription)
 		{
-			Task.Run(() => this.CloseWebsocketAsync(websocket, closeStatus, closeStatusDescription)).ConfigureAwait(false);
+			this.CloseWebsocketAsync(websocket, closeStatus, closeStatusDescription).Run();
 			return true;
 		}
 
@@ -1307,7 +1307,7 @@ namespace net.vieapps.Components.WebSockets
 		public void Dispose()
 		{
 			GC.SuppressFinalize(this);
-			this.DisposeAsync().AsTask().Wait();
+			this.DisposeAsync().Run(true);
 		}
 
 		~WebSocket()
@@ -1524,7 +1524,7 @@ namespace net.vieapps.Components.WebSockets
 		public override void Dispose()
 		{
 			GC.SuppressFinalize(this);
-			this.DisposeAsync().AsTask().Wait();
+			this.DisposeAsync().Run(true);
 		}
 
 		~ManagedWebSocket()
