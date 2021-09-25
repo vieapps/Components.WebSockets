@@ -1363,7 +1363,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <summary>
 		/// Gets the extra information of the <see cref="ManagedWebSocket">WebSocket</see> connection
 		/// </summary>
-		public Dictionary<string, object> Extra { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+		public ConcurrentDictionary<string, object> Extra { get; } = new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
 		/// <summary>
 		/// Gets the state to include the full exception (with stack trace) in the close response when an exception is encountered and the WebSocket connection is closed
@@ -1538,8 +1538,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <typeparam name="T"></typeparam>
 		/// <param name="key"></param>
 		/// <param name="value"></param>
-		public void Set<T>(string key, T value)
-			=> this.Extra[key] = value;
+		/// <returns></returns>
+		public bool Set<T>(string key, T value)
+			=> this.Extra.TryAdd(key, value);
 
 		/// <summary>
 		/// Gets the value of a specified key from the extra information
@@ -1549,9 +1550,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="default"></param>
 		/// <returns></returns>
 		public T Get<T>(string key, T @default = default)
-			=> this.Extra.TryGetValue(key, out object value) && value != null && value is T
-				? (T)value
-				: @default;
+			=> this.Extra.TryGetValue(key, out object value) && value != null && value is T valueIsT ? valueIsT : @default;
 
 		/// <summary>
 		/// Removes the value of a specified key from the extra information
@@ -1570,9 +1569,9 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public bool Remove<T>(string key, out T value)
 		{
-			if (this.Extra.Remove(key, out var val) && val is T)
+			if (this.Extra.Remove(key, out var val) && val is T valueIsT)
 			{
-				value = (T)val;
+				value = valueIsT;
 				return true;
 			}
 			value = default;
