@@ -1540,7 +1540,10 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="value"></param>
 		/// <returns></returns>
 		public bool Set<T>(string key, T value)
-			=> this.Extra.TryAdd(key, value);
+		{
+			this.Extra[key] = value;
+			return true;
+		}
 
 		/// <summary>
 		/// Gets the value of a specified key from the extra information

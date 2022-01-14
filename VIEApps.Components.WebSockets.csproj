@@ -1,21 +1,21 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net5.0;netstandard2.0</TargetFrameworks>
+		<TargetFrameworks>net6.0;net5.0;netstandard2.0</TargetFrameworks>
 		<WarningLevel>3</WarningLevel>
 		<NoWarn>1573,1591,IDE0054,IDE0063,IDE0066,IDE0090,CA1822</NoWarn>
 		<DocumentationFile>bin/$(Configuration)/$(TargetFramework)/VIEApps.Components.WebSockets.xml</DocumentationFile>
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.4$(ReleaseVersion)</AssemblyVersion>
-		<FileVersion>10.4$(ReleaseVersion)</FileVersion>
-		<InformationalVersion>10.4.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#sn:$(Sign)#$(ReleaseRevision)</InformationalVersion>
-		<Version>10.4$(ReleaseVersion)$(ReleaseSuffix)</Version>
+		<AssemblyVersion>10.5$(ReleaseVersion)</AssemblyVersion>
+		<FileVersion>10.5$(ReleaseVersion)</FileVersion>
+		<InformationalVersion>10.5.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#sn:$(Sign)#$(ReleaseRevision)</InformationalVersion>
+		<Version>10.5$(ReleaseVersion)$(ReleaseSuffix)</Version>
 		<Product>VIEApps NGX</Product>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
-		<Copyright>© 2021 VIEApps.net</Copyright>
+		<Copyright>© $([System.DateTime]::Now.Year) VIEApps.net</Copyright>
 		<Authors>VIEApps.net</Authors>
 		<Company>VIEApps.net</Company>
 	</PropertyGroup>
@@ -32,7 +32,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Fix bugs: recyclable memory stream factory</PackageReleaseNotes>
+		<PackageReleaseNotes>.NET 6.0</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -48,9 +48,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="5.0.0" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.4.2109.7" Condition="'$(GeneratePackage)' != 'true'" />
-		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.4$(ReleaseVersion)" Condition="'$(GeneratePackage)' == 'true'" />
+		<PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="6.0.0" Condition="'$(TargetFramework)' == 'netstandard2.0'"  />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.5.2201.1" Condition="'$(GeneratePackage)' != 'true'" />
+		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.5$(ReleaseVersion)" Condition="'$(GeneratePackage)' == 'true'" />
 	</ItemGroup>
 
 </Project>
