@@ -228,11 +228,18 @@ namespace net.vieapps.Components.WebSockets
 
 				if (this._logger.IsEnabled(LogLevel.Debug))
 				{
-					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-						? "Linux"
-						: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
-							? "macOS"
-							: "Windows";
+					var platform = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+					? "Windows"
+					: RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+						? "macOS"
+						: RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+							? "Linux"
+#if NETSTANDARD2_0
+							: "Generic OS";
+#else
+							: RuntimeInformation.IsOSPlatform(OSPlatform.FreeBSD) ? "FreeBSD" : "Generic OS";
+#endif
+
 					platform += $" {RuntimeInformation.OSArchitecture.ToString().ToLower()} ({RuntimeInformation.FrameworkDescription.Trim()}) - SSL: {this.Certificate != null}";
 					if (this.Certificate != null)
 						platform += $" ({this.Certificate.GetNameInfo(X509NameType.DnsName, false)} :: Issued by {this.Certificate.GetNameInfo(X509NameType.DnsName, true)})";
@@ -656,7 +663,7 @@ namespace net.vieapps.Components.WebSockets
 					$"Origin: {uri.Scheme.Replace("ws", "http")}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}\r\n" +
 					$"Connection: Upgrade\r\n" +
 					$"Upgrade: websocket\r\n" +
-					$"User-Agent: Mozilla/5.0 ({WebSocketHelper.AgentName}/{RuntimeInformation.FrameworkDescription.Trim()}/{(RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Macintosh; Intel Mac OS X; " : "")}{RuntimeInformation.OSDescription.Trim()})\r\n" +
+					$"User-Agent: Mozilla/5.0 ({WebSocketHelper.AgentName}/{RuntimeInformation.FrameworkDescription.Trim()}/{(RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Macintosh; Mac OS X; " : "")}{RuntimeInformation.OSDescription.Trim()})\r\n" +
 					$"Date: {DateTime.Now.ToHttpString()}\r\n" +
 					$"Sec-WebSocket-Version: 13\r\n" +
 					$"Sec-WebSocket-Key: {requestAcceptKey}\r\n";
@@ -971,7 +978,7 @@ namespace net.vieapps.Components.WebSockets
 						this._logger.Log(LogLevel.Debug, $"A message was received - Type: {result.MessageType} - EoM: {result.EndOfMessage} - Length: {result.Count:#,##0} ({websocket.ID} @ {websocket.RemoteEndPoint})");
 					try
 					{
-						this.MessageReceivedHandler?.Invoke(websocket, result, buffer.Take(result.Count).ToArray());
+						this.MessageReceivedHandler?.Invoke(websocket, result, buffer.Take(result.Count));
 					}
 					catch (Exception ex)
 					{

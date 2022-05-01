@@ -101,7 +101,7 @@ namespace net.vieapps.Components.WebSockets
 			await this._lock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
-				while (this.State == WebSocketState.Open && this._buffers.Count > 0)
+				while (this.State == WebSocketState.Open && !this._buffers.IsEmpty)
 					if (this._buffers.TryDequeue(out var data))
 						await this._websocket.SendAsync(buffer: data.Item1, messageType: data.Item2, endOfMessage: data.Item3, cancellationToken: cancellationToken).ConfigureAwait(false);
 			}
