@@ -8,10 +8,10 @@
 		<RootNamespace>net.vieapps.Components.WebSockets</RootNamespace>
 		<AssemblyName>VIEApps.Components.WebSockets</AssemblyName>
 		<AssemblyTitle>VIEApps NGX WebSockets</AssemblyTitle>
-		<AssemblyVersion>10.6$(ReleaseVersion)</AssemblyVersion>
-		<FileVersion>10.6$(ReleaseVersion)</FileVersion>
-		<InformationalVersion>10.6.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#sn:$(Sign)#$(ReleaseRevision)</InformationalVersion>
-		<Version>10.6$(ReleaseVersion)$(ReleaseSuffix)</Version>
+		<AssemblyVersion>10.7$(ReleaseVersion)</AssemblyVersion>
+		<FileVersion>10.7$(ReleaseVersion)</FileVersion>
+		<InformationalVersion>10.7.$([System.DateTime]::Now.Year).$([System.DateTime]::Now.Month).$([System.DateTime]::Now.Day)@$(TargetFramework)#sn:$(Sign)#$(ReleaseRevision)</InformationalVersion>
+		<Version>10.7$(ReleaseVersion)$(ReleaseSuffix)</Version>
 		<Product>VIEApps NGX</Product>
 		<Title>VIEApps NGX WebSockets</Title>
 		<Description>High performance WebSocket on .NET (both server and client - standalone or wrapper of System.Net.WebSockets.WebSocket)</Description>
@@ -32,7 +32,7 @@
 		<PackageIcon>Icon.png</PackageIcon>
 		<PackageOutputPath>../</PackageOutputPath>
 		<PackageTags>websocket;websockets;websocket-client;websocket-server;websocket-wrapper;vieapps;vieapps.components</PackageTags>
-		<PackageReleaseNotes>Add supports of .NET 7</PackageReleaseNotes>
+		<PackageReleaseNotes>Add supports of .NET 7 with more encoders</PackageReleaseNotes>
 		<PackageProjectUrl>https://vieapps.net/</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/vieapps/Components.WebSockets</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
@@ -48,8 +48,8 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.6.2211.1" Condition="'$(GeneratePackage)' != 'true'" />
-		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.6$(ReleaseVersion)" Condition="'$(GeneratePackage)' == 'true'" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.7.2211.1" Condition="'$(GeneratePackage)' != 'true'" />
+		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.7$(ReleaseVersion)" Condition="'$(GeneratePackage)' == 'true'" />
 	</ItemGroup>
 
 </Project>
