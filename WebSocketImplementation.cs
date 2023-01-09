@@ -15,7 +15,7 @@ using net.vieapps.Components.WebSockets.Exceptions;
 
 namespace net.vieapps.Components.WebSockets
 {
-	internal class WebSocketImplementation : ManagedWebSocket
+	public class WebSocketImplementation : ManagedWebSocket
 	{
 
 		#region Properties
@@ -60,7 +60,7 @@ namespace net.vieapps.Components.WebSockets
 		protected override bool IncludeExceptionInCloseResponse { get; }
 		#endregion
 
-		public WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
+		internal WebSocketImplementation(Guid id, bool isClient, Func<MemoryStream> recycledStreamFactory, Stream stream, WebSocketOptions options, Uri requestUri, EndPoint remoteEndPoint, EndPoint localEndPoint, Dictionary<string, string> headers)
 		{
 			this.ID = id;
 			this.IsClient = isClient;
