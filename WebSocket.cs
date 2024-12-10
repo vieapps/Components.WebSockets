@@ -1523,16 +1523,16 @@ namespace net.vieapps.Components.WebSockets
 		/// </summary>
 		/// <returns></returns>
 		public virtual ValueTask DisposeAsync()
-			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
+		{
+			GC.SuppressFinalize(this);
+			return this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
+		}
 
 		/// <summary>
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
 		/// </summary>
 		public override void Dispose()
-		{
-			GC.SuppressFinalize(this);
-			this.DisposeAsync().Run(true);
-		}
+			=> this.DisposeAsync().Run(true);
 
 		~ManagedWebSocket()
 			=> this.Dispose();

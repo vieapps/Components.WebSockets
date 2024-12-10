@@ -37,7 +37,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				try
 				{
-					WebSocketHelper.RecyclableMemoryStreamManager = WebSocketHelper.RecyclableMemoryStreamManager ?? UtilityService.GetRecyclableMemoryStreamManager(16 * 1024, 4, 128 * 1024);
+					WebSocketHelper.RecyclableMemoryStreamManager = WebSocketHelper.RecyclableMemoryStreamManager ?? new RecyclableMemoryStreamManager(new RecyclableMemoryStreamManager.Options(16 * 1024, 4, 128 * 1024, 16 * 1024, 128 * 1024));
 					return WebSocketHelper.RecyclableMemoryStreamManager.GetStream();
 				}
 				catch

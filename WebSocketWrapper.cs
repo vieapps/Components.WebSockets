@@ -92,7 +92,7 @@ namespace net.vieapps.Components.WebSockets
 			{
 				Events.Log.PendingOperations(this.ID);
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogWarning($"WebSocketWrapper #{Thread.CurrentThread.ManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+					this._logger.LogWarning($"WebSocketWrapper #{Environment.CurrentManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
