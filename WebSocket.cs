@@ -258,7 +258,8 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// listen for incoming connection requests
-				this.Listen(getPingPayload, getPongPayload, onPong);
+				this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
+				this.ListenAsync(getPingPayload, getPongPayload, onPong).Run();
 			}
 			catch (SocketException ex)
 			{
@@ -355,18 +356,12 @@ namespace net.vieapps.Components.WebSockets
 			}
 		}
 
-		Task Listen(Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
-		{
-			this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
-			return this.ListenAsync(getPingPayload, getPongPayload, onPong);
-		}
-
 		async Task ListenAsync(Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 		{
 			try
 			{
 				while (!this._listeningCTS.IsCancellationRequested)
-					this.AcceptClient(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false), getPingPayload, getPongPayload, onPong);
+					this.AcceptClientAsync(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false), getPingPayload, getPongPayload, onPong).Run();
 			}
 			catch (Exception ex)
 			{
@@ -377,9 +372,6 @@ namespace net.vieapps.Components.WebSockets
 					this._logger.LogError($"The listener is stopped ({ex.Message})", ex);
 			}
 		}
-
-		void AcceptClient(TcpClient tcpClient, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
-			=> this.AcceptClientAsync(tcpClient, getPingPayload, getPongPayload, onPong).Run();
 
 		async Task AcceptClientAsync(TcpClient tcpClient, Func<ManagedWebSocket, byte[]> getPingPayload, Func<ManagedWebSocket, byte[], byte[]> getPongPayload, Action<ManagedWebSocket, byte[]> onPong)
 		{
@@ -557,7 +549,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// receive messages
-				this.Receive(websocket);
+				this.ReceiveAsync(websocket).Run();
 			}
 			catch (Exception ex)
 			{
@@ -756,7 +748,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// receive messages
-				this.Receive(websocket);
+				this.ReceiveAsync(websocket).Run();
 			}
 			catch (OperationCanceledException)
 			{
@@ -874,9 +866,6 @@ namespace net.vieapps.Components.WebSockets
 		#endregion
 
 		#region Receive messages
-		void Receive(ManagedWebSocket websocket)
-			=> this.ReceiveAsync(websocket).Run();
-
 		async Task ReceiveAsync(ManagedWebSocket websocket)
 		{
 			var buffer = new ArraySegment<byte>(new byte[WebSocketHelper.ReceiveBufferSize]);
