@@ -259,7 +259,7 @@ namespace net.vieapps.Components.WebSockets
 
 				// listen for incoming connection requests
 				this._listeningCTS = CancellationTokenSource.CreateLinkedTokenSource(this._processingCTS.Token);
-				this.ListenAsync(getPingPayload, getPongPayload, onPong).Run();
+				this.ListenAsync(getPingPayload, getPongPayload, onPong).Execute();
 			}
 			catch (SocketException ex)
 			{
@@ -361,7 +361,7 @@ namespace net.vieapps.Components.WebSockets
 			try
 			{
 				while (!this._listeningCTS.IsCancellationRequested)
-					this.AcceptClientAsync(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false), getPingPayload, getPongPayload, onPong).Run();
+					this.AcceptClientAsync(await this._tcpListener.AcceptTcpClientAsync().WithCancellationToken(this._listeningCTS.Token).ConfigureAwait(false), getPingPayload, getPongPayload, onPong).Execute();
 			}
 			catch (Exception ex)
 			{
@@ -549,7 +549,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// receive messages
-				this.ReceiveAsync(websocket).Run();
+				this.ReceiveAsync(websocket).Execute();
 			}
 			catch (Exception ex)
 			{
@@ -748,7 +748,7 @@ namespace net.vieapps.Components.WebSockets
 				}
 
 				// receive messages
-				this.ReceiveAsync(websocket).Run();
+				this.ReceiveAsync(websocket).Execute();
 			}
 			catch (OperationCanceledException)
 			{
@@ -778,7 +778,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <param name="onSuccess">Action to fire when connect successful</param>
 		/// <param name="onFailure">Action to fire when failed to connect</param>
 		public void Connect(Uri uri, WebSocketOptions options, Action<ManagedWebSocket> onSuccess = null, Action<Exception> onFailure = null)
-			=> this.ConnectAsync(uri, options ?? new WebSocketOptions(), onSuccess, onFailure).Run();
+			=> this.ConnectAsync(uri, options ?? new WebSocketOptions(), onSuccess, onFailure).Execute();
 
 		/// <summary>
 		/// Connects to a remote endpoint as a WebSocket client
@@ -1213,7 +1213,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		bool CloseWebsocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus, string closeStatusDescription)
 		{
-			this.CloseWebsocketAsync(websocket, closeStatus, closeStatusDescription).Run();
+			this.CloseWebsocketAsync(websocket, closeStatus, closeStatusDescription).Execute();
 			return true;
 		}
 
@@ -1303,7 +1303,7 @@ namespace net.vieapps.Components.WebSockets
 		public void Dispose()
 		{
 			GC.SuppressFinalize(this);
-			this.DisposeAsync().Run(true);
+			this.DisposeAsync().Execute(true);
 		}
 
 		~WebSocket()
@@ -1521,7 +1521,7 @@ namespace net.vieapps.Components.WebSockets
 		/// Cleans up unmanaged resources (will send a close frame if the connection is still open)
 		/// </summary>
 		public override void Dispose()
-			=> this.DisposeAsync().Run(true);
+			=> this.DisposeAsync().Execute(true);
 
 		~ManagedWebSocket()
 			=> this.Dispose();

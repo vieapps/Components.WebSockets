@@ -26,7 +26,7 @@ namespace net.vieapps.Components.WebSockets
 			if (this._websocket.KeepAliveInterval != TimeSpan.Zero)
 			{
 				this._getPingPayload = options.GetPingPayload;
-				this.SendPingAsync().Run();
+				this.SendPingAsync().Execute();
 			}
 		}
 

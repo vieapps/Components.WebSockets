@@ -319,7 +319,7 @@ bool CloseWebSocket(ManagedWebSocket websocket, WebSocketCloseStatus closeStatus
 
 Our prefers:
 - [Microsoft.Extensions.Logging.Console](https://www.nuget.org/packages/Microsoft.Extensions.Logging.Console): live logs
-- [Serilog.Extensions.Logging.File](https://www.nuget.org/packages/Serilog.Extensions.Logging.File): rolling log files (by hour or date) - high performance, and very simple to use
+- [Serilog.Extensions.Logging](https://www.nuget.org/packages/Serilog.Extensions.Logging): rolling log files (by hour or date - Serilog.Sink.File) - high performance, and very simple to use
 
 ### Namespaces
 

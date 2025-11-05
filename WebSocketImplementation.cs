@@ -445,7 +445,7 @@ namespace net.vieapps.Components.WebSockets
 		public override void Dispose()
 		{
 			GC.SuppressFinalize(this);
-			this.DisposeAsync().Run(true);
+			this.DisposeAsync().Execute(true);
 		}
 
 		~WebSocketImplementation()
