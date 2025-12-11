@@ -152,10 +152,13 @@ namespace net.vieapps.Components.WebSockets
 			});
 
 		public override ValueTask DisposeAsync()
-			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
+		{
+			GC.SuppressFinalize(this);
+			return this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
+		}
 
 		public override void Dispose()
-			=> this.DisposeAsync().AsTask().Wait();
+			=> this.DisposeAsync().Execute(true);
 
 		~WebSocketWrapper()
 			=> this.Dispose();
