@@ -17,7 +17,7 @@ namespace net.vieapps.Components.WebSockets
 
 		#region Properties
 		readonly System.Net.WebSockets.WebSocket _websocket = null;
-		readonly ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>> _buffers = new ConcurrentQueue<Tuple<ArraySegment<byte>, WebSocketMessageType, bool>>();
+		readonly ConcurrentQueue<(ArraySegment<byte> Buffer, WebSocketMessageType MessageType, bool EndOfMessage)> _messages = new ConcurrentQueue<(ArraySegment<byte> Buffer, WebSocketMessageType MessageType, bool EndOfMessage)>();
 		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 		readonly ILogger _logger;
 		bool _pending = false;
@@ -87,12 +87,12 @@ namespace net.vieapps.Components.WebSockets
 			}
 
 			// add into queue and check pending operations
-			this._buffers.Enqueue(new Tuple<ArraySegment<byte>, WebSocketMessageType, bool>(buffer, messageType, endOfMessage));
+			this._messages.Enqueue((buffer, messageType, endOfMessage));
 			if (this._pending)
 			{
 				Events.Log.PendingOperations(this.ID);
 				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogWarning($"WebSocketWrapper #{Environment.CurrentManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
+					this._logger.LogWarning($"WebSocketWrapper #{Environment.CurrentManagedThreadId} Pendings => {this._messages.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
 				return;
 			}
 
@@ -101,9 +101,9 @@ namespace net.vieapps.Components.WebSockets
 			await this._lock.WaitAsync(cancellationToken).ConfigureAwait(false);
 			try
 			{
-				while (this.State == WebSocketState.Open && !this._buffers.IsEmpty)
-					if (this._buffers.TryDequeue(out var data))
-						await this._websocket.SendAsync(buffer: data.Item1, messageType: data.Item2, endOfMessage: data.Item3, cancellationToken: cancellationToken).ConfigureAwait(false);
+				while (this.State == WebSocketState.Open && !this._messages.IsEmpty)
+					if (this._messages.TryDequeue(out var message))
+						await this._websocket.SendAsync(message.Buffer, message.MessageType, message.EndOfMessage, cancellationToken).ConfigureAwait(false);
 			}
 			catch (Exception)
 			{

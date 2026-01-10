@@ -1568,7 +1568,7 @@ namespace net.vieapps.Components.WebSockets
 		/// <returns></returns>
 		public bool Remove<T>(string key, out T value)
 		{
-			if (this.Extra.Remove(key, out var val) && val is T valueIsT)
+			if (this.Extra.TryRemove(key, out var val) && val is T valueIsT)
 			{
 				value = valueIsT;
 				return true;
