@@ -6,8 +6,8 @@ using System.IO;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.Channels;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using net.vieapps.Components.Utility;
 using net.vieapps.Components.WebSockets.Exceptions;
@@ -22,17 +22,16 @@ namespace net.vieapps.Components.WebSockets
 		readonly Func<MemoryStream> _recycledStreamFactory;
 		readonly Stream _stream;
 		readonly PingPongManager _pingpongManager;
-		readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
 		readonly string _subProtocol;
 		readonly CancellationTokenSource _processingCTS;
-		readonly ConcurrentQueue<ArraySegment<byte>> _buffers = new ConcurrentQueue<ArraySegment<byte>>();
+		readonly Channel<ArraySegment<byte>> _messageQueue;
+		readonly Task _messageWriter;
 		readonly ILogger _logger;
 		WebSocketState _state;
 		WebSocketMessageType _continuationMessageType = WebSocketMessageType.Binary;
 		WebSocketCloseStatus? _closeStatus;
 		string _closeStatusDescription;
 		bool _isContinuationFrame = false;
-		bool _pending = false;
 
 		/// <summary>
 		/// Gets the state that indicates the reason why the remote endpoint initiated the close handshake
@@ -75,55 +74,46 @@ namespace net.vieapps.Components.WebSockets
 			this._stream = stream;
 			this._state = WebSocketState.Open;
 			this._subProtocol = options.SubProtocol;
+			this._logger = Logger.CreateLogger<WebSocketImplementation>();
 			this._processingCTS = new CancellationTokenSource();
 			this._pingpongManager = new PingPongManager(this, options, this._processingCTS.Token);
-			this._logger = Logger.CreateLogger<WebSocketImplementation>();
+			this._messageQueue = Channel.CreateBounded<ArraySegment<byte>>(new BoundedChannelOptions(1024)
+			{
+				SingleReader = true,
+				SingleWriter = false,
+				FullMode = BoundedChannelFullMode.Wait
+			});
+			this._messageWriter = Task.Run(this.PutOnTheWireAsync);
 		}
 
-		/// <summary>
-		/// Puts data on the wire
-		/// </summary>
-		/// <param name="stream"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
+		async Task PutOnTheWireAsync()
+		{
+			try
+			{
+				while (await this._messageQueue.Reader.WaitToReadAsync(this._processingCTS.Token).ConfigureAwait(false))
+				{
+					while (this._messageQueue.Reader.TryRead(out var buffer))
+						await this._stream.WriteAsync(buffer, this._processingCTS.Token).ConfigureAwait(false);
+					await this._stream.FlushAsync(this._processingCTS.Token).ConfigureAwait(false);
+				}
+			}
+			catch (OperationCanceledException) { }
+			catch (Exception ex)
+			{
+				this._messageQueue.Writer.TryComplete(ex);
+				throw;
+			}
+		}
+
 		async ValueTask PutOnTheWireAsync(MemoryStream stream, CancellationToken cancellationToken)
 		{
-			// check disposed
 			if (this.IsDisposed)
 			{
 				if (this._logger.IsEnabled(LogLevel.Debug))
 					this._logger.LogWarning($"Object disposed => {this.ID}");
 				throw new ObjectDisposedException($"WebSocketImplementation => {this.ID}");
 			}
-
-			// add into queue and check pending operations
-			this._buffers.Enqueue(stream.ToArraySegment());
-			if (this._pending)
-			{
-				Events.Log.PendingOperations(this.ID);
-				if (this._logger.IsEnabled(LogLevel.Debug))
-					this._logger.LogWarning($"WebSocketImplementation #{Environment.CurrentManagedThreadId} Pendings => {this._buffers.Count:#,##0} ({this.ID} @ {this.RemoteEndPoint})");
-				return;
-			}
-
-			// put data to wire
-			this._pending = true;
-			await this._lock.WaitAsync(cancellationToken).ConfigureAwait(false);
-			try
-			{
-				while (!this._buffers.IsEmpty)
-					if (this._buffers.TryDequeue(out var buffer))
-						await this._stream.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception)
-			{
-				throw;
-			}
-			finally
-			{
-				this._pending = false;
-				this._lock.Release();
-			}
+			await this._messageQueue.Writer.WriteAsync(stream.ToArraySegment(), cancellationToken).ConfigureAwait(false);
 		}
 
 		/// <summary>
@@ -428,16 +418,23 @@ namespace net.vieapps.Components.WebSockets
 			this._processingCTS.Cancel();
 		}
 
-		internal override ValueTask DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
-			=> base.DisposeAsync(closeStatus, closeStatusDescription, _ =>
+		internal override async ValueTask DisposeAsync(WebSocketCloseStatus closeStatus, string closeStatusDescription = "Service is unavailable", Action<ManagedWebSocket> next = null)
+		{
+			this._messageQueue.Writer.TryComplete();
+			try
+			{
+				await this._messageWriter.ConfigureAwait(false);
+			}
+			catch { }
+			await base.DisposeAsync(closeStatus, closeStatusDescription, _ =>
 			{
 				this._processingCTS.Cancel();
 				this._processingCTS.Dispose();
 				this._stream.Close();
 				this._stream.Dispose();
-				this._lock.Dispose();
 				next?.Invoke(this);
-			});
+			}).ConfigureAwait(false);
+		}
 
 		public override ValueTask DisposeAsync()
 			=> this.IsDisposed ? new ValueTask(Task.CompletedTask) : this.DisposeAsync(WebSocketCloseStatus.EndpointUnavailable);
