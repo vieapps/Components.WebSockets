@@ -648,7 +648,7 @@ namespace net.vieapps.Components.WebSockets
 				if (this._logger.IsEnabled(LogLevel.Trace))
 					this._logger.Log(LogLevel.Debug, $"Negotiating WebSocket handshake ({id} @ {endpoint})");
 
-				var requestAcceptKey = CryptoService.GenerateRandomKey(16).ToBase64();
+				var requestAcceptKey = CryptoService.GenerateRandomKey(128).ToBase64();
 				var handshake =
 					$"GET {uri.PathAndQuery} HTTP/1.1\r\n" +
 					$"Host: {uri.Host}:{uri.Port}\r\n" +

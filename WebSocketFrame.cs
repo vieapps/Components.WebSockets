@@ -271,7 +271,7 @@ namespace net.vieapps.Components.WebSockets
 			// if we are creating a client frame then we MUST mack the payload as per the spec
 			if (isClient)
 			{
-				var maskKey = CryptoService.GenerateRandomKey(WebSocketFrameExtensions.MaskKeyLength);
+				var maskKey = CryptoService.GenerateRandomKey(WebSocketFrameExtensions.MaskKeyLength * 8);
 				stream.Write(maskKey, 0, maskKey.Length);
 
 				// mask the payload
