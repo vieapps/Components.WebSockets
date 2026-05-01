@@ -50,7 +50,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="System.Threading.Channels" Version="10.0.0" />
-		<PackageReference Include="VIEApps.Components.Utility" Version="10.10.2604.2" Condition="'$(GeneratePackage)' != 'true'" />
+		<PackageReference Include="VIEApps.Components.Utility" Version="10.10.2605.1" Condition="'$(GeneratePackage)' != 'true'" />
 		<PackageReference Include="VIEApps.Components.Utility$(PackageSuffix)" Version="10.10$(ReleaseVersion)" Condition="'$(GeneratePackage)' == 'true'" />
 	</ItemGroup>
 
